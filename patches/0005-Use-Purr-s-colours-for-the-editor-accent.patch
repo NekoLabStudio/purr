@@ -1,0 +1,76 @@
+From d0919412f1decd4a46d9ea2e2a851ee221ccc517 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 12:22:48 +0000
+Subject: [PATCH 05/13] Use Purr's colours for the editor accent
+
+The editor's accent colour (selected tabs, focus outlines, toggles,
+links and highlights) was Godot's blue. The neutral presets now use
+Purr's: the logo tile's yellow (#E9D155) on the dark presets (Default,
+Gray, Black (OLED)), and a dark gold (#806100) on Light, where yellow
+wouldn't have enough contrast. The default accent in Editor Settings
+matches the Default preset.
+
+Presets that recreate a specific look (Godot 2, Godot 3, Breeze Dark,
+Solarized) keep their own accents, and a custom accent or the system
+accent still overrides all of this.
+
+Test: with the Default preset, the selected tab and focus outlines are
+#E9D155; with Light, #806100.
+
+Not for upstream. Policy: https://godotengine.org/trademark/
+---
+ godot/editor/settings/editor_settings.cpp    | 2 +-
+ godot/editor/themes/editor_theme_manager.cpp | 8 ++++----
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/godot/editor/settings/editor_settings.cpp b/godot/editor/settings/editor_settings.cpp
+index cc97008..efeda1f 100644
+--- a/godot/editor/settings/editor_settings.cpp
++++ b/godot/editor/settings/editor_settings.cpp
+@@ -624,7 +624,7 @@ void EditorSettings::_load_defaults(Ref<ConfigFile> p_extra_config) {
+ 	EDITOR_SETTING_BASIC(Variant::STRING, PROPERTY_HINT_ENUM, "interface/theme/spacing_preset", "Default", "Compact,Default,Spacious,Custom")
+ 	EDITOR_SETTING(Variant::INT, PROPERTY_HINT_ENUM, "interface/theme/icon_and_font_color", 0, "Auto,Dark,Light")
+ 	EDITOR_SETTING_BASIC(Variant::COLOR, PROPERTY_HINT_NONE, "interface/theme/base_color", Color(0.14, 0.14, 0.14), "")
+-	EDITOR_SETTING_BASIC(Variant::COLOR, PROPERTY_HINT_NONE, "interface/theme/accent_color", Color(0.34, 0.62, 1.0), "")
++	EDITOR_SETTING_BASIC(Variant::COLOR, PROPERTY_HINT_NONE, "interface/theme/accent_color", Color(0.914, 0.82, 0.333), "")
+ 	EDITOR_SETTING_BASIC(Variant::BOOL, PROPERTY_HINT_NONE, "interface/theme/use_system_accent_color", false, "")
+ 	EDITOR_SETTING_BASIC(Variant::FLOAT, PROPERTY_HINT_RANGE, "interface/theme/contrast", 0.3, "-1,1,0.01")
+ 	EDITOR_SETTING(Variant::BOOL, PROPERTY_HINT_NONE, "interface/theme/draw_extra_borders", false, "")
+diff --git a/godot/editor/themes/editor_theme_manager.cpp b/godot/editor/themes/editor_theme_manager.cpp
+index 2145e5b..85d3c41 100644
+--- a/godot/editor/themes/editor_theme_manager.cpp
++++ b/godot/editor/themes/editor_theme_manager.cpp
+@@ -325,7 +325,7 @@ EditorThemeManager::ThemeConfiguration EditorThemeManager::_create_theme_config(
+ 
+ 			// Please use alphabetical order if you're adding a new color preset here.
+ 			if (config.preset == "Black (OLED)") {
+-				preset_accent_color = Color(0.45, 0.75, 1.0);
++				preset_accent_color = Color(0.914, 0.82, 0.333);
+ 				preset_base_color = Color(0, 0, 0);
+ 				// The contrast rate value is irrelevant on a fully black theme.
+ 				preset_contrast = 0.0;
+@@ -342,10 +342,10 @@ EditorThemeManager::ThemeConfiguration EditorThemeManager::_create_theme_config(
+ 				preset_base_color = Color(0.21, 0.24, 0.29);
+ 				preset_icon_saturation = 1;
+ 			} else if (config.preset == "Gray") {
+-				preset_accent_color = Color(0.44, 0.73, 0.98);
++				preset_accent_color = Color(0.914, 0.82, 0.333);
+ 				preset_base_color = Color(0.24, 0.24, 0.24);
+ 			} else if (config.preset == "Light") {
+-				preset_accent_color = Color(0.18, 0.50, 1.00);
++				preset_accent_color = Color(0.5, 0.38, 0.0);
+ 				preset_base_color = Color(0.9, 0.9, 0.9);
+ 				preset_contrast = light_contrast;
+ 				preset_icon_saturation = 1;
+@@ -358,7 +358,7 @@ EditorThemeManager::ThemeConfiguration EditorThemeManager::_create_theme_config(
+ 				preset_base_color = Color(0.89, 0.86, 0.79);
+ 				preset_contrast = light_contrast;
+ 			} else { // Default
+-				preset_accent_color = Color(0.337, 0.62, 1.0);
++				preset_accent_color = Color(0.914, 0.82, 0.333);
+ 				preset_base_color = Color(0.161, 0.161, 0.161);
+ 			}
+ 
+-- 
+2.54.0 (Apple Git-157)
+

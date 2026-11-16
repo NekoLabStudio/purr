@@ -1,0 +1,8 @@
+#!/usr/bin/env python
+
+Import("env")
+Import("env_modules")
+
+# The Android side (android/) is a Gradle project, built into an AAR with the export templates.
+env_play_games = env_modules.Clone()
+env_play_games.add_source_files(env.modules_sources, "*.cpp")

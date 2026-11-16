@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="PlayerSaves" inherits="RefCounted" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		One player's saves, on disk first and synced in the background.
+	</brief_description>
+	<description>
+		A player's [member LocalPlayer.saves]: the same calls as [Saves], for any player on the device. Player 1's are also [Saves].
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_backend" qualifiers="const">
+			<return type="int" enum="PlayerSaves.Backend" />
+			<description>
+				Returns where these saves sync to.
+			</description>
+		</method>
+		<method name="get_slots" qualifiers="const">
+			<return type="PackedStringArray" />
+			<description>
+				Returns the slots with a save on this device.
+			</description>
+		</method>
+		<method name="get_summary" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="slot" type="String" />
+			<description>
+				Returns the summary saved with the save in [param slot].
+			</description>
+		</method>
+		<method name="has" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="slot" type="String" />
+			<description>
+				Returns [code]true[/code] if [param slot] has a save on this device.
+			</description>
+		</method>
+		<method name="load" qualifiers="const">
+			<return type="Variant" />
+			<param index="0" name="slot" type="String" />
+			<description>
+				Returns the save in [param slot] on this device, or [code]null[/code].
+			</description>
+		</method>
+		<method name="resolve_conflict">
+			<return type="void" />
+			<param index="0" name="slot" type="String" />
+			<param index="1" name="keep_local" type="bool" />
+			<description>
+				After [signal conflict]: keeps this device's save in [param slot] if [param keep_local] is [code]true[/code], or the other device's.
+			</description>
+		</method>
+		<method name="save">
+			<return type="void" />
+			<param index="0" name="slot" type="String" />
+			<param index="1" name="data" type="Variant" />
+			<param index="2" name="summary" type="Dictionary" default="{}" />
+			<description>
+				Saves [param data] in [param slot], as [method Saves.save].
+			</description>
+		</method>
+		<method name="sync">
+			<return type="void" />
+			<description>
+				Brings this device and the backend in line: newer saves come down, saves not yet synced go up.
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="conflict">
+			<param index="0" name="slot" type="String" />
+			<param index="1" name="local_summary" type="Dictionary" />
+			<param index="2" name="remote_summary" type="Dictionary" />
+			<description>
+				Emitted when another device saved differently in [param slot]. Show both summaries and call [method resolve_conflict].
+			</description>
+		</signal>
+		<signal name="synced">
+			<param index="0" name="slot" type="String" />
+			<description>
+				Emitted when the save in [param slot] has been synced.
+			</description>
+		</signal>
+	</signals>
+	<constants>
+		<constant name="BACKEND_LOCAL" value="0" enum="Backend">
+			This device only.
+		</constant>
+		<constant name="BACKEND_PLATFORM" value="1" enum="Backend">
+			The platform's cloud: Steam Cloud, iCloud or Play Games' saved games.
+		</constant>
+		<constant name="BACKEND_ONLINE" value="2" enum="Backend">
+			Purr's online services, once the player has added an email: the same saves on every platform.
+		</constant>
+	</constants>
+</class>

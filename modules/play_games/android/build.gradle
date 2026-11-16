@@ -1,0 +1,37 @@
+plugins {
+    id 'com.android.library'
+}
+
+apply from: '../../../godot/platform/android/java/app/config.gradle'
+
+android {
+    namespace 'studio.nekolab.purr.playgames'
+    compileSdk versions.compileSdk
+    buildToolsVersion versions.buildTools
+
+    defaultConfig {
+        minSdk versions.minSdk
+    }
+
+    compileOptions {
+        sourceCompatibility versions.javaVersion
+        targetCompatibility versions.javaVersion
+    }
+}
+
+dependencies {
+    // The game's own Godot library is there at run time; this is only to compile against. The
+    // plugin API used here hasn't changed since Godot 4.2.
+    compileOnly 'org.godotengine:godot:4.7.2.stable'
+    // Purr's export plugin adds the same version to the game (keep the two in step).
+    compileOnly 'com.google.android.gms:play-services-games-v2:22.1.0'
+}
+
+// The AAR under a fixed name, ready to go into the export templates.
+tasks.register('copyAar', Copy) {
+    dependsOn 'assembleRelease'
+    from layout.buildDirectory.dir('outputs/aar')
+    include 'purr-play-games-release.aar'
+    rename { 'purr_play_games.aar' }
+    into layout.buildDirectory.dir('purr')
+}

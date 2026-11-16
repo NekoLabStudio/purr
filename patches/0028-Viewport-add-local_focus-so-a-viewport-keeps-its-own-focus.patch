@@ -1,0 +1,124 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Mon, 16 Nov 2026 00:00:00 +0000
+Subject: [PATCH] Viewport: add local_focus so a viewport keeps its own focus
+
+A Window has one focused Control: when a Control grabs focus, every
+viewport in the same window releases its own. Local co-op games give
+each player their own menus in their own SubViewport, so one player
+opening a menu took another's focus. The workaround (taking the
+viewport out of the internal "_viewports" group) left the viewport's
+own previous focus unreleased, with no focus_exited, and undid itself
+when the viewport re-entered the tree.
+
+Viewport.local_focus (off by default): a viewport with it on neither
+takes focus from other viewports nor loses focus to them; a Control
+grabbing focus in it releases only that viewport's previous focus.
+The code is upstream's, so this patch goes once that is merged.
+
+Test: purr --headless --path samples/split_focus -s test.gd exits 0
+(two SubViewports keep their own focus, focus_exited still fires within
+one, a root Control grabbing focus leaves them alone, and a viewport
+without local_focus still loses focus).
+
+Upstream: backport of https://github.com/godotengine/godot/pull/123119 (open).
+---
+diff --git a/godot/doc/classes/Viewport.xml b/godot/doc/classes/Viewport.xml
+index bafca16..2d18f64 100644
+--- a/godot/doc/classes/Viewport.xml
++++ b/godot/doc/classes/Viewport.xml
+@@ -368,6 +368,10 @@
+ 			A [SubViewportContainer] will automatically set this property to [code]false[/code] for the [Viewport] contained inside of it.
+ 			See also [method set_input_as_handled] and [method is_input_handled].
+ 		</member>
++		<member name="local_focus" type="bool" setter="set_local_focus" getter="get_local_focus" default="false">
++			If [code]false[/code], all other [Control]s in the same [Window] will lose focus when a [Control] grabs focus.
++			If [code]true[/code], only other [Control]s in the same [Viewport] will lose focus when a [Control] grabs focus.
++		</member>
+ 		<member name="mesh_lod_threshold" type="float" setter="set_mesh_lod_threshold" getter="get_mesh_lod_threshold" default="1.0">
+ 			The automatic LOD bias to use for meshes rendered within the [Viewport] (this is analogous to [member ReflectionProbe.mesh_lod_threshold]). Higher values will use less detailed versions of meshes that have LOD variations generated. If set to [code]0.0[/code], automatic LOD is disabled. Increase [member mesh_lod_threshold] to improve performance at the cost of geometry detail.
+ 			To control this property on the root viewport, set the [member ProjectSettings.rendering/mesh_lod/lod_change/threshold_pixels] project setting.
+diff --git a/godot/scene/main/viewport.cpp b/godot/scene/main/viewport.cpp
+index e1161ec..a6ef3c5 100644
+--- a/godot/scene/main/viewport.cpp
++++ b/godot/scene/main/viewport.cpp
+@@ -2745,7 +2745,7 @@ Window *Viewport::get_base_window() {
+ }
+ 
+ void Viewport::_gui_remove_focus_for_window(Node *p_window) {
+-	if (get_base_window() == p_window) {
++	if (get_base_window() == p_window && !local_focus) {
+ 		gui_release_focus();
+ 	}
+ }
+@@ -2764,7 +2764,12 @@ void Viewport::_gui_control_grab_focus(Control *p_control, bool p_hide_focus) {
+ 		return;
+ 	}
+ 
+-	get_tree()->call_group("_viewports", "_gui_remove_focus_for_window", get_base_window());
++	if (local_focus) {
++		gui_release_focus();
++	} else {
++		get_tree()->call_group("_viewports", "_gui_remove_focus_for_window", get_base_window());
++	}
++
+ 	if (p_control->is_inside_tree() && p_control->get_viewport() == this) {
+ 		gui.key_focus = p_control;
+ 		if (_can_hide_focus_state()) {
+@@ -3583,6 +3588,15 @@ void Viewport::push_input(RequiredParam<InputEvent> p_event, bool p_local_coords
+ 	event_count++;
+ }
+ 
++void Viewport::set_local_focus(bool p_local_focus) {
++	ERR_MAIN_THREAD_GUARD;
++	local_focus = p_local_focus;
++}
++
++bool Viewport::get_local_focus() const {
++	return local_focus;
++}
++
+ #ifndef DISABLE_DEPRECATED
+ void Viewport::push_unhandled_input(RequiredParam<InputEvent> p_event, bool p_local_coords) {
+ 	ERR_MAIN_THREAD_GUARD;
+@@ -5310,6 +5324,9 @@ void Viewport::_bind_methods() {
+ 	ClassDB::bind_method(D_METHOD("set_handle_input_locally", "enable"), &Viewport::set_handle_input_locally);
+ 	ClassDB::bind_method(D_METHOD("is_handling_input_locally"), &Viewport::is_handling_input_locally);
+ 
++	ClassDB::bind_method(D_METHOD("set_local_focus", "local_focus"), &Viewport::set_local_focus);
++	ClassDB::bind_method(D_METHOD("get_local_focus"), &Viewport::get_local_focus);
++
+ 	ClassDB::bind_method(D_METHOD("set_default_canvas_item_texture_filter", "mode"), &Viewport::set_default_canvas_item_texture_filter);
+ 	ClassDB::bind_method(D_METHOD("get_default_canvas_item_texture_filter"), &Viewport::get_default_canvas_item_texture_filter);
+ 
+@@ -5404,6 +5421,7 @@ void Viewport::_bind_methods() {
+ 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "world_2d", PROPERTY_HINT_RESOURCE_TYPE, World2D::get_class_static(), PROPERTY_USAGE_NONE), "set_world_2d", "get_world_2d");
+ 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "transparent_bg"), "set_transparent_background", "has_transparent_background");
+ 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "handle_input_locally"), "set_handle_input_locally", "is_handling_input_locally");
++	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "local_focus"), "set_local_focus", "get_local_focus");
+ 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "snap_2d_transforms_to_pixel"), "set_snap_2d_transforms_to_pixel", "is_snap_2d_transforms_to_pixel_enabled");
+ 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "snap_2d_vertices_to_pixel"), "set_snap_2d_vertices_to_pixel", "is_snap_2d_vertices_to_pixel_enabled");
+ 	ADD_GROUP("Rendering", "");
+diff --git a/godot/scene/main/viewport.h b/godot/scene/main/viewport.h
+index 46d432d..0a7e812 100644
+--- a/godot/scene/main/viewport.h
++++ b/godot/scene/main/viewport.h
+@@ -437,6 +437,7 @@ private:
+ 
+ 	bool disable_input = false;
+ 	bool disable_input_override = false;
++	bool local_focus = false;
+ 
+ 	void _gui_call_input(Control *p_control, const Ref<InputEvent> &p_input);
+ 	void _gui_call_notification(Control *p_control, int p_what);
+@@ -633,6 +634,10 @@ public:
+ 	void _push_text_input(const String &p_text, bool p_emit_text_changed_signal = false);
+ 	void push_text_input(const String &p_text);
+ 	void push_input(RequiredParam<InputEvent> p_event, bool p_local_coords = false);
++
++	void set_local_focus(bool p_local_focus);
++	bool get_local_focus() const;
++
+ #ifndef DISABLE_DEPRECATED
+ 	void push_unhandled_input(RequiredParam<InputEvent> p_event, bool p_local_coords = false);
+ #endif // DISABLE_DEPRECATED

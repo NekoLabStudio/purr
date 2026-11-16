@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="DynamicResolution" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Changes the 3D resolution as the game runs to hold the frame rate.
+	</brief_description>
+	<description>
+		When [member enabled], draws the 3D world of the main viewport (or [member viewport]) at whatever share of its size holds the frame rate, between [member min_scale] and [member max_scale], and lets the upscaler make up the difference. A heavy scene draws at a lower resolution, and a light one at full size, as it happens.
+		It measures how long the GPU takes to draw the 3D world each frame, so it works with vertical sync on and in a headset. It lowers the resolution as soon as frames would be late, and raises it a step at a time once there's room, so a moment's lull doesn't cause a stutter. If frames come late while the 3D world is within its share of the frame (other viewports or effects keeping the GPU busy), it leaves itself more room.
+		If the viewport has no upscaler ([member Viewport.scaling_3d_mode] is bilinear or nearest), it uses the platform's while enabled: MetalFX where the device supports it and FSR elsewhere, temporal when the viewport uses TAA. A temporal upscaler hides the changes best. Turning it off puts the viewport's own upscaler and scale back.
+		[codeblock]
+		func _ready() -&gt; void:
+		    DynamicResolution.max_scale = 1.0
+		    DynamicResolution.min_scale = 0.6
+		    DynamicResolution.enabled = settings.dynamic_resolution
+		[/codeblock]
+		[b]Note:[/b] It pauses while [method RecommendedGraphics.benchmark] runs, so each tier is measured as it is.
+	</description>
+	<tutorials>
+		<link title="Graphics settings">https://oss.nekolab.studio/purr/modules/graphics/</link>
+	</tutorials>
+	<methods>
+		<method name="get_frame_rate_target" qualifiers="const">
+			<return type="float" />
+			<description>
+				Returns the frame rate it holds: [member target_fps] if set; otherwise the headset's refresh rate in VR; otherwise the display's refresh rate, but at most 60 with vertical sync on (players usually prefer a sharp picture at 60 to a soft one at 120), and no higher than [member Engine.max_fps], if that's set.
+			</description>
+		</method>
+		<method name="get_scale" qualifiers="const">
+			<return type="float" />
+			<description>
+				Returns the share of the viewport's size the 3D world is drawn at now.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="enabled" type="bool" setter="set_enabled" getter="is_enabled" default="false">
+			If [code]true[/code], the 3D resolution changes to hold the frame rate. Off by default.
+		</member>
+		<member name="max_scale" type="float" setter="set_max_scale" getter="get_max_scale" default="1.0">
+			The largest share of the viewport's size it draws the 3D world at. [code]1.0[/code] is full size; lower values cap it, for example at a graphics tier's own scale from [method RecommendedGraphics.settings].
+		</member>
+		<member name="min_scale" type="float" setter="set_min_scale" getter="get_min_scale" default="0.5">
+			The smallest share of the viewport's size it draws the 3D world at. Below about half size, upscaling looks soft. With MetalFX's temporal upscaler, the device's own limit applies if it's higher.
+		</member>
+		<member name="target_fps" type="float" setter="set_target_fps" getter="get_target_fps" default="0.0">
+			The frame rate to hold. [code]0.0[/code] holds the headset's refresh rate in VR, or on a screen the display's refresh rate up to 60 (the display's full rate with vertical sync off). Set it to aim higher on fast displays, for example from a "prefer frame rate" option.
+		</member>
+		<member name="viewport" type="Viewport" setter="set_viewport" getter="get_viewport">
+			The viewport whose 3D resolution it changes. Unset ([code]null[/code]), the main viewport. Set it when the game draws its 3D world in a [SubViewport], for example a headset's view drawn in a [SubViewport] with [member Viewport.use_xr]. Changing it while enabled gives the previous viewport its own upscaler and scale back.
+		</member>
+	</members>
+</class>

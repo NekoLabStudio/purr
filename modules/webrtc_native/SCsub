@@ -1,0 +1,104 @@
+#!/usr/bin/env python
+
+Import("env")
+Import("env_modules")
+
+env_webrtc_native = env_modules.Clone()
+
+# libdatachannel reports failures with C++ exceptions, which Godot builds without.
+if env.msvc:
+    env_webrtc_native["CPPDEFINES"] = [d for d in env_webrtc_native["CPPDEFINES"] if d != ("_HAS_EXCEPTIONS", 0)]
+    env_webrtc_native.AppendUnique(CXXFLAGS=["/EHsc"])
+else:
+    env_webrtc_native["CXXFLAGS"] = [f for f in env_webrtc_native["CXXFLAGS"] if f != "-fno-exceptions"]
+    env_webrtc_native.AppendUnique(CXXFLAGS=["-fexceptions"])
+
+platform = env["platform"]
+windows = platform == "windows"
+apple = platform in ("macos", "ios", "tvos", "visionos")
+linux = platform in ("linuxbsd", "android")
+
+thirdparty_dir = Dir("thirdparty").srcnode().abspath + "/"
+
+# What the engine code and libdatachannel's headers both need.
+env_webrtc_native.Append(CPPDEFINES=[("RTC_ENABLE_MEDIA", 0), ("RTC_ENABLE_WEBSOCKET", 0), "RTC_STATIC"])
+env_webrtc_native.Prepend(CPPPATH=[thirdparty_dir + "libdatachannel/include"])
+if windows:
+    env_webrtc_native.Append(CPPDEFINES=["WIN32_LEAN_AND_MEAN", "NOMINMAX"])
+    env.Append(LIBS=["ws2_32", "iphlpapi", "bcrypt"])
+
+env_thirdparty = env_webrtc_native.Clone()
+env_thirdparty.disable_warnings()
+
+# libdatachannel uses Godot's Mbed TLS, configured as the engine's mbedtls module does.
+if env["builtin_mbedtls"]:
+    config = lambda name: f"<{name}>" if env["ninja"] and env.msvc else f'\\"{name}\\"'
+    env_thirdparty.Append(
+        CPPDEFINES=[
+            ("TF_PSA_CRYPTO_CONFIG_FILE", config("godot_psa_config.h")),
+            ("MBEDTLS_CONFIG_FILE", config("godot_mbedtls_config.h")),
+        ]
+    )
+    env_thirdparty.Prepend(
+        CPPPATH=[
+            "#thirdparty/mbedtls/godot/",
+            "#thirdparty/mbedtls/include/",
+            "#thirdparty/mbedtls/tf-psa-crypto/include/",
+            "#thirdparty/mbedtls/tf-psa-crypto/drivers/builtin/include/",
+        ]
+    )
+
+thirdparty_obj = []
+
+# libjuice: ICE.
+env_juice = env_thirdparty.Clone()
+env_juice.Append(CPPDEFINES=["JUICE_STATIC", ("USE_NETTLE", 0), "NO_SERVER"])
+env_juice.Prepend(CPPPATH=[thirdparty_dir + "libjuice/include", thirdparty_dir + "libjuice/include/juice"])
+env_juice.add_source_files(thirdparty_obj, Glob("thirdparty/libjuice/src/*.c"))
+
+# usrsctp: SCTP, which carries the data channels. The platform checks its CMake project makes.
+env_sctp = env_thirdparty.Clone()
+env_sctp.Append(CPPDEFINES=["__Userspace__", "SCTP_SIMPLE_ALLOCATOR", "SCTP_PROCESS_LEVEL_LOCKS"])
+if windows:
+    # usrsctp uses the min and max macros from the Windows headers, which NOMINMAX and Godot's
+    # own platform/windows/windows.h (found first on the include path) turn off.
+    env_sctp["CPPDEFINES"] = [d for d in env_sctp["CPPDEFINES"] if d != "NOMINMAX"]
+    env_sctp["CPPPATH"] = [p for p in env_sctp["CPPPATH"] if str(p) != "#platform/windows"]
+if not env.msvc:
+    env_sctp.Append(CPPDEFINES=["HAVE_STDATOMIC_H"])
+if not windows:
+    env_sctp.Append(CPPDEFINES=["HAVE_SYS_QUEUE_H", "HAVE_NETINET_IP_ICMP_H"])
+if apple:
+    env_sctp.Append(
+        CPPDEFINES=["__APPLE_USE_RFC_2292", "HAVE_NET_ROUTE_H", "HAVE_SA_LEN", "HAVE_SIN_LEN", "HAVE_SIN6_LEN", "HAVE_SCONN_LEN"]
+    )
+if linux:
+    env_sctp.Append(CPPDEFINES=["_GNU_SOURCE", "HAVE_LINUX_IF_ADDR_H", "HAVE_LINUX_RTNETLINK_H", "HAVE_NET_ROUTE_H"])
+env_sctp.Prepend(CPPPATH=[thirdparty_dir + "usrsctp/usrsctplib"])
+env_sctp.add_source_files(thirdparty_obj, Glob("thirdparty/usrsctp/usrsctplib/*.c"))
+env_sctp.add_source_files(thirdparty_obj, Glob("thirdparty/usrsctp/usrsctplib/netinet/*.c"))
+env_sctp.add_source_files(thirdparty_obj, Glob("thirdparty/usrsctp/usrsctplib/netinet6/*.c"))
+
+# libdatachannel itself, with data channels only (no media, no WebSockets).
+env_datachannel = env_thirdparty.Clone()
+env_datachannel.Append(CPPDEFINES=[("USE_MBEDTLS", 1), ("USE_NICE", 0), ("RTC_SYSTEM_JUICE", 0), "JUICE_STATIC"])
+env_datachannel.Prepend(
+    CPPPATH=[
+        thirdparty_dir + "libdatachannel/include/rtc",
+        thirdparty_dir + "libdatachannel/src",
+        thirdparty_dir + "libjuice/include",
+        thirdparty_dir + "usrsctp/usrsctplib",
+        thirdparty_dir + "plog/include",
+    ]
+)
+env_datachannel.add_source_files(thirdparty_obj, Glob("thirdparty/libdatachannel/src/*.cpp"))
+env_datachannel.add_source_files(thirdparty_obj, Glob("thirdparty/libdatachannel/src/impl/*.cpp"))
+
+env.modules_sources += thirdparty_obj
+
+module_obj = []
+env_webrtc_native.add_source_files(module_obj, "*.cpp")
+env.modules_sources += module_obj
+
+# The engine code is rebuilt when the libraries change.
+env.Depends(module_obj, thirdparty_obj)

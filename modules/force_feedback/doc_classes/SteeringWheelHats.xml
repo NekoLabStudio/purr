@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="SteeringWheelHats" inherits="RefCounted" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		A steering wheel's hat switch and buttons.
+	</brief_description>
+	<description>
+		Reads a steering wheel's hat switch (its D-pad), so the game can tell its directions apart from the wheel's own buttons with the same numbers (Godot reports a hat as joypad buttons 11 to 14). On Windows it also reads the wheel's buttons by their own numbers, since a wheel read as an Xbox gamepad can be renumbered. It only listens, so it's safe to use alongside [SteeringWheel] and in menus.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="close">
+			<return type="void" />
+			<description>
+				Stops reading the wheel.
+			</description>
+		</method>
+		<method name="get_buttons">
+			<return type="PackedInt32Array" />
+			<description>
+				Returns the wheel's buttons held now, by their own numbers ([code]0[/code] being the first).
+			</description>
+		</method>
+		<method name="get_hat">
+			<return type="int" />
+			<description>
+				Returns the directions held, as a mask (up [code]1[/code], right [code]2[/code], down [code]4[/code], left [code]8[/code]; [code]0[/code] when centred), or [code]-1[/code] when no hat is being read or nothing has been heard yet.
+			</description>
+		</method>
+		<method name="reads_buttons">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if the wheel's own buttons are read here (Windows).
+			</description>
+		</method>
+		<method name="watch">
+			<return type="bool" />
+			<param index="0" name="vendor_id" type="int" />
+			<param index="1" name="product_id" type="int" />
+			<description>
+				Starts reading the hat switch of the wheel with these USB IDs. Returns [code]true[/code] if the wheel has a hat to read.
+			</description>
+		</method>
+	</methods>
+</class>

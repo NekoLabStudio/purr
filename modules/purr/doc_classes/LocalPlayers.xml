@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="LocalPlayers" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Everyone playing on this device: player 1 and any guests.
+	</brief_description>
+	<description>
+		Player 1 is the signed-in player ([member player]). Others can join on the same device as guests: a plain guest whose progress the game keeps in player 1's save, a local profile remembered on this device with saves of its own, or a guest who brings their own profile with their email ([method invite_guest]), with their own account and saves.
+		[codeblock]
+		for guest in LocalPlayers.remembered:
+		add_button(guest.player_name)  # a "Who's playing?" picker
+		var guest = LocalPlayers.add_guest()
+		[/codeblock]
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="add_guest">
+			<return type="LocalPlayer" />
+			<param index="0" name="remembered" type="LocalPlayer" default="null" />
+			<description>
+				Adds a guest. Without an argument, a plain guest whose progress the game keeps in player 1's save; given one of [member remembered], that guest, at once.
+			</description>
+		</method>
+		<method name="can_invite_guests" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if guests can bring their own profile here ([method invite_guest]): the online service is set up and answered.
+			</description>
+		</method>
+		<method name="confirm_guest">
+			<return type="Signal" />
+			<param index="0" name="code" type="String" />
+			<param index="1" name="remember" type="bool" default="false" />
+			<param index="2" name="name" type="String" default="&quot;&quot;" />
+			<description>
+				Checks the code the guest received after [method invite_guest] and adds them as a local player with their own account and saves. With [param remember], this device remembers them for next time ([member remembered]); they can revoke that from their own device. [param name] names a new account, for an address that didn't have one. Await it: the result has [code]ok[/code] and the [code]guest[/code], and [signal guest_added] fires too.
+			</description>
+		</method>
+		<method name="invite_guest">
+			<return type="Signal" />
+			<param index="0" name="email" type="String" />
+			<description>
+				Starts adding a guest who brings their own profile: they type their email address on this device, and receive a code to enter for [method confirm_guest]. Await it: the result has [code]ok[/code], or [code]error[/code] as in [method Account.link_email].
+			</description>
+		</method>
+		<method name="remove_guest">
+			<return type="void" />
+			<param index="0" name="guest" type="LocalPlayer" />
+			<description>
+				Removes a guest from [member players] (a remembered guest stays remembered).
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="player" type="LocalPlayer" setter="" getter="get_player">
+			Player 1: the signed-in player.
+		</member>
+		<member name="players" type="Array" setter="" getter="get_players">
+			Everyone playing on this device: player 1 first, then any guests.
+		</member>
+		<member name="remembered" type="Array" setter="" getter="get_remembered">
+			Guests and local profiles this device remembers, for a "Who's playing?" picker. Pass one to [method add_guest].
+		</member>
+	</members>
+	<signals>
+		<signal name="guest_added">
+			<param index="0" name="guest" type="LocalPlayer" />
+			<description>
+				Emitted when a guest who brought their profile has joined, after [method confirm_guest].
+			</description>
+		</signal>
+	</signals>
+</class>

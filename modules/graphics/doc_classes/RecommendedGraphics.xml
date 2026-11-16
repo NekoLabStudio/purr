@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="RecommendedGraphics" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Graphics settings recommended for the computer the game runs on.
+	</brief_description>
+	<description>
+		Recommends graphics settings in tiers, from [constant TIER_ULTRA] down to [constant TIER_LOW]. [method get_tier] picks a starting tier from the graphics adapter, [method get_settings] gives a tier's engine settings for the screen or a headset and [method apply] sets them on a viewport. [method benchmark] measures the tiers in the game itself and keeps the best one that holds a frame rate.
+		A game usually adds its own settings to each tier (draw distance, crowd density) and applies both together:
+		[codeblock]
+		func apply_tier(tier: RecommendedGraphics.Tier) -&gt; void:
+		    RecommendedGraphics.apply(get_viewport(), RecommendedGraphics.get_settings(tier))
+		    crowd_density = [1.0, 1.0, 0.6, 0.3][tier]
+
+		func _ready() -&gt; void:
+		    apply_tier(RecommendedGraphics.get_tier())
+
+		func _on_use_recommended_pressed() -&gt; void:
+		    var tier: RecommendedGraphics.Tier = await RecommendedGraphics.benchmark(apply_tier, 60.0)
+		    print("Recommended: ", tier)
+		[/codeblock]
+	</description>
+	<tutorials>
+		<link title="Graphics settings">https://oss.nekolab.studio/purr/modules/graphics/</link>
+	</tutorials>
+	<methods>
+		<method name="apply" qualifiers="const">
+			<return type="void" />
+			<param index="0" name="viewport" type="Viewport" />
+			<param index="1" name="settings" type="Dictionary" />
+			<description>
+				Sets [param settings] (from [method get_settings]) on [param viewport]. Each key is the name of a [Viewport] property, except [code]directional_shadow_size[/code], which sets the size of the directional shadow atlas (see [method RenderingServer.directional_shadow_atlas_set_size]).
+			</description>
+		</method>
+		<method name="benchmark">
+			<return type="Signal" />
+			<param index="0" name="apply_tier" type="Callable" />
+			<param index="1" name="target_fps" type="float" />
+			<description>
+				Measures the tiers in the game as it is running, best first. For each tier, calls [param apply_tier] with the tier, waits for it to settle and times every frame for a few seconds. It stops at the first tier that draws nine frames in ten within [param target_fps] (to within 5%), or at [constant TIER_LOW]. Await the returned signal for the tier chosen, which is applied when it completes.
+				Vertical sync and [member Engine.max_fps] are lifted while it measures (each frame, so a game applying a tier through its own settings doesn't put them back), so a display's refresh rate doesn't hide how fast a tier can go, and put back after. In a headset they stay: the headset paces the frames, and its refresh rate is the target to give.
+				Runs while the game is paused, so it can run from a settings menu. Only one benchmark runs at a time.
+			</description>
+		</method>
+		<method name="get_settings" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="tier" type="int" enum="RecommendedGraphics.Tier" />
+			<param index="1" name="headset" type="bool" default="false" />
+			<description>
+				Returns the engine settings recommended for [param tier] on the screen, or in a headset when [param headset] is [code]true[/code]. The keys are [code]scaling_3d_mode[/code], [code]scaling_3d_scale[/code], [code]msaa_3d[/code], [code]screen_space_aa[/code], [code]use_taa[/code], [code]anisotropic_filtering_level[/code], [code]mesh_lod_threshold[/code] and [code]directional_shadow_size[/code]. Apply them with [method apply].
+				Each tier below [constant TIER_ULTRA] draws at most so many pixels, so it upscales further on larger screens; [constant TIER_HIGH] draws a 4K screen at full size and a 5K one at about 85%, [constant TIER_LOW] draws 1080p at 70% and 4K at about half. In a headset, the lower tiers limit the pixels drawn for each eye the same way. Where a tier upscales, it uses a temporal upscaler when it smooths with TAA and a spatial one otherwise: MetalFX where the device supports it, FSR elsewhere. With the Mobile renderer, which has no TAA or temporal upscaling, FXAA takes TAA's place. A headset never uses TAA (it smears as the head turns), so it smooths with MSAA.
+			</description>
+		</method>
+		<method name="get_tier" qualifiers="const">
+			<return type="int" enum="RecommendedGraphics.Tier" />
+			<description>
+				Returns the tier the graphics adapter suggests. It reads the generation and class from the adapter's name (an RTX 4070's generation 40 and class 70, an M4 Max's generation 4 and Max), so later generations get a sensible tier too. Laptop graphics sit a step lower than the desktop card of the same name. Adapters from families it doesn't recognize go by their type: discrete ones [constant TIER_MEDIUM], others [constant TIER_LOW]. It's a first guess for a first run; [method benchmark] measures it.
+			</description>
+		</method>
+	</methods>
+	<constants>
+		<constant name="TIER_ULTRA" value="0" enum="Tier">
+			The best: everything at full size and quality.
+		</constant>
+		<constant name="TIER_HIGH" value="1" enum="Tier">
+			High settings, drawing a 4K screen at full size.
+		</constant>
+		<constant name="TIER_MEDIUM" value="2" enum="Tier">
+			Medium settings, for discrete graphics a few generations old.
+		</constant>
+		<constant name="TIER_LOW" value="3" enum="Tier">
+			The lightest, for integrated graphics.
+		</constant>
+	</constants>
+</class>

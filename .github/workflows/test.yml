@@ -1,0 +1,162 @@
+name: Test
+
+# Runs on every pull request to main; the main ruleset requires these checks.
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  online:
+    name: Online services
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: online
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: online/package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Fails when a page is missing from the nav or a version set can't build.
+      - name: Build docs site
+        run: |
+          python3 docs-site/build.py --output dist/docs-site
+          # The online services' setup command downloads this.
+          test -s dist/docs-site/online/setup.sh
+
+      - name: Check the class reference XML
+        run: |
+          sudo apt-get install -y -qq libxml2-utils >/dev/null
+          for file in modules/*/doc_classes/*.xml; do
+            xmllint --noout --schema godot/doc/class.xsd "$file"
+          done
+
+      # Applied for real (this is a throwaway checkout): later patches build on earlier ones,
+      # which `git apply --check` can't follow.
+      - name: Check the patches apply
+        run: git apply patches/*.patch
+
+  macos:
+    name: macOS
+    runs-on: macos-26
+    timeout-minutes: 180
+    env:
+      SCONS_CACHE: ${{ github.workspace }}/.scons_cache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+
+      - name: Install SCons
+        run: python -m pip install -q scons zstandard
+
+      - name: Cache SCons build
+        uses: actions/cache@v6
+        with:
+          path: .scons_cache
+          key: macos-editor-scons-${{ github.sha }}
+          restore-keys: |
+            macos-editor-scons-
+
+      # Without Valve's SDK (not stored here), the build leaves Steam out.
+      - name: Build the editor
+        run: ./build.sh editor
+
+      - name: Steering wheel drivers
+        run: modules/force_feedback/tests/run.sh
+
+      - name: Graphics adapter tiers
+        run: modules/graphics/tests/run.sh
+
+      - name: WebRTC
+        run: godot/bin/godot.macos.editor.arm64 --headless --path samples/webrtc -s test.gd
+
+      - name: Split focus
+        run: godot/bin/godot.macos.editor.arm64 --headless --path samples/split_focus -s test.gd
+
+      - name: VR streamer
+        run: cargo test --release --manifest-path modules/vr_streamer/streamer/Cargo.toml
+
+  linux:
+    name: Linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install the Wayland tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwayland-bin
+
+      - name: Prepare the build
+        uses: ./.github/actions/prepare-build
+
+      - name: Cache SCons build
+        uses: actions/cache@v6
+        with:
+          path: .scons_cache
+          key: linux-editor-scons-${{ github.sha }}
+          restore-keys: |
+            linux-editor-scons-
+
+      - name: Build the editor
+        working-directory: godot
+        run: scons platform=linuxbsd profile=../build/purr.py custom_modules=../modules module_godotsteam_enabled=no "cache_path=$GITHUB_WORKSPACE/.scons_cache" cache_limit=6 "-j$(nproc)" target=editor
+
+      - name: WebRTC
+        run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/webrtc -s test.gd
+
+      - name: Split focus
+        run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/split_focus -s test.gd
+
+  play-games:
+    name: Play Games plugin
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # The Android side of modules/play_games, built against the runner's Android SDK.
+      - name: Build
+        run: godot/platform/android/java/gradlew -p modules/play_games/android copyAar

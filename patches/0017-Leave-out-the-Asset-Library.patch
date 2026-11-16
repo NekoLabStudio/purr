@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 18:30:00 +0000
+Subject: [PATCH] Leave out the Asset Library
+
+The editor's AssetLib screen and the project manager's Asset Library
+tab browse Godot's asset store, whose assets are made and checked for
+Godot's own releases. Purr isn't Godot, so it shouldn't present
+Godot's store as its own. Both depend on
+AssetLibraryEditorPlugin::is_available(), which now returns false, as
+Godot already does on the web editor.
+
+Addons still install by copying them into a project's addons/ folder.
+
+Test: open the project manager and the editor; neither shows an Asset
+Library tab.
+
+Upstream: Purr only.
+---
+diff --git a/godot/editor/asset_library/asset_library_editor_plugin.cpp b/godot/editor/asset_library/asset_library_editor_plugin.cpp
+index 1e8d0db..b0e20fb 100644
+--- a/godot/editor/asset_library/asset_library_editor_plugin.cpp
++++ b/godot/editor/asset_library/asset_library_editor_plugin.cpp
+@@ -2405,13 +2405,8 @@ EditorAssetLibrary::EditorAssetLibrary(bool p_templates_only) {
+ ///////
+ 
+ bool AssetLibraryEditorPlugin::is_available() {
+-#ifdef WEB_ENABLED
+-	// Asset Store can't work on Web editor for now as most assets are sourced
+-	// directly from GitHub which does not set CORS.
++	// Purr leaves out Godot's Asset Library: it's Godot's store, for Godot's releases.
+ 	return false;
+-#else
+-	return StreamPeerTLS::is_available() && !Engine::get_singleton()->is_recovery_mode_hint();
+-#endif
+ }
+ 
+ void AssetLibraryEditorPlugin::make_visible(bool p_visible) {
+-- 
+2.50.1

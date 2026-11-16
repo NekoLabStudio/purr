@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 19:00:00 +0000
+Subject: [PATCH] Keep the scene data's reflection colour a vec4
+
+Since #112178 (4.8-dev7), SceneData holds the reflection colour as a
+vec3 followed by a uint. On Metal, SPIRV-Cross turns that vec3 into a
+packed_float3, and multiview draws (XR's stereo, where the shader picks
+each eye's matrices from the same block by view index) became 10 to 15
+times slower: 21.6 ms of GPU time a frame against 1.65 ms for the same
+two eyes drawn as single views, at 1664 by 1792 per eye on an M4 Max.
+
+Declaring it as a vec4 keeps the same 16 bytes, so the C++ side
+(float[3] and a pad) is unchanged, and Metal no longer packs it.
+
+Test: an XR viewport with two views (an XRInterfaceExtension is
+enough) on Metal; its GPU time matches two single views (1.62 ms).
+
+Upstream: to propose; regression from godotengine/godot#112178.
+---
+diff --git a/godot/servers/rendering/renderer_rd/shaders/scene_data_inc.glsl b/godot/servers/rendering/renderer_rd/shaders/scene_data_inc.glsl
+index 7437b48..55b72d3 100644
+--- a/godot/servers/rendering/renderer_rd/shaders/scene_data_inc.glsl
++++ b/godot/servers/rendering/renderer_rd/shaders/scene_data_inc.glsl
+@@ -61,8 +61,9 @@ struct SceneData {
+ 
+ 	vec4 ambient_light_color_energy;
+ 
+-	vec3 reflection_color;
+-	uint pad;
++	// A vec4 (rgb used), not a vec3 and a uint: Metal's shaders would hold a vec3 here as a
++	// packed float3, which makes multiview passes many times slower.
++	vec4 reflection_color;
+ 
+ 	float ambient_color_sky_mix;
+ 	float fog_density;

@@ -1,0 +1,462 @@
+# Builds and publishes a Purr release for a vX.Y.Z tag. The Prepare release workflow creates
+# the tag (on the commit that sets VERSION.txt and rolls the upgrade notes), which starts this.
+#
+# It builds the editors (macOS, Windows, Linux) and export templates (those three, iOS, Apple TV
+# and Android) into a draft release, then publishes it. If a build fails, the draft stays unpublished; fix the cause on main and run
+# this workflow again for the same tag (Actions > Release > Run workflow, choosing the tag).
+#
+# The Steamworks and Apple secrets live in the `release-build` environment, which only release tags
+# can use, and only the release deploy key can create those tags (the `release tags` ruleset).
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  prepare:
+    name: Check and draft
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the tag matches VERSION.txt
+        id: version
+        run: |
+          if ! echo "$GITHUB_REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Run this for a release tag (vX.Y.Z), not $GITHUB_REF_NAME."
+            exit 1
+          fi
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$(cat VERSION.txt)" != "$VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match VERSION.txt ($(cat VERSION.txt))."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # The description is the version's upgrade notes (with doc links pointing at the docs
+      # site), then GitHub's generated list of changes.
+      - name: Compose release notes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PAGE="docs/upgrading/${VERSION}.md"
+          {
+            echo "Based on Godot $(sed -n 's/^tag: //p' UPSTREAM.txt | head -n 1). Upgrade notes: https://oss.nekolab.studio/purr/upgrading/${VERSION}/"
+            echo
+            if [ -f "$PAGE" ]; then
+              awk 'NR==1 && /^# /{next} {print}' "$PAGE" \
+                | sed -E 's|\]\((/[A-Za-z0-9._/#-]*)\)|](https://oss.nekolab.studio/purr\1)|g'
+              echo
+              echo "---"
+              echo
+            fi
+            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" -f tag_name="$GITHUB_REF_NAME" --jq .body
+          } > release-notes.md
+
+      - name: Create the draft release
+        run: |
+          # A draft left behind by an earlier, failed run for this tag is replaced.
+          gh release delete "$GITHUB_REF_NAME" --yes 2>/dev/null || true
+          prerelease=""
+          if [ "$(sed -n 's/^status: //p' UPSTREAM.txt)" != stable ]; then
+            prerelease="--prerelease"
+          fi
+          gh release create "$GITHUB_REF_NAME" --draft $prerelease --verify-tag \
+            --title "Purr ${GITHUB_REF_NAME#v}" --notes-file release-notes.md
+
+      # The online services on their own, for their setup and update scripts (which download
+      # the latest release's purr-online.tar.gz), with the version they're from.
+      - name: Package the online services
+        run: |
+          echo "$GITHUB_REF_NAME" > online/.purr-version
+          tar -czf purr-online.tar.gz -C online --exclude node_modules --exclude .wrangler --exclude .dev.vars .
+          gh release upload "$GITHUB_REF_NAME" purr-online.tar.gz
+
+  macos:
+    name: macOS
+    needs: prepare
+    runs-on: macos-26
+    environment: release-build
+    timeout-minutes: 300
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+      APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+      APPLE_NOTARY_KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+      APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+      APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Prepare the build
+        uses: ./.github/actions/prepare-build
+        with:
+          steamworks-sdk-url: ${{ secrets.STEAMWORKS_SDK_URL }}
+
+      - name: Install the Vulkan SDK
+        run: sh godot/misc/scripts/install_vulkan_sdk_macos.sh
+
+      - name: Build
+        working-directory: godot
+        run: |
+          flags=(platform=macos arch=arm64 profile=../build/purr.py custom_modules=../modules "module_godotsteam_enabled=$STEAM" "-j$(sysctl -n hw.ncpu)")
+          scons "${flags[@]}" target=editor
+          scons "${flags[@]}" target=template_debug
+          scons "${flags[@]}" target=template_release production=yes lto=full
+
+      # Purr's OpenXR runtime (bin/libvr_runtime.dylib, from SCons) streams through this helper.
+      - name: Build the VR streamer
+        run: |
+          cargo build --release --manifest-path modules/vr_streamer/streamer/Cargo.toml
+          cp modules/vr_streamer/streamer/target/release/vr_streamer godot/bin/
+          python3 support/streamer-notices.py aarch64-apple-darwin godot/bin/vr_streamer_notices.txt
+
+      - name: Build the Apple TV templates
+        working-directory: godot
+        run: |
+          tvos=(platform=tvos arch=arm64 profile=../build/purr.py custom_modules=../modules "-j$(sysctl -n hw.ncpu)")
+          scons "${tvos[@]}" target=template_debug
+          scons "${tvos[@]}" target=template_debug simulator=yes
+          scons "${tvos[@]}" target=template_release simulator=yes production=yes
+          scons "${tvos[@]}" target=template_release production=yes lto=full
+          scons "${tvos[@]}" target=template_release production=yes lto=full generate_bundle=yes
+
+      - name: Build the Apple Vision Pro templates
+        working-directory: godot
+        run: |
+          visionos=(platform=visionos arch=arm64 profile=../build/purr.py custom_modules=../modules "-j$(sysctl -n hw.ncpu)")
+          scons "${visionos[@]}" target=template_debug
+          scons "${visionos[@]}" target=template_debug simulator=yes
+          scons "${visionos[@]}" target=template_release simulator=yes production=yes
+          scons "${visionos[@]}" target=template_release production=yes lto=full
+          scons "${visionos[@]}" target=template_release production=yes lto=full generate_bundle=yes
+
+      - name: Build the iOS templates
+        working-directory: godot
+        run: |
+          ios=(platform=ios arch=arm64 profile=../build/purr.py custom_modules=../modules "-j$(sysctl -n hw.ncpu)")
+          scons "${ios[@]}" target=template_debug
+          scons "${ios[@]}" target=template_debug simulator=yes
+          scons "${ios[@]}" target=template_release simulator=yes production=yes
+          scons "${ios[@]}" target=template_release production=yes lto=full
+          scons "${ios[@]}" target=template_release production=yes lto=full generate_bundle=yes
+
+      - name: Check the editor starts
+        run: |
+          # The engine loads Steam's library from its own folder.
+          if [ "$STEAM" = yes ]; then cp sdk/steamworks/redistributable_bin/osx/libsteam_api.dylib godot/bin/; fi
+          godot/bin/godot.macos.editor.arm64 --headless --version | grep -F "$VERSION (based on Godot"
+
+      - name: Package the editor
+        run: |
+          mkdir -p dist
+          app=dist/Purr.app
+          cp -R godot/misc/dist/macos_tools.app "$app"
+          mkdir -p "$app/Contents/MacOS"
+          cp godot/bin/godot.macos.editor.arm64 "$app/Contents/MacOS/Purr"
+          if [ "$STEAM" = yes ]; then cp godot/bin/libsteam_api.dylib "$app/Contents/MacOS/"; fi
+          # Games run from the editor stream to a headset with these.
+          cp godot/bin/libvr_runtime.dylib godot/bin/vr_streamer "$app/Contents/MacOS/"
+          cp godot/bin/vr_streamer_notices.txt "$app/Contents/Resources/"
+          # Godot ships one Info.plist per architecture; this build is Apple Silicon only.
+          mv "$app/Contents/Info_arm64.plist" "$app/Contents/Info.plist"
+          rm "$app/Contents/Info_x86_64.plist"
+          rm "$app/Contents/Resources/GodotLG.icns" "$app/Contents/Resources/Assets.car"
+          cp branding/purr.icns "$app/Contents/Resources/Purr.icns"
+
+          plist="$app/Contents/Info.plist"
+          plutil -replace CFBundleExecutable -string Purr "$plist"
+          plutil -replace CFBundleName -string Purr "$plist"
+          plutil -replace CFBundleIdentifier -string studio.nekolab.purr "$plist"
+          plutil -replace CFBundleIconFile -string Purr.icns "$plist"
+          plutil -remove CFBundleIconName "$plist"
+          plutil -replace CFBundleShortVersionString -string "$VERSION" "$plist"
+          plutil -replace CFBundleVersion -string "$VERSION" "$plist"
+          # A game run from the editor counts as the editor for macOS permissions: the VR
+          # streamer's tap of the game's sound needs this, or macOS never asks and records silence.
+          plutil -replace NSAudioCaptureUsageDescription -string "Games you run from Purr send their own sound to your VR headset." "$plist"
+          plutil -replace NSHumanReadableCopyright -string "Purr by NekoLab, based on Godot Engine. © 2007-present Juan Linietsky, Ariel Manzur & Godot Engine contributors" "$plist"
+
+      - name: Sign and notarise the editor
+        if: env.APPLE_CERT_P12 != ''
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password="$(openssl rand -hex 16)"
+          echo "$APPLE_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain"
+          identity="$(security find-identity -v -p codesigning "$keychain" | awk 'NR==1 {print $2}')"
+
+          # The code inside the app first, then the app.
+          codesign --force --timestamp --options runtime --sign "$identity" \
+            dist/Purr.app/Contents/MacOS/libvr_runtime.dylib dist/Purr.app/Contents/MacOS/vr_streamer
+          codesign --force --timestamp --options runtime \
+            --entitlements godot/misc/dist/macos/editor.entitlements \
+            --sign "$identity" dist/Purr.app
+
+          # Notarised with an App Store Connect API key (Developer role), not an Apple ID.
+          echo "$APPLE_NOTARY_KEY_P8" | base64 --decode > "$RUNNER_TEMP/notary_key.p8"
+          ditto -c -k --keepParent dist/Purr.app "$RUNNER_TEMP/notarise.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarise.zip" --wait \
+            --key "$RUNNER_TEMP/notary_key.p8" --key-id "$APPLE_NOTARY_KEY_ID" --issuer "$APPLE_NOTARY_ISSUER_ID"
+          xcrun stapler staple dist/Purr.app
+
+      - name: Sign the editor for local use only
+        if: env.APPLE_CERT_P12 == ''
+        run: |
+          echo "No Apple signing secrets, so the editor is signed ad hoc and isn't notarised."
+          codesign --force --sign - dist/Purr.app/Contents/MacOS/libvr_runtime.dylib dist/Purr.app/Contents/MacOS/vr_streamer
+          codesign --force --entitlements godot/misc/dist/macos/editor.entitlements --sign - dist/Purr.app
+
+      - name: Package the templates
+        run: |
+          app=dist/macos_template.app
+          cp -R godot/misc/dist/macos_template.app "$app"
+          mkdir -p "$app/Contents/MacOS"
+          cp godot/bin/godot.macos.template_debug.arm64 "$app/Contents/MacOS/godot_macos_debug.arm64"
+          cp godot/bin/godot.macos.template_release.arm64 "$app/Contents/MacOS/godot_macos_release.arm64"
+          mkdir -p dist/templates
+          (cd dist && zip -q -r -y templates/macos.zip macos_template.app)
+          cp godot/bin/godot_tvos.zip dist/templates/tvos.zip
+          cp godot/bin/godot_ios.zip dist/templates/ios.zip
+          cp godot/bin/godot_visionos.zip dist/templates/visionos.zip
+          # Purr's export plugin adds Steam's library to every macOS export from here.
+          if [ "$STEAM" = yes ]; then cp godot/bin/libsteam_api.dylib dist/templates/; fi
+          # And the VR runtime and streamer to macOS exports that use them.
+          mkdir -p dist/templates/vr_streamer/macos
+          cp godot/bin/libvr_runtime.dylib godot/bin/vr_streamer godot/bin/vr_streamer_notices.txt dist/templates/vr_streamer/macos/
+
+      - name: Upload to the release
+        run: |
+          ditto -c -k --keepParent dist/Purr.app "dist/purr-$VERSION-macos-editor.zip"
+          (cd dist/templates && zip -q -r "../purr-$VERSION-macos-templates.zip" .)
+          gh release upload "v$VERSION" "dist/purr-$VERSION-macos-editor.zip" "dist/purr-$VERSION-macos-templates.zip"
+
+  windows:
+    name: Windows
+    needs: prepare
+    runs-on: windows-latest
+    environment: release-build
+    timeout-minutes: 300
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      SCONS_CACHE_MSVC_CONFIG: true
+      PYTHONIOENCODING: utf8
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Prepare the build
+        uses: ./.github/actions/prepare-build
+        with:
+          steamworks-sdk-url: ${{ secrets.STEAMWORKS_SDK_URL }}
+
+      - name: Windows icons
+        run: |
+          cp branding/purr.ico godot/platform/windows/godot.ico
+          cp branding/purr.ico godot/platform/windows/godot_console.ico
+
+      - name: Install the Direct3D 12 SDK
+        working-directory: godot
+        run: python misc/scripts/install_d3d12_sdk_windows.py
+
+      - name: Build
+        working-directory: godot
+        run: |
+          flags=(platform=windows arch=x86_64 profile=../build/purr.py custom_modules=../modules "module_godotsteam_enabled=$STEAM" "-j$NUMBER_OF_PROCESSORS")
+          scons "${flags[@]}" target=editor
+          scons "${flags[@]}" target=template_debug
+          scons "${flags[@]}" target=template_release production=yes lto=full
+
+      - name: Check the editor starts
+        run: |
+          # The engine loads Steam's library from its own folder.
+          if [ "$STEAM" = yes ]; then cp sdk/steamworks/redistributable_bin/win64/steam_api64.dll godot/bin/; fi
+          godot/bin/godot.windows.editor.x86_64.console.exe --headless --version | grep -F "$VERSION (based on Godot"
+
+      - name: Package
+        run: |
+          mkdir -p dist/editor dist/templates
+          bin=godot/bin
+          cp $bin/godot.windows.editor.x86_64.exe dist/editor/Purr.exe
+          cp $bin/godot.windows.editor.x86_64.console.exe dist/editor/Purr_console.exe
+          for target in debug release; do
+            cp $bin/godot.windows.template_$target.x86_64.exe dist/templates/windows_${target}_x86_64.exe
+            cp $bin/godot.windows.template_$target.x86_64.console.exe dist/templates/windows_${target}_x86_64_console.exe
+          done
+          if [ "$STEAM" = yes ]; then
+            cp $bin/steam_api64.dll dist/editor/
+            # Purr's export plugin adds it to every Windows export from here.
+            cp $bin/steam_api64.dll dist/templates/
+          fi
+          d3d12="$(find $bin -name D3D12Core.dll | head -n 1)"
+          if [ -n "$d3d12" ]; then
+            cp "$d3d12" dist/editor/D3D12Core.dll
+            cp "$d3d12" dist/templates/D3D12Core.x86_64.dll
+          fi
+
+      - name: Upload to the release
+        run: |
+          (cd dist/editor && 7z a -bso0 "../purr-$VERSION-windows-editor.zip" .)
+          (cd dist/templates && 7z a -bso0 "../purr-$VERSION-windows-templates.zip" .)
+          gh release upload "v$VERSION" "dist/purr-$VERSION-windows-editor.zip" "dist/purr-$VERSION-windows-templates.zip"
+
+  linux:
+    name: Linux
+    needs: prepare
+    runs-on: ubuntu-24.04
+    environment: release-build
+    timeout-minutes: 300
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the Wayland tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwayland-bin
+
+      - name: Prepare the build
+        uses: ./.github/actions/prepare-build
+        with:
+          steamworks-sdk-url: ${{ secrets.STEAMWORKS_SDK_URL }}
+
+      - name: Build
+        working-directory: godot
+        run: |
+          flags=(platform=linuxbsd arch=x86_64 profile=../build/purr.py custom_modules=../modules "module_godotsteam_enabled=$STEAM" "-j$(nproc)")
+          scons "${flags[@]}" target=editor
+          scons "${flags[@]}" target=template_debug
+          scons "${flags[@]}" target=template_release production=yes lto=full
+
+      - name: Check the editor starts
+        run: |
+          # The engine loads Steam's library from its own folder.
+          if [ "$STEAM" = yes ]; then cp sdk/steamworks/redistributable_bin/linux64/libsteam_api.so godot/bin/; fi
+          godot/bin/godot.linuxbsd.editor.x86_64 --headless --version | grep -F "$VERSION (based on Godot"
+
+      - name: Package
+        run: |
+          mkdir -p dist/editor dist/templates
+          bin=godot/bin
+          cp $bin/godot.linuxbsd.editor.x86_64 dist/editor/purr
+          cp $bin/godot.linuxbsd.template_debug.x86_64 dist/templates/linux_debug.x86_64
+          cp $bin/godot.linuxbsd.template_release.x86_64 dist/templates/linux_release.x86_64
+          if [ "$STEAM" = yes ]; then
+            cp $bin/libsteam_api.so dist/editor/
+            # Purr's export plugin adds it to every Linux export from here.
+            cp $bin/libsteam_api.so dist/templates/
+          fi
+
+      - name: Upload to the release
+        run: |
+          (cd dist/editor && zip -q -r "../purr-$VERSION-linux-editor.zip" .)
+          (cd dist/templates && zip -q -r "../purr-$VERSION-linux-templates.zip" .)
+          gh release upload "v$VERSION" "dist/purr-$VERSION-linux-editor.zip" "dist/purr-$VERSION-linux-templates.zip"
+
+  android:
+    name: Android
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Steam doesn't run on Android, so no SDK.
+      - name: Prepare the build
+        uses: ./.github/actions/prepare-build
+
+      - name: Install Swappy
+        working-directory: godot
+        run: python misc/scripts/install_swappy_android.py || echo "::warning::Swappy couldn't be installed, so frame pacing uses Godot's own."
+
+      # The build installs the NDK version Godot needs with the runner's Android SDK.
+      - name: Build
+        working-directory: godot
+        run: |
+          for arch in arm32 arm64 x86_32 x86_64; do
+            flags=(platform=android "arch=$arch" profile=../build/purr.py custom_modules=../modules module_godotsteam_enabled=no "-j$(nproc)")
+            scons "${flags[@]}" target=template_debug
+            scons "${flags[@]}" target=template_release production=yes
+          done
+
+      - name: Package the templates
+        working-directory: godot/platform/android/java
+        run: ./gradlew generateGodotTemplates
+
+      # Play Games' Android plugin, which Purr's export plugin adds to Gradle exports from the
+      # installed templates.
+      - name: Build the Play Games plugin
+        run: godot/platform/android/java/gradlew -p modules/play_games/android copyAar
+
+      - name: Upload to the release
+        run: |
+          mkdir -p dist/templates
+          cp godot/bin/android_debug.apk godot/bin/android_release.apk godot/bin/android_source.zip dist/templates/
+          cp modules/play_games/android/build/purr/purr_play_games.aar dist/templates/
+          (cd dist/templates && zip -q -r "../purr-$VERSION-android-templates.zip" .)
+          gh release upload "v$VERSION" "dist/purr-$VERSION-android-templates.zip"
+
+  publish:
+    name: Publish
+    needs: [prepare, macos, windows, linux, android]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the export templates file
+        run: |
+          # The editor's "Install from file" takes one .tpz with every platform's templates,
+          # in a templates/ folder with a version.txt naming the version they belong to.
+          mkdir -p dist/templates
+          gh release download "v$VERSION" --dir dist --pattern "*-templates.zip"
+          for zip in dist/*-templates.zip; do
+            unzip -q -o "$zip" -d dist/templates
+          done
+          godot_version="$(cd godot && python3 -c 'import version as v; print(f"{v.major}.{v.minor}" + (f".{v.patch}" if v.patch else ""))')"
+          status="$(sed -n 's/^status: //p' UPSTREAM.txt)"
+          echo "$godot_version.$status.purr-$VERSION" > dist/templates/version.txt
+          (cd dist && zip -q -r "purr-$VERSION-templates.tpz" templates)
+          gh release upload "v$VERSION" "dist/purr-$VERSION-templates.tpz"
+
+      - name: Checksums
+        run: |
+          rm -rf dist && mkdir dist
+          gh release download "v$VERSION" --dir dist
+          (cd dist && sha256sum purr-* > "purr-$VERSION-SHA256SUMS" && sha256sum -c "purr-$VERSION-SHA256SUMS")
+          gh release upload "v$VERSION" "dist/purr-$VERSION-SHA256SUMS"
+
+      - name: Publish the release
+        run: gh release edit "v$VERSION" --draft=false

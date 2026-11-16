@@ -1,0 +1,61 @@
+From 928595827489a153c517c327a6d0b80d08ec6428 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 11:49:30 +0000
+Subject: [PATCH 01/13] Name the engine Purr
+
+Godot's trademark policy doesn't allow a fork to present itself as
+Godot Engine, so the editor title, version string, startup header and
+crash logs now say Purr, and the startup header links Purr's website.
+The editor's crash message points to Purr rather than Godot's issue
+tracker, since Purr's bugs are Purr's to fix. The version number stays
+Godot's, so the version still shows which release Purr is based on.
+
+The short name also changes, which gives Purr its own data folder
+(Application Support/Purr, %APPDATA%\Purr, ~/.local/share/purr).
+Without it, Purr and stock Godot of the same version would share one
+export_templates folder and overwrite each other's templates. Games'
+user:// folders move to the Purr folder too.
+
+Test: start the editor; its title, the startup header and --version say
+Purr, and it keeps its settings in Application Support/Purr (or the
+platform's equivalent).
+
+Not for upstream. Policy: https://godotengine.org/trademark/
+---
+ godot/core/config/project_settings.cpp | 2 +-
+ godot/version.py                       | 6 +++---
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/godot/core/config/project_settings.cpp b/godot/core/config/project_settings.cpp
+index 4cf864f..9d8267c 100644
+--- a/godot/core/config/project_settings.cpp
++++ b/godot/core/config/project_settings.cpp
+@@ -1820,7 +1820,7 @@ ProjectSettings::ProjectSettings() {
+ 	GLOBAL_DEF("debug/settings/crash_handler/message",
+ 			String("Please include this when reporting the bug to the project developer."));
+ 	GLOBAL_DEF("debug/settings/crash_handler/message.editor",
+-			String("Please include this when reporting the bug on: https://github.com/godotengine/godot/issues"));
++			String("Please include this when reporting the bug on: https://oss.nekolab.studio/purr"));
+ 	GLOBAL_DEF_RST(PropertyInfo(Variant::INT, "rendering/occlusion_culling/bvh_build_quality", PROPERTY_HINT_ENUM, "Low,Medium,High"), 2);
+ 	GLOBAL_DEF_RST("rendering/occlusion_culling/jitter_projection", true);
+ 
+diff --git a/godot/version.py b/godot/version.py
+index 6569e62..b9f237b 100644
+--- a/godot/version.py
++++ b/godot/version.py
+@@ -1,9 +1,9 @@
+-short_name = "godot"
+-name = "Godot Engine"
++short_name = "purr"
++name = "Purr"
+ major = 4
+ minor = 8
+ patch = 0
+ status = "beta"
+ module_config = ""
+-website = "https://godotengine.org"
++website = "https://oss.nekolab.studio/purr"
+ docs = "latest"
+-- 
+2.54.0 (Apple Git-157)
+

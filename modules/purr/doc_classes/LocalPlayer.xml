@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="LocalPlayer" inherits="RefCounted" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		A player on this device: player 1 or a guest.
+	</brief_description>
+	<description>
+		One of [member LocalPlayers.players]. Player 1 is the signed-in player. A plain guest has no saves of their own. A local profile is a guest remembered on this device, with saves of their own kept like player 1's, and no account. A guest who brought their profile with their email (and maybe asked this device to remember them) has their own account and saves, which this device can only load and save.
+		A player's own saves are [member saves]; player 1's are also [Saves].
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="confirm_email">
+			<return type="Signal" />
+			<param index="0" name="code" type="String" />
+			<description>
+				For a local profile, after [method link_email]: checks the code and turns the profile into a remembered guest with that account, its saves going up to it. Await it for the result.
+			</description>
+		</method>
+		<method name="forget">
+			<return type="void" />
+			<description>
+				Forgets a remembered guest or a local profile on this device. A local profile lives only here, so its progress is deleted; a remembered guest's account and saves are untouched.
+			</description>
+		</method>
+		<method name="get_achievements" qualifiers="const">
+			<return type="Dictionary" />
+			<description>
+				Returns this player's achievements as [code]{id: progress}[/code], progress from [code]0[/code] to [code]1[/code]. Player 1's are [method Achievements.get_all].
+			</description>
+		</method>
+		<method name="link_email">
+			<return type="Signal" />
+			<param index="0" name="email" type="String" />
+			<description>
+				For a local profile: emails a code to the person's address so they can keep their progress on their own account, to enter for [method confirm_email]. Player 1 uses [method Account.link_email]. Await it for the result.
+			</description>
+		</method>
+		<method name="needs_display_name" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] when the game should ask this player for a name: player 1 without a platform name (see [method Account.needs_display_name]), or a plain guest the game hasn't named yet (they're called "Guest" until then). A local profile already has its name, and a guest who brought their profile has their account's.
+			</description>
+		</method>
+		<method name="remember">
+			<return type="Signal" />
+			<param index="0" name="name" type="String" />
+			<description>
+				Remembers a plain guest on this device as a local profile named [param name], with progress of their own kept like player 1's (in the platform's cloud, or on this device). Await it for the result.
+			</description>
+		</method>
+		<method name="set_achievement_progress">
+			<return type="void" />
+			<param index="0" name="id" type="String" />
+			<param index="1" name="current" type="int" />
+			<param index="2" name="total" type="int" />
+			<description>
+				Records this player's progress towards an achievement, unlocked at [param total]: player 1's as [method Achievements.set_progress]; a guest's kept on their account, like [method unlock_achievement].
+			</description>
+		</method>
+		<method name="set_display_name">
+			<return type="Signal" />
+			<param index="0" name="name" type="String" />
+			<description>
+				Names this player (1 to 24 characters). For player 1 it's [method Account.set_display_name]. A plain guest's name lasts while they play; a local profile's is kept with it on this device. A guest who brought their profile can't be renamed here ([code]error[/code] [code]"own_device"[/code]): they change their name on their own device. Await it for the result.
+			</description>
+		</method>
+		<method name="unlock_achievement">
+			<return type="void" />
+			<param index="0" name="id" type="String" />
+			<description>
+				Unlocks an achievement for this player: on the platform for player 1; for a guest, kept on their account and unlocked on their own platform the next time they play on their own device.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="account_id" type="String" setter="" getter="get_account_id">
+			The player's account on the online service, or empty.
+		</member>
+		<member name="kind" type="int" setter="" getter="get_kind" enum="LocalPlayer.Kind">
+			What kind of player this is.
+		</member>
+		<member name="player_name" type="String" setter="" getter="get_player_name">
+			The player's name.
+		</member>
+		<member name="remembered" type="bool" setter="" getter="is_remembered">
+			Whether this device remembers the player.
+		</member>
+		<member name="saves" type="PlayerSaves" setter="" getter="get_saves">
+			The player's own saves, or [code]null[/code] for a plain guest, whose progress the game keeps in player 1's.
+		</member>
+	</members>
+	<constants>
+		<constant name="KIND_PLAYER" value="0" enum="Kind">
+			Player 1, the signed-in player.
+		</constant>
+		<constant name="KIND_GUEST" value="1" enum="Kind">
+			A plain guest, without saves of their own.
+		</constant>
+		<constant name="KIND_LOCAL_PROFILE" value="2" enum="Kind">
+			A guest remembered on this device, with saves of their own and no account.
+		</constant>
+		<constant name="KIND_ONLINE_GUEST" value="3" enum="Kind">
+			A guest who brought their own profile with their email, with their own account and saves.
+		</constant>
+	</constants>
+</class>

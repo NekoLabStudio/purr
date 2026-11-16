@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="PlayGames" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Google Play Games on Android.
+	</brief_description>
+	<description>
+		Signs the player in to Play Games, and reports achievements and leaderboard scores. It can also keep files in the player's Play Games saved games. Most games use [Purr], which uses this on Android; it's here for anything [Purr] doesn't cover.
+		It's off unless [code]play_games/app_id[/code] in Project Settings is the game's application ID from the Play Console. Export with the Android preset's Gradle Build > Use Gradle Build on; Purr adds Play Games to the build. For Purr's online services, set [code]play_games/server_client_id[/code] to the OAuth web client ID the service uses. For saves in Play Games, turn on saved games for the game in the Play Console and [code]play_games/saved_games[/code] in Project Settings.
+		Each asynchronous call returns a signal that fires once with a [Dictionary] with [code]ok[/code] and, when it failed, [code]error[/code].
+		[codeblock]
+		var signed_in = await PlayGames.authenticate()
+		if signed_in.ok:
+		    PlayGames.unlock_achievement("CgkI...")
+		[/codeblock]
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="authenticate">
+			<return type="Signal" />
+			<param index="0" name="interactive" type="bool" default="true" />
+			<description>
+				Signs the player in to Play Games. Play Games usually signs players in by itself when the game starts; if it hasn't and [param interactive] is [code]true[/code], Google's sign-in screen shows. Await it: the result has [code]player_id[/code] and [code]player_name[/code] when it succeeds.
+			</description>
+		</method>
+		<method name="delete_file">
+			<return type="Signal" />
+			<param index="0" name="name" type="String" />
+			<description>
+				Deletes a file from the player's saved games. Await it for [code]ok[/code].
+			</description>
+		</method>
+		<method name="get_player_id" qualifiers="const">
+			<return type="String" />
+			<description>
+				The signed-in player's Play Games ID, or an empty string.
+			</description>
+		</method>
+		<method name="get_player_name" qualifiers="const">
+			<return type="String" />
+			<description>
+				The signed-in player's Play Games name, or an empty string.
+			</description>
+		</method>
+		<method name="increment_achievement">
+			<return type="void" />
+			<param index="0" name="id" type="String" />
+			<param index="1" name="steps" type="int" />
+			<description>
+				Adds [param steps] to an incremental achievement. Play Games sends it when it can.
+			</description>
+		</method>
+		<method name="is_authenticated" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Whether a player is signed in.
+			</description>
+		</method>
+		<method name="is_available" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Whether Play Games is in this game: on Android, exported with it, with [code]play_games/app_id[/code] set.
+			</description>
+		</method>
+		<method name="is_saved_games_enabled" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Whether the file calls work: a player is signed in and [code]play_games/saved_games[/code] is on.
+			</description>
+		</method>
+		<method name="list_files">
+			<return type="Signal" />
+			<description>
+				Lists the files in the player's saved games. Await it: the result's [code]files[/code] is an [Array] of [Dictionary], each with [code]name[/code], [code]modified[/code] (milliseconds since 1970) and [code]metadata[/code].
+			</description>
+		</method>
+		<method name="get_achievements">
+			<return type="Signal" />
+			<description>
+				Loads the player's achievements. Await it: the result is a [Dictionary] with [code]ok[/code] and [code]achievements[/code], [code]{id: {"unlocked", "current_steps", "total_steps"}}[/code], the steps [code]0[/code] for achievements that aren't incremental.
+			</description>
+		</method>
+		<method name="load_file">
+			<return type="Signal" />
+			<param index="0" name="name" type="String" />
+			<description>
+				Reads a file from the player's saved games. Await it: the result has [code]data[/code] ([PackedByteArray]), [code]modified[/code] and [code]metadata[/code].
+			</description>
+		</method>
+		<method name="get_scores">
+			<return type="Signal" />
+			<param index="0" name="leaderboard_id" type="String" />
+			<param index="1" name="scope" type="int" enum="PlayGames.Scope" default="0" />
+			<param index="2" name="count" type="int" default="10" />
+			<description>
+				Loads up to [param count] all-time scores (25 at most), as [param scope] says. Await it: the result is a [Dictionary] with [code]ok[/code] and [code]scores[/code], each with [code]rank[/code], [code]name[/code], [code]score[/code] and [code]player[/code].
+			</description>
+		</method>
+		<method name="request_server_auth_code">
+			<return type="Signal" />
+			<description>
+				Asks Google for a one-time code a server exchanges to confirm who the player is, for the OAuth client in [code]play_games/server_client_id[/code]. Await it: the result has [code]code[/code], what [method PurrOnline.sign_in_play_games] takes.
+			</description>
+		</method>
+		<method name="save_file">
+			<return type="Signal" />
+			<param index="0" name="name" type="String" />
+			<param index="1" name="data" type="PackedByteArray" />
+			<param index="2" name="metadata" type="Dictionary" default="{}" />
+			<description>
+				Writes a file to the player's saved games, replacing one with the same name, with [param metadata] kept beside it. When two devices write the same file, Play Games keeps the newest. Await it: the result has [code]modified[/code].
+			</description>
+		</method>
+		<method name="set_achievement_steps">
+			<return type="void" />
+			<param index="0" name="id" type="String" />
+			<param index="1" name="steps" type="int" />
+			<description>
+				Sets an incremental achievement's steps, unlocking it at its total. Play Games never lowers them.
+			</description>
+		</method>
+		<method name="show_achievements">
+			<return type="void" />
+			<description>
+				Shows Play Games' list of the game's achievements.
+			</description>
+		</method>
+		<method name="show_leaderboard">
+			<return type="void" />
+			<param index="0" name="leaderboard_id" type="String" default="&quot;&quot;" />
+			<description>
+				Shows a leaderboard, or all of the game's leaderboards when [param leaderboard_id] is empty.
+			</description>
+		</method>
+		<method name="submit_score">
+			<return type="void" />
+			<param index="0" name="leaderboard_id" type="String" />
+			<param index="1" name="score" type="int" />
+			<description>
+				Submits a score to a leaderboard. Play Games sends it when it can.
+			</description>
+		</method>
+		<method name="unlock_achievement">
+			<return type="void" />
+			<param index="0" name="id" type="String" />
+			<description>
+				Unlocks an achievement. Play Games sends it when it can.
+			</description>
+		</method>
+	</methods>
+	<constants>
+		<constant name="SCOPE_GLOBAL" value="0" enum="Scope">
+			The best scores.
+		</constant>
+		<constant name="SCOPE_FRIENDS" value="1" enum="Scope">
+			The best among the player's friends.
+		</constant>
+		<constant name="SCOPE_AROUND_PLAYER" value="2" enum="Scope">
+			Those around the player's own, or the best if they have none.
+		</constant>
+	</constants>
+</class>

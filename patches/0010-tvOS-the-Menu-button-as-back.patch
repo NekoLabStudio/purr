@@ -1,0 +1,122 @@
+From a1f30b20aeae71760d6e9a9ff53aaaf805e58659 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 14:40:36 +0000
+Subject: [PATCH 10/13] tvOS: the Menu button as back
+
+With quit_on_go_back on (the default), Menu goes back to the system
+and returns to the Home screen. That needs UIKit to see the press
+begin as well as end, which #118332 didn't let it, and controller
+interaction off on the view controller, which otherwise takes Menu as
+a controller pause.
+
+With quit_on_go_back off, the game holds Menu: the Menu key goes down
+and up with the press, and its release sends the go-back request, so
+games can tell taps from holds. Menu never also arrives as the
+keyboard key the system hangs on it.
+
+Adapted from closed pull request #123885's continuation (the tvos-port
+branch of sanarena/godot), verified there on Apple TV hardware in both
+modes.
+
+Test: on an Apple TV, Menu at the game's root returns to the Home
+screen; with get_tree().quit_on_go_back = false, Menu emits
+NOTIFICATION_WM_GO_BACK_REQUEST and KEY_MENU press and release.
+
+Upstream: https://github.com/godotengine/godot/pull/123885
+---
+ .../apple_embedded/godot_view_controller.mm   | 44 +++++++++++++++++--
+ 1 file changed, 41 insertions(+), 3 deletions(-)
+
+diff --git a/godot/drivers/apple_embedded/godot_view_controller.mm b/godot/drivers/apple_embedded/godot_view_controller.mm
+index bf83fb2..228c8bb 100644
+--- a/godot/drivers/apple_embedded/godot_view_controller.mm
++++ b/godot/drivers/apple_embedded/godot_view_controller.mm
+@@ -100,6 +100,28 @@ - (GDTView *)godotView {
+ - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+ 	// [super pressesBegan:presses withEvent:event];
+ 
++#ifdef TVOS_ENABLED
++	// Menu is back. With quit_on_go_back on (the default) it goes to UIKit,
++	// which needs the press's beginning as well as its end, or it drops the
++	// end and Menu never returns to the Home screen. With it off the game
++	// holds Menu: the Menu key goes down here and up in pressesEnded, with
++	// the go-back request, so taps and holds tell apart. (A hardware
++	// keyboard's Escape reports as Menu on tvOS, and acts as it.)
++	for (UIPress *press in presses) {
++		if (press.type == UIPressTypeMenu) {
++			SceneTree *scene = SceneTree::get_singleton();
++			if (scene && scene->is_quit_on_go_back()) {
++				[super pressesBegan:presses withEvent:event];
++				return;
++			}
++			if (DisplayServerAppleEmbedded::get_singleton()) {
++				DisplayServerAppleEmbedded::get_singleton()->key(Key::MENU, 0, Key::MENU, Key::MENU, 0, true, KeyLocation::UNSPECIFIED);
++			}
++			break;
++		}
++	}
++#endif
++
+ 	if (!DisplayServerAppleEmbedded::get_singleton() || DisplayServerAppleEmbedded::get_singleton()->is_keyboard_active()) {
+ 		return;
+ 	}
+@@ -122,6 +144,12 @@ - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
+ #endif
+ 	if (@available(iOS 13.4, *)) {
+ 		for (UIPress *press in presses) {
++#ifdef TVOS_ENABLED
++			// Menu is handled above; it never doubles as the key it carries.
++			if (press.type == UIPressTypeMenu) {
++				continue;
++			}
++#endif
+ 			String u32lbl = String::utf8([press.key.charactersIgnoringModifiers UTF8String]);
+ 			String u32text = String::utf8([press.key.characters UTF8String]);
+ 			Key key = KeyMappingAppleEmbedded::remap_key(press.key.keyCode);
+@@ -160,6 +188,7 @@ - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
+ 				// Let UIKit process the event.
+ 				[super pressesEnded:presses withEvent:event];
+ 			} else if (DisplayServerAppleEmbedded::get_singleton()) {
++				DisplayServerAppleEmbedded::get_singleton()->key(Key::MENU, 0, Key::MENU, Key::MENU, 0, false, KeyLocation::UNSPECIFIED);
+ 				DisplayServerAppleEmbedded::get_singleton()->send_window_event(DisplayServerEnums::WINDOW_EVENT_GO_BACK_REQUEST);
+ 			}
+ 			return;
+@@ -183,6 +212,12 @@ - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
+ #endif
+ 	if (@available(iOS 13.4, *)) {
+ 		for (UIPress *press in presses) {
++#ifdef TVOS_ENABLED
++			// Menu is handled above; it never doubles as the key it carries.
++			if (press.type == UIPressTypeMenu) {
++				continue;
++			}
++#endif
+ 			String u32lbl = String::utf8([press.key.charactersIgnoringModifiers UTF8String]);
+ 			Key key = KeyMappingAppleEmbedded::remap_key(press.key.keyCode);
+ 
+@@ -209,7 +244,7 @@ - (void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *
+ 	if (!DisplayServerAppleEmbedded::get_singleton()) {
+ 		return;
+ 	}
+-	const Key keys[] = { Key::UP, Key::DOWN, Key::LEFT, Key::RIGHT, Key::ENTER, Key::MEDIAPLAY };
++	const Key keys[] = { Key::UP, Key::DOWN, Key::LEFT, Key::RIGHT, Key::ENTER, Key::MEDIAPLAY, Key::MENU };
+ 	for (const Key key : keys) {
+ 		DisplayServerAppleEmbedded::get_singleton()->key(key, 0, key, key, 0, false, KeyLocation::UNSPECIFIED);
+ 	}
+@@ -325,8 +360,11 @@ - (instancetype)initWithCoder:(NSCoder *)coder {
+ - (void)godot_commonInit {
+ 	// Initialize view controller values.
+ #ifdef TVOS_ENABLED
+-	// Don't pass presses like the B button as regular events.
+-	// self.controllerUserInteractionEnabled = NO;
++	// A GCEventViewController with controller interaction on takes Menu as a
++	// controller pause, so Menu could never return to the Home screen. Off,
++	// Menu reaches UIKit; game controllers are unaffected (SDL reads them
++	// directly), and Godot's UI doesn't use UIKit focus.
++	self.controllerUserInteractionEnabled = NO;
+ #endif
+ }
+ 
+-- 
+2.54.0 (Apple Git-157)
+

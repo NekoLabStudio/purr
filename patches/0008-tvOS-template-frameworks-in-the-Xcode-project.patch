@@ -1,0 +1,158 @@
+From 24c94f72b428ea4a7bfef4cee55937b94640cae0 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 14:40:36 +0000
+Subject: [PATCH 08/13] tvOS: template frameworks in the Xcode project
+
+The Xcode project the tvOS export uses needs a place for the tvOS
+template libraries, as it has for iOS and visionOS: the build's
+generate_bundle step copies them into libgodot.tvos.debug.xcframework
+and libgodot.tvos.release.xcframework, which upstream pull request
+#118332 doesn't add, so tvOS templates couldn't be bundled at all.
+
+These are the frameworks' Info.plist files and empty folders, as in
+the tvos-port branch of sanarena/godot (closed pull request #123885).
+
+Test: ./build.sh tvos ends with godot/bin/godot_tvos.zip, holding both
+xcframeworks.
+
+Upstream: https://github.com/godotengine/godot/pull/118332 (missing
+there; worth suggesting on that pull request). Drop this patch with
+the tvOS backport.
+---
+ .../Info.plist                                | 40 +++++++++++++++++++
+ .../tvos-arm64/empty                          |  1 +
+ .../tvos-arm64_x86_64-simulator/empty         |  1 +
+ .../Info.plist                                | 40 +++++++++++++++++++
+ .../tvos-arm64/empty                          |  1 +
+ .../tvos-arm64_x86_64-simulator/empty         |  1 +
+ 6 files changed, 84 insertions(+)
+ create mode 100644 godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/Info.plist
+ create mode 100644 godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/tvos-arm64/empty
+ create mode 100644 godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/tvos-arm64_x86_64-simulator/empty
+ create mode 100644 godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/Info.plist
+ create mode 100644 godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/tvos-arm64/empty
+ create mode 100644 godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/tvos-arm64_x86_64-simulator/empty
+
+diff --git a/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/Info.plist b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/Info.plist
+new file mode 100644
+index 0000000..ea990d4
+--- /dev/null
++++ b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/Info.plist
+@@ -0,0 +1,40 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++<plist version="1.0">
++<dict>
++	<key>AvailableLibraries</key>
++	<array>
++		<dict>
++			<key>LibraryIdentifier</key>
++			<string>tvos-arm64</string>
++			<key>LibraryPath</key>
++			<string>libgodot.a</string>
++			<key>SupportedArchitectures</key>
++			<array>
++				<string>arm64</string>
++			</array>
++			<key>SupportedPlatform</key>
++			<string>tvos</string>
++		</dict>
++		<dict>
++			<key>LibraryIdentifier</key>
++			<string>tvos-arm64_x86_64-simulator</string>
++			<key>LibraryPath</key>
++			<string>libgodot.a</string>
++			<key>SupportedArchitectures</key>
++			<array>
++				<string>arm64</string>
++				<string>x86_64</string>
++			</array>
++			<key>SupportedPlatform</key>
++			<string>tvos</string>
++			<key>SupportedPlatformVariant</key>
++			<string>simulator</string>
++		</dict>
++	</array>
++	<key>CFBundlePackageType</key>
++	<string>XFWK</string>
++	<key>XCFrameworkFormatVersion</key>
++	<string>1.0</string>
++</dict>
++</plist>
+diff --git a/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/tvos-arm64/empty b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/tvos-arm64/empty
+new file mode 100644
+index 0000000..bd3e894
+--- /dev/null
++++ b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/tvos-arm64/empty
+@@ -0,0 +1 @@
++Dummy file to make dylibs folder exported
+diff --git a/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/tvos-arm64_x86_64-simulator/empty b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/tvos-arm64_x86_64-simulator/empty
+new file mode 100644
+index 0000000..bd3e894
+--- /dev/null
++++ b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/tvos-arm64_x86_64-simulator/empty
+@@ -0,0 +1 @@
++Dummy file to make dylibs folder exported
+diff --git a/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/Info.plist b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/Info.plist
+new file mode 100644
+index 0000000..ea990d4
+--- /dev/null
++++ b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/Info.plist
+@@ -0,0 +1,40 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++<plist version="1.0">
++<dict>
++	<key>AvailableLibraries</key>
++	<array>
++		<dict>
++			<key>LibraryIdentifier</key>
++			<string>tvos-arm64</string>
++			<key>LibraryPath</key>
++			<string>libgodot.a</string>
++			<key>SupportedArchitectures</key>
++			<array>
++				<string>arm64</string>
++			</array>
++			<key>SupportedPlatform</key>
++			<string>tvos</string>
++		</dict>
++		<dict>
++			<key>LibraryIdentifier</key>
++			<string>tvos-arm64_x86_64-simulator</string>
++			<key>LibraryPath</key>
++			<string>libgodot.a</string>
++			<key>SupportedArchitectures</key>
++			<array>
++				<string>arm64</string>
++				<string>x86_64</string>
++			</array>
++			<key>SupportedPlatform</key>
++			<string>tvos</string>
++			<key>SupportedPlatformVariant</key>
++			<string>simulator</string>
++		</dict>
++	</array>
++	<key>CFBundlePackageType</key>
++	<string>XFWK</string>
++	<key>XCFrameworkFormatVersion</key>
++	<string>1.0</string>
++</dict>
++</plist>
+diff --git a/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/tvos-arm64/empty b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/tvos-arm64/empty
+new file mode 100644
+index 0000000..bd3e894
+--- /dev/null
++++ b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/tvos-arm64/empty
+@@ -0,0 +1 @@
++Dummy file to make dylibs folder exported
+diff --git a/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/tvos-arm64_x86_64-simulator/empty b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/tvos-arm64_x86_64-simulator/empty
+new file mode 100644
+index 0000000..bd3e894
+--- /dev/null
++++ b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/tvos-arm64_x86_64-simulator/empty
+@@ -0,0 +1 @@
++Dummy file to make dylibs folder exported
+-- 
+2.54.0 (Apple Git-157)
+

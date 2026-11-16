@@ -1,0 +1,250 @@
+From 7033836b5cda6fe2affb33bbce64c9e00de20d40 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 14:40:36 +0000
+Subject: [PATCH 09/13] tvOS: Siri Remote buttons as keys, and its touch 
+ surface as a stick
+
+Upstream pull request #118332 gives tvOS no Siri Remote input at all
+(SDL's remote-as-joystick is switched off there, so nothing reports
+twice). The remote now arrives as keys: its clickpad edges and D-pad
+as the arrow keys, its click as Enter and Play/Pause as the media play
+key, so Godot's default UI navigation and arrow and Enter bindings
+work. A cancelled press (Siri, Control Center) releases every key the
+remote could hold.
+
+Its touch surface steers like a stick: where the finger rests is the
+left stick (absolute, corners included), on its own joypad device, -3,
+which actions bound to all devices hear and no real controller shares.
+Lifting the finger or unplugging the remote zeroes it.
+
+Adapted to #118332's structure from closed pull request #123885 and
+its continuation, the tvos-port branch of sanarena/godot, verified
+there on Apple TV hardware.
+
+Test: on an Apple TV, the remote's clickpad moves focus through a
+menu and its click presses the focused button; a finger resting on
+the right of the clickpad gives Input.get_joy_axis(-3,
+JOY_AXIS_LEFT_X) near 1.
+
+Upstream: https://github.com/godotengine/godot/pull/123885 (closed in
+favour of #118332, which has the gap).
+---
+ .../apple_embedded/godot_view_controller.mm   | 160 +++++++++++++++++-
+ 1 file changed, 159 insertions(+), 1 deletion(-)
+
+diff --git a/godot/drivers/apple_embedded/godot_view_controller.mm b/godot/drivers/apple_embedded/godot_view_controller.mm
+index 5b1dc32..bf83fb2 100644
+--- a/godot/drivers/apple_embedded/godot_view_controller.mm
++++ b/godot/drivers/apple_embedded/godot_view_controller.mm
+@@ -31,6 +31,8 @@
+ #import "godot_view_controller.h"
+ 
+ #include "core/config/project_settings.h"
++#include "core/input/input.h"
++#include "core/input/input_event.h"
+ #import "drivers/apple_embedded/display_server_apple_embedded.h"
+ #import "drivers/apple_embedded/godot_keyboard_input_view.h"
+ #import "drivers/apple_embedded/godot_view_apple_embedded.h"
+@@ -44,7 +46,15 @@
+ #import <GameController/GameController.h>
+ #import <objc/runtime.h>
+ 
+-@interface GDTViewController () <GDTViewDelegate>
++@interface GDTViewController () <GDTViewDelegate> {
++#ifdef TVOS_ENABLED
++	// The stick position last sent for the remote's touch surface, and whether
++	// a nonzero one is out that lifting must zero.
++	float _stick_last_x;
++	float _stick_last_y;
++	bool _stick_down;
++#endif
++}
+ 
+ @property(strong, nonatomic) GDTViewRenderer *renderer;
+ @property(strong, nonatomic) GDTKeyboardInputView *keyboardView;
+@@ -53,6 +63,34 @@ @interface GDTViewController () <GDTViewDelegate>
+ 
+ @end
+ 
++#ifdef TVOS_ENABLED
++// The key a Siri Remote press stands for.
++static Key remote_key(UIPressType p_type) {
++	switch (p_type) {
++		case UIPressTypeUpArrow:
++			return Key::UP;
++		case UIPressTypeDownArrow:
++			return Key::DOWN;
++		case UIPressTypeLeftArrow:
++			return Key::LEFT;
++		case UIPressTypeRightArrow:
++			return Key::RIGHT;
++		case UIPressTypeSelect:
++			return Key::ENTER;
++		case UIPressTypePlayPause:
++			return Key::MEDIAPLAY;
++		default:
++			return Key::NONE;
++	}
++}
++
++// The remote's touch surface steers like a stick: where the finger rests
++// becomes the left stick (absolute, corners included), on its own device,
++// -3, which actions bound to all devices hear and no real joypad shares.
++// Lifting the finger, unplugging the remote or a cancelled press zeroes it.
++static const int TV_REMOTE_STICK_DEVICE = -3;
++#endif
++
+ @implementation GDTViewController
+ 
+ - (GDTView *)godotView {
+@@ -65,6 +103,23 @@ - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
+ 	if (!DisplayServerAppleEmbedded::get_singleton() || DisplayServerAppleEmbedded::get_singleton()->is_keyboard_active()) {
+ 		return;
+ 	}
++#ifdef TVOS_ENABLED
++	// The Siri Remote arrives as presses without a key (a hardware keyboard's
++	// have one): its clickpad edges and D-pad as arrow keys, its click as
++	// Enter and Play/Pause as the media play key, so Godot's default UI
++	// navigation and arrow and Enter bindings work. SDL's remote-as-joystick
++	// is off (JoypadSDL), so nothing reports twice; other controllers still
++	// arrive through SDL as joypads.
++	for (UIPress *press in presses) {
++		if (press.key != nil) {
++			continue;
++		}
++		const Key key = remote_key(press.type);
++		if (key != Key::NONE) {
++			DisplayServerAppleEmbedded::get_singleton()->key(key, 0, key, key, 0, true, KeyLocation::UNSPECIFIED);
++		}
++	}
++#endif
+ 	if (@available(iOS 13.4, *)) {
+ 		for (UIPress *press in presses) {
+ 			String u32lbl = String::utf8([press.key.charactersIgnoringModifiers UTF8String]);
+@@ -115,6 +170,17 @@ - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
+ 	if (!DisplayServerAppleEmbedded::get_singleton() || DisplayServerAppleEmbedded::get_singleton()->is_keyboard_active()) {
+ 		return;
+ 	}
++#ifdef TVOS_ENABLED
++	for (UIPress *press in presses) {
++		if (press.key != nil) {
++			continue;
++		}
++		const Key key = remote_key(press.type);
++		if (key != Key::NONE) {
++			DisplayServerAppleEmbedded::get_singleton()->key(key, 0, key, key, 0, false, KeyLocation::UNSPECIFIED);
++		}
++	}
++#endif
+ 	if (@available(iOS 13.4, *)) {
+ 		for (UIPress *press in presses) {
+ 			String u32lbl = String::utf8([press.key.charactersIgnoringModifiers UTF8String]);
+@@ -136,6 +202,95 @@ - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
+ 	}
+ }
+ 
++#ifdef TVOS_ENABLED
++- (void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
++	// The system took the presses (Siri, Control Center, the app resigning),
++	// so no pressesEnded follows: release every key the remote could hold.
++	if (!DisplayServerAppleEmbedded::get_singleton()) {
++		return;
++	}
++	const Key keys[] = { Key::UP, Key::DOWN, Key::LEFT, Key::RIGHT, Key::ENTER, Key::MEDIAPLAY };
++	for (const Key key : keys) {
++		DisplayServerAppleEmbedded::get_singleton()->key(key, 0, key, key, 0, false, KeyLocation::UNSPECIFIED);
++	}
++	[self godot_zeroRemoteStick];
++}
++
++- (void)godot_setupRemoteStick {
++	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(godot_remoteControllersChanged:) name:GCControllerDidConnectNotification object:nil];
++	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(godot_remoteControllersChanged:) name:GCControllerDidDisconnectNotification object:nil];
++	// A touch watcher with no minimum duration backs up the lift, so a missed
++	// release can never leave the stick held.
++	UILongPressGestureRecognizer *touch = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(godot_remoteTouch:)];
++	touch.minimumPressDuration = 0;
++	touch.cancelsTouchesInView = NO;
++	[self.view addGestureRecognizer:touch];
++	_stick_last_x = 0.0f;
++	_stick_last_y = 0.0f;
++	_stick_down = false;
++	[self godot_attachRemoteStick];
++}
++
++- (void)godot_remoteControllersChanged:(NSNotification *)notification {
++	[self godot_zeroRemoteStick];
++	[self godot_attachRemoteStick];
++}
++
++- (void)godot_attachRemoteStick {
++	for (GCController *controller in [GCController controllers]) {
++		GCMicroGamepad *pad = controller.microGamepad;
++		if (pad == nil || controller.extendedGamepad != nil) {
++			continue; // The Siri Remote has a micro gamepad and no full one.
++		}
++		__weak typeof(self) weakSelf = self;
++		pad.dpad.valueChangedHandler = ^(GCControllerDirectionPad *dpad, float xValue, float yValue) {
++			[weakSelf godot_remoteStickMovedX:xValue y:-yValue];
++		};
++	}
++}
++
++- (void)godot_sendRemoteStickX:(float)x y:(float)y {
++	Input *input = Input::get_singleton();
++	if (input == nullptr) {
++		return;
++	}
++	const JoyAxis axes[2] = { JoyAxis::LEFT_X, JoyAxis::LEFT_Y };
++	const float values[2] = { x, y };
++	for (int i = 0; i < 2; i++) {
++		Ref<InputEventJoypadMotion> motion;
++		motion.instantiate();
++		motion->set_device(TV_REMOTE_STICK_DEVICE);
++		motion->set_axis(axes[i]);
++		motion->set_axis_value(values[i]);
++		input->parse_input_event(motion);
++	}
++	_stick_last_x = x;
++	_stick_last_y = y;
++	_stick_down = (x != 0.0f || y != 0.0f);
++}
++
++- (void)godot_zeroRemoteStick {
++	if (_stick_down) {
++		[self godot_sendRemoteStickX:0.0f y:0.0f];
++	}
++}
++
++- (void)godot_remoteStickMovedX:(float)x y:(float)y {
++	// A finger held still sends nothing more.
++	if (fabsf(x - _stick_last_x) > 0.01f || fabsf(y - _stick_last_y) > 0.01f) {
++		[self godot_sendRemoteStickX:x y:y];
++	} else {
++		_stick_down = (x != 0.0f || y != 0.0f);
++	}
++}
++
++- (void)godot_remoteTouch:(UILongPressGestureRecognizer *)recognizer {
++	if (recognizer.state == UIGestureRecognizerStateEnded || recognizer.state == UIGestureRecognizerStateCancelled || recognizer.state == UIGestureRecognizerStateFailed) {
++		[self godot_zeroRemoteStick];
++	}
++}
++#endif
++
+ - (void)loadView {
+ 	GDTView *view = GDTViewCreate();
+ 	GDTViewRenderer *renderer = [[GDTViewRenderer alloc] init];
+@@ -185,6 +340,9 @@ - (void)viewDidLoad {
+ 
+ #ifndef TVOS_ENABLED
+ 	[self observeKeyboard];
++#endif
++#ifdef TVOS_ENABLED
++	[self godot_setupRemoteStick];
+ #endif
+ 	[self displayLoadingOverlay];
+ 
+-- 
+2.54.0 (Apple Git-157)
+

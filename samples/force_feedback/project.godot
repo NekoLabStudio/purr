@@ -1,0 +1,7 @@
+config_version=5
+
+[application]
+
+config/name="Force feedback sample"
+config/description="Finds a steering wheel and plays a force, a damper and a vibration on it."
+run/main_scene="res://main.tscn"

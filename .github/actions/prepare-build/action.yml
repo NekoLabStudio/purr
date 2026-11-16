@@ -1,0 +1,53 @@
+name: Prepare a Purr build
+description: Python and SCons, Valve's Steamworks SDK (if given), Purr's patches and branding, and the version variables the build reads.
+
+inputs:
+  steamworks-sdk-url:
+    description: The private URL of Valve's Steamworks SDK zip (it can't be stored in the repository). Empty builds without Steam.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v7
+      with:
+        python-version: "3.x"
+
+    - name: Install SCons
+      shell: bash
+      run: python -m pip install -q scons zstandard
+
+    - name: Download the Steamworks SDK
+      shell: bash
+      env:
+        STEAMWORKS_SDK_URL: ${{ inputs.steamworks-sdk-url }}
+      run: |
+        if [ -z "$STEAMWORKS_SDK_URL" ]; then
+          echo "::warning::No Steamworks SDK URL, so this build has no Steam module."
+          echo "STEAM=no" >> "$GITHUB_ENV"
+          exit 0
+        fi
+        curl -sSfL "$STEAMWORKS_SDK_URL" -o "$RUNNER_TEMP/steamworks.zip"
+        unzip -q "$RUNNER_TEMP/steamworks.zip" -d "$RUNNER_TEMP/steamworks"
+        mkdir -p sdk
+        mv "$RUNNER_TEMP/steamworks/sdk" sdk/steamworks
+        cp -R sdk/steamworks/public sdk/steamworks/redistributable_bin modules/godotsteam/sdk/
+        echo "STEAM=yes" >> "$GITHUB_ENV"
+
+    - name: Apply Purr's patches and branding
+      shell: bash
+      run: |
+        git apply patches/*.patch
+        cp branding/splash.png godot/main/splash.png
+        cp branding/editor/*.svg godot/editor/icons/
+        # Godot reads its commit hash from godot/.git/HEAD, which can't be stored in the repository.
+        mkdir -p godot/.git
+        sed -n '/^\[godot\]/,/^$/s/^commit: //p' UPSTREAM.txt > godot/.git/HEAD
+        echo "BUILD_NAME=$(cat VERSION.txt)" >> "$GITHUB_ENV"
+        echo "GODOT_VERSION_STATUS=$(sed -n 's/^status: //p' UPSTREAM.txt)" >> "$GITHUB_ENV"
+
+    - name: Install AccessKit
+      shell: bash
+      working-directory: godot
+      run: python misc/scripts/install_accesskit.py

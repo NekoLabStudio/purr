@@ -1,0 +1,15 @@
+config_version=5
+
+[application]
+
+config/name="VR streamer sample"
+run/main_scene="res://main.tscn"
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+
+[xr]
+
+openxr/enabled=true
+shaders/enabled=true

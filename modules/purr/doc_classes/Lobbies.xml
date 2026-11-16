@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Lobbies" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Playing together through Godot's high-level multiplayer, on any platform.
+	</brief_description>
+	<description>
+		A lobby sets the scene tree's multiplayer peer, so the game plays through Godot's high-level multiplayer ([MultiplayerAPI], RPCs, [MultiplayerSynchronizer]) as usual. When the online service is set up ([code]online/url[/code]) and the player is signed in to it, lobbies are crossplay: players on any platform join with a code and play peer to peer over WebRTC, through a TURN relay when they can't connect directly. Otherwise they're Steam lobbies, for Steam players only.
+		[codeblock]
+		var result = await Lobbies.create()
+		code_label.text = result.code  # the others enter it in Lobbies.join()
+		[/codeblock]
+		Ranked modes find players of a similar rating ([method matchmake]), and the others keep play fair: [method check] catches a game that disagrees with everyone else's, [method flag] lets the players' games report what they saw, and players can [method report] and [method block] each other.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="block">
+			<return type="void" />
+			<param index="0" name="peer_id" type="int" />
+			<description>
+				Blocks the player with this peer ID in the current crossplay lobby: they won't be matched with this player again or let into lobbies this player hosts.
+			</description>
+		</method>
+		<method name="can_invite" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if [method invite_friends] has a platform screen to open here.
+			</description>
+		</method>
+		<method name="can_matchmake" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if [method matchmake] works here: it needs the online service.
+			</description>
+		</method>
+		<method name="cancel_matchmaking">
+			<return type="void" />
+			<description>
+				Stops waiting for a match. The [method matchmake] call completes with [code]error[/code] [code]"cancelled"[/code].
+			</description>
+		</method>
+		<method name="check">
+			<return type="void" />
+			<param index="0" name="name" type="String" />
+			<param index="1" name="value" type="Variant" />
+			<description>
+				Compares [param value] with what the other players in the crossplay lobby send for the same [param name], to catch players whose game disagrees with everyone else's. Every player's game calls it at the same moment in the game (the end of a lap, the end of a round) with something they can all work out: a time, a score, a hash of the shared state. Only a hash of [param value] leaves the device. Each name is checked once per lobby. [signal check_completed] gives the outcome.
+			</description>
+		</method>
+		<method name="create">
+			<return type="Signal" />
+			<description>
+				Creates a lobby the player hosts (as peer 1), and sets the scene tree's multiplayer peer. Await it: the result has [code]ok[/code] and the lobby's [code]code[/code], which other players enter in [method join]. With [code]lobbies/relay_only[/code] on, crossplay lobbies connect only through TURN, so players never see each other's IP address.
+			</description>
+		</method>
+		<method name="flag">
+			<return type="void" />
+			<param index="0" name="peer_id" type="int" />
+			<param index="1" name="reason" type="String" />
+			<description>
+				Tells the crossplay lobby this player's game saw the player with [param peer_id] do something the game doesn't allow, such as moving faster than possible. [param reason] is a short name of your choosing (letters, digits, [code]_[/code], [code].[/code], [code]:[/code] and [code]-[/code]), like [code]"teleport"[/code]. When more than half of the other players, and at least two, flag the same player for the same reason within 10 seconds, [signal player_flagged] fires on everyone's device. One player can't get another flagged alone, so a lobby of two never confirms a flag.
+			</description>
+		</method>
+		<method name="get_rating">
+			<return type="Signal" />
+			<param index="0" name="mode" type="String" />
+			<description>
+				The player's rating in a ranked mode. Await it: the result has [code]ok[/code] and [code]data[/code] with [code]rating[/code] (1000 to start) and [code]matches[/code].
+			</description>
+		</method>
+		<method name="has_crossplay" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if lobbies are crossplay here: the online service is set up and answered.
+			</description>
+		</method>
+		<method name="invite_friends">
+			<return type="void" />
+			<description>
+				Opens the platform's invite screen for the current lobby: Steam's, or Game Center's for a crossplay lobby. A friend accepting it joins the lobby, starting the game first if needed, and [signal joined] fires on their side. Elsewhere, players share the lobby's code.
+			</description>
+		</method>
+		<method name="is_available" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if lobbies work here: the online service answered, or Steam is running.
+			</description>
+		</method>
+		<method name="join">
+			<return type="Signal" />
+			<param index="0" name="code" type="String" />
+			<description>
+				Joins the lobby with this code, and sets the scene tree's multiplayer peer. Await it: the result has [code]ok[/code].
+			</description>
+		</method>
+		<method name="kick">
+			<return type="void" />
+			<param index="0" name="peer_id" type="int" />
+			<description>
+				For the host of a crossplay lobby: removes the player with this peer ID. They get [signal kicked] and can't come back to this lobby.
+			</description>
+		</method>
+		<method name="leave">
+			<return type="void" />
+			<description>
+				Leaves the lobby and clears the scene tree's multiplayer peer.
+			</description>
+		</method>
+		<method name="matchmake">
+			<return type="Signal" />
+			<param index="0" name="mode" type="String" />
+			<param index="1" name="players" type="int" default="2" />
+			<description>
+				Finds [param players] players (2 to 8) of a similar rating for the ranked [param mode] (a name of your choosing, like [code]"duel"[/code]) and joins them in a new crossplay lobby, hosted by whoever waited longest. Await it: the result has [code]ok[/code] and the lobby's [code]code[/code], as with [method join]. The wait widens the rating range over time, and never matches players who blocked each other.
+			</description>
+		</method>
+		<method name="report">
+			<return type="void" />
+			<param index="0" name="peer_id" type="int" />
+			<param index="1" name="reason" type="int" enum="Lobbies.ReportReason" />
+			<param index="2" name="details" type="String" default="&quot;&quot;" />
+			<description>
+				Reports the player with this peer ID in the current crossplay lobby to the service's operator. [param details] is up to 500 characters of the player's own words.
+			</description>
+		</method>
+		<method name="report_result">
+			<return type="void" />
+			<param index="0" name="ranking" type="Array" />
+			<description>
+				In a lobby from [method matchmake]: who finished where, as this player's game saw it, as an [Array] of every player's peer ID from first to last (the host is [code]1[/code]). Every player's game should report it. Ratings change once enough players report the same result (more than half by default, set per game on the service), so no single player can change them alone; [signal result_recorded] fires then. A lobby's result counts once.
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="check_completed">
+			<param index="0" name="name" type="String" />
+			<param index="1" name="agreed" type="bool" />
+			<param index="2" name="disagreeing" type="Array" />
+			<description>
+				Emitted when every player in the lobby has answered the check [param name]. [param agreed] is [code]true[/code] if everyone sent the same value. [param disagreeing] has the peer IDs of players who differ from the majority, who the service reports as cheating unless the game turned that off, and removes from the lobby if the game has [code]kick_cheaters[/code] on; it's empty when there's no majority. In a ranked lobby, a failed check stops the result from counting.
+			</description>
+		</signal>
+		<signal name="host_changed">
+			<param index="0" name="is_host" type="bool" />
+			<description>
+				Emitted when the host left a crossplay lobby and, with [code]lobbies/host_migration[/code] on, the player who'd been there longest took over. The new host is peer 1, and [param is_host] is [code]true[/code] on their device. Everyone reconnects to them; the game moves on from where it was.
+			</description>
+		</signal>
+		<signal name="joined">
+			<param index="0" name="code" type="String" />
+			<description>
+				Emitted when the player joined a lobby, including from a friend's invite or a Game Center party.
+			</description>
+		</signal>
+		<signal name="kicked">
+			<description>
+				Emitted when the host removed this player from the crossplay lobby. The multiplayer peer is gone.
+			</description>
+		</signal>
+		<signal name="player_flagged">
+			<param index="0" name="peer_id" type="int" />
+			<param index="1" name="reason" type="String" />
+			<description>
+				Emitted when most of the other players flagged the player with [param peer_id] for [param reason] (see [method flag]). The service reports them as cheating unless the game turned that off, removes them from the lobby if the game has [code]kick_cheaters[/code] on, and in a ranked lobby the result no longer counts.
+			</description>
+		</signal>
+		<signal name="result_recorded">
+			<description>
+				Emitted when the service has recorded a matchmade lobby's result and changed the players' ratings.
+			</description>
+		</signal>
+	</signals>
+	<constants>
+		<constant name="REPORT_CHEATING" value="0" enum="ReportReason">
+			Cheating.
+		</constant>
+		<constant name="REPORT_ABUSE" value="1" enum="ReportReason">
+			Abuse of other players.
+		</constant>
+		<constant name="REPORT_NAME" value="2" enum="ReportReason">
+			An offensive name.
+		</constant>
+		<constant name="REPORT_OTHER" value="3" enum="ReportReason">
+			Anything else, explained in the details.
+		</constant>
+	</constants>
+</class>

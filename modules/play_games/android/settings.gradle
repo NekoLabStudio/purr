@@ -1,0 +1,23 @@
+// The Android side of the play_games module: a Godot Android plugin, built into an AAR that ships
+// with Purr's Android export templates (Purr's export plugin adds it to Gradle exports).
+// Built with Godot's Gradle wrapper: godot/platform/android/java/gradlew -p modules/play_games/android assembleRelease
+pluginManagement {
+    apply from: '../../../godot/platform/android/java/app/config.gradle'
+    plugins {
+        id 'com.android.library' version versions.androidGradlePlugin
+    }
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "purr-play-games"

@@ -1,0 +1,13 @@
+config_version=5
+
+[application]
+
+config/name="Steam sample"
+config/description="Signs in to Steam with Valve's test app (Spacewar, 480) and opens the overlay and an invite."
+run/main_scene="res://main.tscn"
+
+[steam]
+
+initialization/app_data/app_id=480
+initialization/processes/initialize_on_startup=true
+initialization/processes/embed_callbacks=true

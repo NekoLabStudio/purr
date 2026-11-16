@@ -1,0 +1,52 @@
+From 174ff387f769640d44ed8ed5ae188557de03ede1 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 12:06:31 +0000
+Subject: [PATCH 04/13] Make Jolt the default 3D physics engine when Godot
+ Physics is left out
+
+Only Godot Physics 3D registers itself as the default 3D physics
+server. In a build with module_godot_physics_3d_enabled=no, a project
+whose physics/3d/physics_engine is DEFAULT (any project that never
+changed it, and every 2D project) falls back to the dummy server:
+3D physics silently does nothing, and every launch prints "Falling
+back to dummy PhysicsServer3D".
+
+Jolt now sets itself as the default when Godot Physics 3D isn't
+compiled in. Builds with Godot Physics are unchanged.
+
+Test: a project with no physics settings, containing a RigidBody3D,
+run with --headless. Before, the body stays where it is and the
+warning prints. After, it falls.
+
+Upstream: no existing issue or pull request; to be proposed.
+---
+ godot/modules/jolt_physics/register_types.cpp | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/godot/modules/jolt_physics/register_types.cpp b/godot/modules/jolt_physics/register_types.cpp
+index 1374303..1223c95 100644
+--- a/godot/modules/jolt_physics/register_types.cpp
++++ b/godot/modules/jolt_physics/register_types.cpp
+@@ -36,6 +36,7 @@
+ 
+ #include "core/config/project_settings.h"
+ #include "core/object/callable_mp.h"
++#include "modules/modules_enabled.gen.h" // For godot_physics_3d.
+ #include "servers/physics_3d/physics_server_3d_manager.h"
+ #include "servers/physics_3d/physics_server_3d_wrap_mt.h"
+ 
+@@ -58,6 +59,11 @@ void initialize_jolt_physics_module(ModuleInitializationLevel p_level) {
+ 
+ 	jolt_initialize();
+ 	PhysicsServer3DManager::get_singleton()->register_server(PhysicsServer3DManager::JOLT_PHYSICS_NAME, callable_mp_static(&create_jolt_physics_server));
++#ifndef MODULE_GODOT_PHYSICS_3D_ENABLED
++	// Without Godot Physics, Jolt is the only 3D physics engine, so it becomes the default.
++	// Otherwise projects that don't choose an engine would fall back to the dummy server.
++	PhysicsServer3DManager::get_singleton()->set_default_server(PhysicsServer3DManager::JOLT_PHYSICS_NAME);
++#endif
+ 	JoltProjectSettings::register_settings();
+ }
+ 
+-- 
+2.54.0 (Apple Git-157)
+

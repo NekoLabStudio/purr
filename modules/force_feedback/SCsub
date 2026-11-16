@@ -1,0 +1,29 @@
+#!/usr/bin/env python
+
+Import("env")
+Import("env_modules")
+
+env_ff = env_modules.Clone()
+env_ff.Prepend(CPPPATH=[Dir(".").srcnode().abspath])
+
+sources = [
+    "register_types.cpp",
+    "steering_wheel.cpp",
+    "wheel_session.cpp",
+    "steering_wheel_hats.cpp",
+    "wheel_log.cpp",
+    "vibration.cpp",
+    "wheel_player.cpp",
+    "known_wheels.cpp",
+]
+
+# The wheel drivers talk to wheels over USB HID (IOKit) on macOS, and through DirectInput on
+# Windows. Both are already linked into the engine for its joypads.
+if env["platform"] == "macos":
+    sources += Glob("drivers/*.cpp") + Glob("drivers/*/*.cpp") + Glob("macos/*.cpp")
+elif env["platform"] == "windows":
+    sources += ["windows_wheel_output.cpp", "windows_hat_reader.cpp"]
+else:
+    sources += ["no_wheel_output.cpp"]
+
+env_ff.add_source_files(env.modules_sources, sources)

@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Mon, 16 Nov 2026 00:30:00 +0000
+Subject: [PATCH] tvOS: keep user data in Caches, where apps can write
+
+OS_AppleEmbedded::get_user_data_dir() returns the app's Documents
+folder on every Apple embedded platform, but tvOS doesn't let apps
+write there, so user:// failed on Apple TV: settings, saves and log
+files were never written. On tvOS it now returns the Caches folder, the
+one place tvOS apps can write. The system may clear it when it needs
+space, so data that must last belongs in iCloud or NSUserDefaults
+(Purr keeps saves with no copy elsewhere in NSUserDefaults).
+
+Test: on Apple TV, a game writes a file to user:// and reads it back;
+the log file appears under Library/Caches/logs.
+
+Upstream: to propose (Godot's tvOS platform is Purr's patch 0007, so
+with it).
+---
+diff --git a/godot/drivers/apple_embedded/os_apple_embedded.mm b/godot/drivers/apple_embedded/os_apple_embedded.mm
+index f948d56..df8894a 100644
+--- a/godot/drivers/apple_embedded/os_apple_embedded.mm
++++ b/godot/drivers/apple_embedded/os_apple_embedded.mm
+@@ -398,7 +398,13 @@ Rect2 fit_keep_aspect_covered(const Vector2 &p_container, const Vector2 &p_rect)
+ String OS_AppleEmbedded::get_user_data_dir(const String &p_user_dir) const {
+ 	static String ret;
+ 	if (ret.is_empty()) {
++#ifdef TVOS_ENABLED
++		// tvOS apps can't write to their Documents folder: Caches is the one they can (the system
++		// may clear it when it needs space, so data that must last belongs in iCloud or NSUserDefaults).
++		NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
++#else
+ 		NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
++#endif
+ 		if (paths && [paths count] >= 1) {
+ 			ret.append_utf8([[paths firstObject] UTF8String]);
+ 		}

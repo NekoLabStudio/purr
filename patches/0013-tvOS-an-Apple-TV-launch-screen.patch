@@ -1,0 +1,47 @@
+From deba7f9b24aba3a9fb6b3bbb3873505dc7f071f0 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 14:40:36 +0000
+Subject: [PATCH 13/13] tvOS: an Apple TV launch screen
+
+The Xcode project's launch screen is the iOS storyboard the Apple
+embedded platforms share, and Xcode refuses to build an iOS storyboard
+for Apple TV ("iOS storyboards do not support target device type
+tv"), so tvOS exports from upstream pull request #118332 couldn't be
+built or archived. The tvOS export now retargets it at Apple TV
+(AppleTV runtime and document type, without the iPhone device and iOS
+deployment lines), as the tvos-port branch of sanarena/godot (closed
+pull request #123885) does.
+
+Test: export a project for tvOS as an Xcode project, then archive it
+for tvOS devices with xcodebuild; before, the storyboard failed to
+compile.
+
+Upstream: https://github.com/godotengine/godot/pull/118332 (missing
+there; worth suggesting on that pull request). Drop this patch with
+the tvOS backport.
+---
+ godot/platform/tvos/export/export_plugin.cpp | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/godot/platform/tvos/export/export_plugin.cpp b/godot/platform/tvos/export/export_plugin.cpp
+index a141d1a..097cd2c 100644
+--- a/godot/platform/tvos/export/export_plugin.cpp
++++ b/godot/platform/tvos/export/export_plugin.cpp
+@@ -506,6 +506,14 @@ String EditorExportPlatformTVOS::_process_config_file_line(const Ref<EditorExpor
+ 		strnew += p_line.replace("$moltenvk_buildgrp", "") + "\n";
+ 
+ 		// Launch Storyboard
++	} else if (p_line.contains("targetRuntime=\"iOS.CocoaTouch\"")) {
++		// The launch screen is the iOS one shared by the Apple embedded platforms: Xcode refuses an
++		// iOS storyboard for Apple TV, so it's retargeted at tvOS, without its iPhone device and
++		// iOS deployment lines.
++		String line = p_line.replace("com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB", "com.apple.InterfaceBuilder.AppleTV.Storyboard");
++		strnew += line.replace("targetRuntime=\"iOS.CocoaTouch\"", "targetRuntime=\"AppleTV\"") + "\n";
++	} else if (p_line.contains("<deployment identifier=\"iOS\"/>") || p_line.contains("<device id=\"retina6_1\"")) {
++		strnew += "\n";
+ 	} else if (p_line.contains("$plist_launch_screen_name")) {
+ 		String value = "<key>UILaunchStoryboardName</key>\n<string>Launch Screen</string>";
+ 		strnew += p_line.replace("$plist_launch_screen_name", value) + "\n";
+-- 
+2.54.0 (Apple Git-157)
+

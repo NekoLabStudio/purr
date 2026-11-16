@@ -1,0 +1,14 @@
+def can_build(env, platform):
+    return platform in ("macos", "windows", "linuxbsd") and not env["disable_xr"]
+
+
+def configure(env):
+    pass
+
+
+def get_doc_classes():
+    return ["VR"]
+
+
+def get_doc_path():
+    return "doc_classes"

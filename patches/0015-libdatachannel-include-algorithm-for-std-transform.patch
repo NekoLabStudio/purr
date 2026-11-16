@@ -1,0 +1,35 @@
+From c4a7061863bd7d581617836a3c164fde6405ec40 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 15:00:07 +0000
+Subject: [PATCH] libdatachannel: include <algorithm> for std::transform
+
+configuration.cpp uses std::transform without including <algorithm>.
+It used to arrive through other standard headers, but Godot builds with
+_LIBCPP_REMOVE_TRANSITIVE_INCLUDES, so with Apple's libc++ the file
+doesn't compile ("no member named 'transform' in namespace 'std'").
+
+Test: build Purr's macOS editor.
+
+Upstream: backport of libdatachannel commit 69bee9a ("Fix build with
+libcxx 20.1.8"),
+https://github.com/paullouisageneau/libdatachannel/commit/69bee9a719bccd151a67d2582f7be4abc0c29612
+Drop this patch once a libdatachannel release includes it.
+---
+ libdatachannel/src/configuration.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/modules/webrtc_native/thirdparty/libdatachannel/src/configuration.cpp b/modules/webrtc_native/thirdparty/libdatachannel/src/configuration.cpp
+index fe28aef..897be5e 100644
+--- a/modules/webrtc_native/thirdparty/libdatachannel/src/configuration.cpp
++++ b/modules/webrtc_native/thirdparty/libdatachannel/src/configuration.cpp
+@@ -10,6 +10,7 @@
+ 
+ #include "impl/utils.hpp"
+ 
++#include <algorithm>
+ #include <cassert>
+ #include <regex>
+ 
+-- 
+2.54.0 (Apple Git-157)
+

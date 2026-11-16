@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Saves" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Player 1's saves, on disk first and synced in the background.
+	</brief_description>
+	<description>
+		[method save] writes to disk at once, and the save is then synced in the background with the online service, the platform's cloud (Steam Cloud, iCloud or Play Games' saved games) or nothing, as [code]saves/backend[/code] in Project Settings says ([code]automatic[/code] by default: the online service once the player has added an email, otherwise the platform's cloud). If two devices saved differently, [signal conflict] offers both and [method resolve_conflict] keeps one. A guest's saves are their [member LocalPlayer.saves].
+		[codeblock]
+		Saves.save("slot1", {"level": 3}, {"level": 3})
+		var data = Saves.load("slot1")
+		[/codeblock]
+		Slot names are 1 to 64 of [code]a-z[/code], [code]0-9[/code], [code]-[/code] and [code]_[/code].
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_backend" qualifiers="const">
+			<return type="int" enum="PlayerSaves.Backend" />
+			<description>
+				Returns where the saves sync to.
+			</description>
+		</method>
+		<method name="get_slots" qualifiers="const">
+			<return type="PackedStringArray" />
+			<description>
+				Returns the slots with a save on this device.
+			</description>
+		</method>
+		<method name="get_summary" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="slot" type="String" />
+			<description>
+				Returns the summary saved with the save in [param slot].
+			</description>
+		</method>
+		<method name="has" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="slot" type="String" />
+			<description>
+				Returns [code]true[/code] if [param slot] has a save on this device.
+			</description>
+		</method>
+		<method name="load" qualifiers="const">
+			<return type="Variant" />
+			<param index="0" name="slot" type="String" />
+			<description>
+				Returns the save in [param slot] on this device, or [code]null[/code] if there's none. Saves from other devices arrive as they sync ([signal synced]).
+			</description>
+		</method>
+		<method name="resolve_conflict">
+			<return type="void" />
+			<param index="0" name="slot" type="String" />
+			<param index="1" name="keep_local" type="bool" />
+			<description>
+				After [signal conflict]: keeps this device's save in [param slot] (uploading it over the other) if [param keep_local] is [code]true[/code], or replaces it with the other device's.
+			</description>
+		</method>
+		<method name="save">
+			<return type="void" />
+			<param index="0" name="slot" type="String" />
+			<param index="1" name="data" type="Variant" />
+			<param index="2" name="summary" type="Dictionary" default="{}" />
+			<description>
+				Saves [param data] (any [Variant] that can be serialised) in [param slot], on disk at once and then in the background to the player's cloud. [param summary] is shown if the player has to choose between two saves, for example [code]{"level": 4, "playtime": 7200}[/code].
+			</description>
+		</method>
+		<method name="sync">
+			<return type="void" />
+			<description>
+				Brings this device and the cloud in line now: newer saves come down, saves not yet synced go up. It also happens by itself after signing in and after each save.
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="conflict">
+			<param index="0" name="slot" type="String" />
+			<param index="1" name="local_summary" type="Dictionary" />
+			<param index="2" name="remote_summary" type="Dictionary" />
+			<description>
+				Emitted when another device saved differently in [param slot]. Show both summaries and call [method resolve_conflict].
+			</description>
+		</signal>
+		<signal name="synced">
+			<param index="0" name="slot" type="String" />
+			<description>
+				Emitted when the save in [param slot] has been synced with the player's cloud, including a newer one that came down from another device.
+			</description>
+		</signal>
+	</signals>
+</class>

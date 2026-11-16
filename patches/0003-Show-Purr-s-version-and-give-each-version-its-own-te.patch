@@ -1,0 +1,121 @@
+From 6010a315969a53276b4057e310d9c0adf3171ac2 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 11:56:35 +0000
+Subject: [PATCH 03/13] Show Purr's version, and give each version its own
+ templates
+
+Purr has its own version number, passed in as Godot's build name
+(BUILD_NAME, read from VERSION.txt by the build). Where Godot shows a
+version to people, Purr now shows its own version first and Godot's
+after it: "Purr v0.1.0 (based on Godot 4.8.beta3)". That covers the
+editor's About dialog, project manager and bottom bar, the startup
+header, --version, the editor log and crash logs.
+
+The full config string, which names the export templates folder and
+is checked against a templates package's version.txt, now ends with
+Purr's version ("4.8.beta3.purr-0.1.0"). Without that, two Purr
+versions based on the same Godot release would share one templates
+folder, and an upgraded editor would quietly export with the previous
+version's templates.
+
+Godot's own version numbers are left alone. Resource and PCK loading,
+GDExtension compatibility, project feature tags and
+Engine.get_version_info() all compare against them, so replacing them
+would stop Purr loading anything made with Godot 4.
+
+Test: --version prints "0.1.0 (based on Godot 4.8.beta3)", and Download
+and Install puts the templates in export_templates/4.8.beta3.purr-0.1.0.
+
+Not for upstream. Policy: https://godotengine.org/trademark/
+---
+ godot/core/version.h                       | 33 ++++++++++++++--------
+ godot/editor/gui/editor_version_button.cpp |  4 +--
+ godot/main/main.cpp                        |  4 +--
+ 3 files changed, 25 insertions(+), 16 deletions(-)
+
+diff --git a/godot/core/version.h b/godot/core/version.h
+index e34870d..e53f011 100644
+--- a/godot/core/version.h
++++ b/godot/core/version.h
+@@ -59,24 +59,33 @@
+ // Example: 3.1.4 will be 0x030104, making comparison easy from script.
+ #define GODOT_VERSION_HEX 0x10000 * GODOT_VERSION_MAJOR + 0x100 * GODOT_VERSION_MINOR + GODOT_VERSION_PATCH
+ 
++// The Godot release Purr is based on, as Godot writes it.
++// Example: "4.8.beta3"
++#define PURR_GODOT_VERSION GODOT_VERSION_NUMBER "." GODOT_VERSION_STATUS
++
+ // Describes the full configuration of that Godot version, including the version number,
+-// the status (beta, stable, etc.), potential module-specific features (e.g. mono)
+-// and double-precision status.
+-// Example: "3.1.4.stable.mono.double"
++// the status (beta, stable, etc.), potential module-specific features (e.g. mono),
++// double-precision status and Purr's own version (passed in as the build name).
++// It names the export templates folder, so each Purr version gets its own templates.
++// Example: "4.8.beta3.purr-0.1.0"
+ #ifdef REAL_T_IS_DOUBLE
+-#define GODOT_VERSION_FULL_CONFIG GODOT_VERSION_NUMBER "." GODOT_VERSION_STATUS GODOT_VERSION_MODULE_CONFIG ".double"
++#define GODOT_VERSION_FULL_CONFIG PURR_GODOT_VERSION GODOT_VERSION_MODULE_CONFIG ".double.purr-" GODOT_VERSION_BUILD
+ #else
+-#define GODOT_VERSION_FULL_CONFIG GODOT_VERSION_NUMBER "." GODOT_VERSION_STATUS GODOT_VERSION_MODULE_CONFIG
++#define GODOT_VERSION_FULL_CONFIG PURR_GODOT_VERSION GODOT_VERSION_MODULE_CONFIG ".purr-" GODOT_VERSION_BUILD
+ #endif
+ 
+-// Similar to GODOT_VERSION_FULL_CONFIG, but also includes the (potentially custom) GODOT_VERSION_BUILD
+-// description (e.g. official, custom_build, etc.).
+-// Example: "3.1.4.stable.mono.double.official"
+-#define GODOT_VERSION_FULL_BUILD GODOT_VERSION_FULL_CONFIG "." GODOT_VERSION_BUILD
++// In Godot, GODOT_VERSION_FULL_CONFIG followed by the build name. Purr's FULL_CONFIG already
++// ends with the build name (Purr's version), so the two are the same.
++// Example: "4.8.beta3.purr-0.1.0"
++#define GODOT_VERSION_FULL_BUILD GODOT_VERSION_FULL_CONFIG
++
++// Purr's own version (passed in as the build name), followed by the Godot version it's based on.
++// Example: "0.1.0 (based on Godot 4.8.beta3)"
++#define PURR_VERSION_FULL GODOT_VERSION_BUILD " (based on Godot " PURR_GODOT_VERSION ")"
+ 
+-// Same as above, but prepended with Godot's name and a cosmetic "v" for "version".
+-// Example: "Godot v3.1.4.stable.official.mono.double"
+-#define GODOT_VERSION_FULL_NAME GODOT_VERSION_NAME " v" GODOT_VERSION_FULL_BUILD
++// Same as above, but prepended with the engine's name and a cosmetic "v" for "version".
++// Example: "Purr v0.1.0 (based on Godot 4.8.beta3)"
++#define GODOT_VERSION_FULL_NAME GODOT_VERSION_NAME " v" PURR_VERSION_FULL
+ 
+ // Git commit hash, generated at build time in `core/version_hash.gen.cpp`.
+ extern const char *const GODOT_VERSION_HASH;
+diff --git a/godot/editor/gui/editor_version_button.cpp b/godot/editor/gui/editor_version_button.cpp
+index 1e72106..fcd5b57 100644
+--- a/godot/editor/gui/editor_version_button.cpp
++++ b/godot/editor/gui/editor_version_button.cpp
+@@ -39,10 +39,10 @@ String _get_version_string(EditorVersionButton::VersionFormat p_format) {
+ 	String main;
+ 	switch (p_format) {
+ 		case EditorVersionButton::FORMAT_BASIC: {
+-			return GODOT_VERSION_FULL_CONFIG;
++			return GODOT_VERSION_BUILD;
+ 		} break;
+ 		case EditorVersionButton::FORMAT_WITH_BUILD: {
+-			main = "v" GODOT_VERSION_FULL_BUILD;
++			main = "v" PURR_VERSION_FULL;
+ 		} break;
+ 		case EditorVersionButton::FORMAT_WITH_NAME_AND_BUILD: {
+ 			main = GODOT_VERSION_FULL_NAME;
+diff --git a/godot/main/main.cpp b/godot/main/main.cpp
+index 7d0608a..255242e 100644
+--- a/godot/main/main.cpp
++++ b/godot/main/main.cpp
+@@ -320,9 +320,9 @@ static String unescape_cmdline(const String &p_str) {
+ static String get_full_version_string() {
+ 	String hash = String(GODOT_VERSION_HASH);
+ 	if (!hash.is_empty()) {
+-		hash = "." + hash.left(9);
++		hash = " [" + hash.left(9) + "]";
+ 	}
+-	return String(GODOT_VERSION_FULL_BUILD) + hash;
++	return String(PURR_VERSION_FULL) + hash;
+ }
+ 
+ #if defined(TOOLS_ENABLED) && defined(MODULE_GDSCRIPT_ENABLED)
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Friends" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		The player's Steam friends.
+	</brief_description>
+	<description>
+		Who the player's Steam friends are, whether they're playing this game, and the lobbies they're in, to join or invite them.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_all" qualifiers="const">
+			<return type="Array" />
+			<description>
+				Returns the player's friends, each a [Dictionary] with [code]id[/code], [code]name[/code], [code]playing[/code] ([code]true[/code] when they're playing this game), [code]lobby[/code] (the code of the lobby they're in, for [method Lobbies.join], or empty) and [code]invited[/code] ([code]true[/code] when they invited this player to that lobby). Empty without Steam.
+			</description>
+		</method>
+		<method name="invite">
+			<return type="void" />
+			<param index="0" name="friend_id" type="String" />
+			<description>
+				Invites a friend (an [code]id[/code] from [method get_all]) to the current lobby. Steam tells them, and their game sees [code]invited[/code] in its list; accepting joins the lobby.
+			</description>
+		</method>
+		<method name="is_available" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] when Steam is running.
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="changed">
+			<description>
+				Emitted when a friend's status or lobby changed, or they invited this player: time to call [method get_all] again.
+			</description>
+		</signal>
+	</signals>
+</class>

@@ -1,0 +1,29 @@
+# Build output (godot/.gitignore covers the rest of what SCons generates inside godot/)
+godot/bin/
+*.o
+*.obj
+*.a
+*.lib
+.sconsign*
+.scons_cache/
+
+# Cargo output of the VR streamer
+modules/vr_streamer/streamer/target/
+
+# Gradle output of modules/play_games/android
+modules/play_games/android/build/
+modules/play_games/android/.gradle/
+
+# Downloaded SDKs
+/sdk/
+
+# Packaged releases
+/dist/
+
+# Godot's editor cache in each project (samples)
+.godot/
+
+.DS_Store
+
+# Python bytecode from SCons reading module configs
+__pycache__/

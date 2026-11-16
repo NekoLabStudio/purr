@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="ICloud" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Files in the player's iCloud, on macOS, iOS and tvOS.
+	</brief_description>
+	<description>
+		Keeps files in the player's private iCloud database through CloudKit. [Purr] uses it for saves when a player hasn't added an email to an online account, so games rarely call it directly.
+		It's off until the game names its iCloud container in [code]icloud/container[/code] (such as [code]iCloud.com.example.game[/code]). The container has to be created for the app in Apple's developer portal and added to its provisioning profile, and the export preset must give the game these entitlements, in [code]entitlements/additional[/code] (iOS and tvOS) or [code]codesign/entitlements/additional[/code] (macOS):
+		[codeblock lang=text]
+		&lt;key&gt;com.apple.developer.icloud-container-identifiers&lt;/key&gt;
+		&lt;array&gt;&lt;string&gt;iCloud.com.example.game&lt;/string&gt;&lt;/array&gt;
+		&lt;key&gt;com.apple.developer.icloud-services&lt;/key&gt;
+		&lt;array&gt;&lt;string&gt;CloudKit&lt;/string&gt;&lt;/array&gt;
+		[/codeblock]
+		A Mac game distributed outside the App Store also needs [code]com.apple.developer.icloud-container-environment[/code] set to [code]Production[/code]. Purr's export warns when the entitlements are missing.
+		Every call returns a signal that fires once with a [Dictionary] with [code]ok[/code] and [code]error[/code], plus what the call returns.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="delete_file">
+			<return type="Signal" />
+			<param index="0" name="name" type="String" />
+			<description>
+				Deletes the file called [param name].
+			</description>
+		</method>
+		<method name="get_container" qualifiers="const">
+			<return type="String" />
+			<description>
+				The game's iCloud container, from [code]icloud/container[/code].
+			</description>
+		</method>
+		<method name="is_available" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if the game has an iCloud container and the player is signed in to iCloud on this device.
+			</description>
+		</method>
+		<method name="list_files">
+			<return type="Signal" />
+			<description>
+				Lists the files without downloading them: the result's [code]files[/code] is an [Array] of dictionaries with [code]name[/code], [code]modified[/code] (when it was last saved, in milliseconds since 1970, by iCloud's clock) and [code]metadata[/code].
+			</description>
+		</method>
+		<method name="load_file">
+			<return type="Signal" />
+			<param index="0" name="name" type="String" />
+			<description>
+				Downloads the file called [param name]: the result has its [code]data[/code], [code]modified[/code] and [code]metadata[/code].
+			</description>
+		</method>
+		<method name="save_file">
+			<return type="Signal" />
+			<param index="0" name="name" type="String" />
+			<param index="1" name="data" type="PackedByteArray" />
+			<param index="2" name="metadata" type="Dictionary" default="{}" />
+			<description>
+				Saves [param data] as the file called [param name], replacing any file with that name, with [param metadata] (small, JSON-compatible) alongside it. The result has [code]modified[/code].
+			</description>
+		</method>
+	</methods>
+</class>

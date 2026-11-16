@@ -1,0 +1,47 @@
+From 9a9fc84fe3394dde8b488f7458f2780d9239922a Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 14:14:53 +0000
+Subject: [PATCH 06/13] Read DirectInput controllers in shared mode
+
+Godot reads joypads through SDL, whose DirectInput backend opens each
+controller in exclusive mode so it can play SDL's own rumble effects.
+DirectInput lets only one holder have exclusive access, so Purr's
+force feedback module (WheelForceFeedback), which needs it to play
+forces on a steering wheel, couldn't take a wheel that Godot was
+already reading as a joypad.
+
+SDL now opens DirectInput controllers in shared mode. Axes, buttons
+and hats read the same; Input.start_joy_vibration no longer reaches
+DirectInput-only devices (XInput, Windows.Gaming.Input and HIDAPI
+controllers, which most gamepads are, are unaffected).
+
+Test: on Windows, with a DirectInput force feedback wheel connected,
+samples/force_feedback opens the wheel and plays a force while the
+wheel's axes keep moving in Input.
+
+Not for upstream: Godot has no force feedback of its own that needs it.
+---
+ godot/thirdparty/sdl/joystick/windows/SDL_dinputjoystick.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/godot/thirdparty/sdl/joystick/windows/SDL_dinputjoystick.c b/godot/thirdparty/sdl/joystick/windows/SDL_dinputjoystick.c
+index c671260..c68b198 100644
+--- a/godot/thirdparty/sdl/joystick/windows/SDL_dinputjoystick.c
++++ b/godot/thirdparty/sdl/joystick/windows/SDL_dinputjoystick.c
+@@ -789,10 +789,11 @@ bool SDL_DINPUT_JoystickOpen(SDL_Joystick *joystick, JoyStick_DeviceData *joysti
+     }
+ 
+     /* Acquire shared access. Exclusive access is required for forces,
+-     * though. */
++     * though. Purr: shared, so Purr's force feedback (which needs
++     * exclusive access) can take wheels while they're read here. */
+     result =
+         IDirectInputDevice8_SetCooperativeLevel(joystick->hwdata->InputDevice, SDL_HelperWindow,
+-                                                DISCL_EXCLUSIVE |
++                                                DISCL_NONEXCLUSIVE |
+                                                     DISCL_BACKGROUND);
+     if (FAILED(result)) {
+         return SetDIerror("IDirectInputDevice8::SetCooperativeLevel", result);
+-- 
+2.54.0 (Apple Git-157)
+

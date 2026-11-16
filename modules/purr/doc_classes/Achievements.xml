@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Achievements" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Player 1's achievements, on every platform.
+	</brief_description>
+	<description>
+		Achievements are kept with the player's saves, so they reach the platforms the player plays on later (and their account, once they add an email), and are sent to the platform the game is running on: Steam, Game Center or Play Games. Each achievement's name on a platform is [code]achievements/&lt;id&gt;/&lt;platform&gt;[/code] in Project Settings, where the platform is [code]steam[/code], [code]game_center[/code] or [code]play_games[/code]; without one, the platform uses the same ID.
+		[codeblock]
+		Achievements.unlock("first_delivery")
+		Achievements.set_progress("deliveries", 3, 10)
+		[/codeblock]
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_all" qualifiers="const">
+			<return type="Dictionary" />
+			<description>
+				Returns every achievement the player has made progress on, wherever they did, as [code]{id: progress}[/code] with progress from [code]0[/code] to [code]1[/code]. It includes achievements the platform had that the game never reported here.
+			</description>
+		</method>
+		<method name="get_progress" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="id" type="String" />
+			<description>
+				Returns the progress towards an achievement, from [code]0[/code] to [code]1[/code] ([code]1[/code] is unlocked).
+			</description>
+		</method>
+		<method name="is_available" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if the platform the game runs on has achievements (Steam, Game Center or Play Games). Elsewhere they're still kept with the player's saves, for later.
+			</description>
+		</method>
+		<method name="set_progress">
+			<return type="void" />
+			<param index="0" name="id" type="String" />
+			<param index="1" name="current" type="int" />
+			<param index="2" name="total" type="int" />
+			<description>
+				Records progress towards an achievement, unlocking it when [param current] reaches [param total]. Progress only goes up. Game Center shows it as a percentage and Play Games for incremental achievements; on Steam, [code]achievements/&lt;id&gt;/steam_stat[/code] names the stat to set to [param current].
+			</description>
+		</method>
+		<method name="show">
+			<return type="void" />
+			<description>
+				Opens the platform's achievements screen: Steam's overlay, Game Center's or Play Games'.
+			</description>
+		</method>
+		<method name="unlock">
+			<return type="void" />
+			<param index="0" name="id" type="String" />
+			<description>
+				Unlocks an achievement.
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="changed">
+			<description>
+				Emitted when [method get_all] changed: the player made progress, or achievements arrived from the platform or another device.
+			</description>
+		</signal>
+	</signals>
+</class>

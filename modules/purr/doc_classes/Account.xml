@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Account" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		The player's account: signing in, their name and the email that takes their progress to other platforms.
+	</brief_description>
+	<description>
+		Sign in first, before saves, achievements or lobbies: [method sign_in] uses Steam when Steam is running, Game Center on Apple platforms and Play Games on Android, and Purr's online services when [code]online/url[/code] is set in Project Settings (otherwise each platform directly, or this device alone).
+		To take their progress to another platform, a player adds their email address: [method link_email] sends them a code and [method confirm_email] checks it. From then on, every platform signed in with that address shares one account and one set of saves. The same two calls change the address later.
+		[codeblock]
+		var result = await Account.sign_in()
+		if Account.needs_display_name():
+		await Account.set_display_name(chosen_name)
+		[/codeblock]
+		Calls that talk to a platform or the online service return a [Signal] to await. Its result is a [Dictionary] with [code]ok[/code], and on failure [code]error[/code] (a short code, listed with each call) and [code]message[/code] (for the log, not the player).
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="can_link_email" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if the player can add an email here: the online service is set up and answered.
+			</description>
+		</method>
+		<method name="confirm_email">
+			<return type="Signal" />
+			<param index="0" name="code" type="String" />
+			<description>
+				Checks the code the player received after [method link_email]. Await it: the result has [code]ok[/code] and [code]merged[/code] ([code]true[/code] when the address already had an account, which this device now uses), or [code]error[/code] ([code]"wrong_code"[/code] for a wrong, used or expired code; [code]"wrong_current_email"[/code] or [code]"email_in_use"[/code] when changing it). Once added, this device's saves go up to the account; where the account already had a save in the same slot, [signal Saves.conflict] lets the player choose.
+			</description>
+		</method>
+		<method name="delete_account">
+			<return type="Signal" />
+			<description>
+				Deletes the player's account and everything in it on the online service, as stores require games to offer. This device forgets the account too and the player is signed out: signing in again starts a new account. Saves on this device stay. Await it for [code]ok[/code], or [code]error[/code] [code]"offline"[/code] without the online service.
+			</description>
+		</method>
+		<method name="forget_device">
+			<return type="Signal" />
+			<param index="0" name="device_id" type="String" />
+			<description>
+				Stops the device with this [code]id[/code] (from [method get_devices]) remembering the player. Await it for [code]ok[/code].
+			</description>
+		</method>
+		<method name="get_devices">
+			<return type="Signal" />
+			<description>
+				The devices that remember this player as a guest (see [method LocalPlayers.confirm_guest]), for a "Devices that remember you" screen. Await it: the result has [code]ok[/code] and [code]devices[/code], an [Array] of [Dictionary]s with [code]id[/code], [code]device_label[/code], [code]created_at[/code] and [code]last_used_at[/code] (Unix times). Needs the online service.
+			</description>
+		</method>
+		<method name="has_email" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if the player has added an email address, so their progress follows them to other platforms.
+			</description>
+		</method>
+		<method name="is_signed_in" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] once [method sign_in] has finished.
+			</description>
+		</method>
+		<method name="link_email">
+			<return type="Signal" />
+			<param index="0" name="email" type="String" />
+			<param index="1" name="current_email" type="String" default="&quot;&quot;" />
+			<description>
+				Emails the player a 6-digit code for adding [param email] to their account, which they then enter for [method confirm_email]. To change the address once they have one, pass the new one as [param email] and the current one as [param current_email]. Await it: the result has [code]ok[/code], or [code]error[/code] ([code]"bad_email"[/code], or [code]"rate_limited"[/code] if a code was sent to that address in the last minute).
+			</description>
+		</method>
+		<method name="needs_display_name" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] when the player has no name from a platform (signed in with a device account, or without the online service) and hasn't chosen one. Ask them for a name then, and save it with [method set_display_name].
+			</description>
+		</method>
+		<method name="set_display_name">
+			<return type="Signal" />
+			<param index="0" name="name" type="String" />
+			<description>
+				Saves the name the player chose: 1 to 24 characters, shown to other players. It's kept on their account (and on this device), and stays theirs whatever platform they sign in with later. Await it: the result has [code]ok[/code] and the [code]display_name[/code] as saved, or [code]error[/code] [code]"bad_name"[/code].
+			</description>
+		</method>
+		<method name="sign_in">
+			<return type="Signal" />
+			<description>
+				Signs the player in, choosing the platform automatically. Await it: the result has [code]ok[/code], [code]provider[/code] (a [enum Provider]), [code]player_name[/code] and [code]online[/code] (whether the online service answered; without it the game plays on and syncs later). Signing in again while it's under way gives the same result.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="device_label" type="String" setter="set_device_label" getter="get_device_label">
+			This device's name, shown to players in "Devices that remember you". Defaults to the device's model name.
+		</member>
+		<member name="player_name" type="String" setter="" getter="get_player_name">
+			The player's name, as [method get_player_name].
+		</member>
+		<member name="provider" type="int" setter="" getter="get_provider" enum="Account.Provider">
+			How the player signed in.
+		</member>
+	</members>
+	<signals>
+		<signal name="service_outdated">
+			<description>
+				Emitted when the online service is too old for this version of Purr. Online features stop for the session, as with [signal update_required]; the service's operator needs to update it.
+			</description>
+		</signal>
+		<signal name="signed_in">
+			<description>
+				Emitted when [method sign_in] has finished.
+			</description>
+		</signal>
+		<signal name="update_required">
+			<param index="0" name="min_version" type="Variant" />
+			<param index="1" name="max_version" type="Variant" />
+			<description>
+				Emitted when the online service turned this version of the game away ([code]application/config/version[/code] in Project Settings is below the game's [code]min_version[/code] on the service, or above its [code]max_version[/code]; either may be [code]null[/code]). Online features stop for the session; ask the player to update. Saves still work on the device and the platform's cloud.
+			</description>
+		</signal>
+	</signals>
+	<constants>
+		<constant name="PROVIDER_LOCAL" value="0" enum="Provider">
+			This device alone: no platform, and no online service.
+		</constant>
+		<constant name="PROVIDER_DEVICE" value="1" enum="Provider">
+			A device account on the online service, where no platform signed the player in.
+		</constant>
+		<constant name="PROVIDER_STEAM" value="2" enum="Provider">
+			Steam.
+		</constant>
+		<constant name="PROVIDER_GAME_CENTER" value="3" enum="Provider">
+			Game Center.
+		</constant>
+		<constant name="PROVIDER_PLAY_GAMES" value="4" enum="Provider">
+			Google Play Games.
+		</constant>
+	</constants>
+</class>

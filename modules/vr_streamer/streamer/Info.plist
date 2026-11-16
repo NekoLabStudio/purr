@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>studio.nekolab.vr-streamer</string>
+	<key>CFBundleName</key>
+	<string>VR streamer</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>The game sends its sound to your VR headset.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>The game sends its sound to your VR headset. It doesn't record your microphone.</string>
+</dict>
+</plist>

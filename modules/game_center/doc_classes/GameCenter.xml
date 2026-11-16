@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GameCenter" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Apple's Game Center on macOS, iOS and tvOS.
+	</brief_description>
+	<description>
+		Signs the player in to Game Center, reports achievements and leaderboard scores, and handles invites and parties. Most games use [Purr], which uses this on Apple platforms; it's here for anything [Purr] doesn't cover.
+		Exported games need a bundle ID set up for Game Center in App Store Connect, and Entitlements &gt; Game Center ticked in the export preset. Each call returns a signal that fires once with a [Dictionary] with [code]ok[/code] and [code]error[/code].
+		[codeblock]
+		var signed_in = await GameCenter.authenticate()
+		if signed_in.ok:
+		    GameCenter.report_achievement("first_steps")
+		[/codeblock]
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="authenticate">
+			<return type="Signal" />
+			<description>
+				Signs the player in to Game Center, showing Apple's sign-in screen if needed. Await it: the result is a [Dictionary] with [code]ok[/code] and [code]error[/code], plus [code]player_name[/code].
+			</description>
+		</method>
+		<method name="end_party">
+			<return type="void" />
+			<description>
+				Ends the party [method start_party] started, if any.
+			</description>
+		</method>
+		<method name="fetch_identity_verification">
+			<return type="Signal" />
+			<description>
+				Asks Game Center for a signature proving who the player is, for a server to check. Await it: the result is a [Dictionary] with [code]ok[/code] and [code]error[/code], plus [code]public_key_url[/code], [code]signature[/code] and [code]salt[/code] (base64), [code]timestamp[/code], [code]team_player_id[/code] and [code]bundle_id[/code]: what [method PurrOnline.sign_in_game_center] takes.
+			</description>
+		</method>
+		<method name="get_achievements">
+			<return type="Signal" />
+			<description>
+				Loads the player's achievements. Await it: the result is a [Dictionary] with [code]ok[/code], [code]error[/code] and [code]achievements[/code], [code]{id: percent}[/code] for every achievement the player has made progress on.
+			</description>
+		</method>
+		<method name="get_player_name" qualifiers="const">
+			<return type="String" />
+			<description>
+				Returns the signed-in player's name, or empty.
+			</description>
+		</method>
+		<method name="get_scores">
+			<return type="Signal" />
+			<param index="0" name="leaderboard_id" type="String" />
+			<param index="1" name="scope" type="int" enum="GameCenter.Scope" default="0" />
+			<param index="2" name="count" type="int" default="10" />
+			<description>
+				Loads up to [param count] all-time scores (100 at most), as [param scope] says ([constant SCOPE_FRIENDS] asks the player to share their friends list the first time). Await it: the result is a [Dictionary] with [code]ok[/code] and [code]scores[/code], each with [code]rank[/code], [code]name[/code], [code]score[/code] and [code]player[/code].
+			</description>
+		</method>
+		<method name="get_team_player_id" qualifiers="const">
+			<return type="String" />
+			<description>
+				Returns the signed-in player's identifier, the same in all of the developer team's games, or empty.
+			</description>
+		</method>
+		<method name="invite_players">
+			<return type="void" />
+			<param index="0" name="player_group" type="int" />
+			<param index="1" name="max_players" type="int" />
+			<description>
+				Opens Game Center's invite screen, for up to [param max_players] players. An invited player who accepts gets [signal invite_accepted] with the same [param player_group], a number the game uses to say what to join. The screen closes once someone accepts.
+			</description>
+		</method>
+		<method name="is_authenticated" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if the player is signed in to Game Center.
+			</description>
+		</method>
+		<method name="report_achievement">
+			<return type="Signal" />
+			<param index="0" name="id" type="String" />
+			<param index="1" name="percent" type="float" default="100.0" />
+			<description>
+				Reports progress on an achievement, [param percent] from [code]0[/code] to [code]100[/code] (unlocked at [code]100[/code]), showing Game Center's banner. Await it: the result is a [Dictionary] with [code]ok[/code] and [code]error[/code].
+			</description>
+		</method>
+		<method name="show_achievements">
+			<return type="void" />
+			<description>
+				Opens Game Center's achievements screen over the game.
+			</description>
+		</method>
+		<method name="show_leaderboard">
+			<return type="void" />
+			<param index="0" name="leaderboard_id" type="String" default="&quot;&quot;" />
+			<description>
+				Opens Game Center's screen for a leaderboard, or for all the game's leaderboards when [param leaderboard_id] is empty.
+			</description>
+		</method>
+		<method name="start_party">
+			<return type="void" />
+			<param index="0" name="activity_id" type="String" />
+			<param index="1" name="party_code" type="String" />
+			<description>
+				Starts the game activity [param activity_id] (from App Store Connect, with party codes turned on) with this party code, two halves of 2 to 6 characters joined by a dash. Friends see the party in Apple's Games app; joining it gives their game [signal party_joined]. Needs iOS, macOS, tvOS or visionOS 26 or later; earlier, it does nothing.
+			</description>
+		</method>
+		<method name="submit_score">
+			<return type="Signal" />
+			<param index="0" name="leaderboard_id" type="String" />
+			<param index="1" name="score" type="int" />
+			<description>
+				Submits a score to a leaderboard. Await it: the result is a [Dictionary] with [code]ok[/code] and [code]error[/code].
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="invite_accepted">
+			<param index="0" name="player_group" type="int" />
+			<description>
+				Emitted when the player accepted an invite from [method invite_players], with the inviter's [param player_group].
+			</description>
+		</signal>
+		<signal name="party_joined">
+			<param index="0" name="party_code" type="String" />
+			<description>
+				Emitted when the player chose to join a party (see [method start_party]) in Apple's Games app.
+			</description>
+		</signal>
+	</signals>
+	<constants>
+		<constant name="SCOPE_GLOBAL" value="0" enum="Scope">
+			The best scores.
+		</constant>
+		<constant name="SCOPE_FRIENDS" value="1" enum="Scope">
+			The best among the player's friends.
+		</constant>
+		<constant name="SCOPE_AROUND_PLAYER" value="2" enum="Scope">
+			Those around the player's own, or the best if they have none.
+		</constant>
+	</constants>
+</class>

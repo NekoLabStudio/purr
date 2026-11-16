@@ -1,0 +1,376 @@
+From 038c8a82dcd06c9d1a08368809b3c30ad315a91a Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 14:55:22 +0000
+Subject: [PATCH] libdatachannel: build with Mbed TLS 4
+
+Purr builds WebRTC into the engine with libdatachannel, using the Mbed
+TLS that Godot already ships so the engine carries one TLS library.
+Godot 4.8 has Mbed TLS 4.1, and libdatachannel 0.24.6 supports Mbed TLS
+3 only: Mbed TLS 4 moved random numbers, hashes and key generation to
+PSA Crypto and removed the old entry points.
+
+The Mbed TLS backend now initialises PSA Crypto, hashes fingerprints
+and SHA-1 with psa_hash_compute, generates the certificate's key with
+psa_generate_key (then copies it into the PK context) and drops the
+entropy and CTR-DRBG contexts, whose job PSA does. DTLS-SRTP, which
+Godot's Mbed TLS leaves out, is only set up where Mbed TLS has it;
+Purr uses data channels only, so media stays off.
+
+Test: two peers in one process open a data channel and exchange
+messages, with ECDSA and with RSA certificates.
+
+Upstream: libdatachannel v0.24.6 (src/impl/certificate.cpp,
+dtlstransport.cpp, init.cpp, sha.cpp, tls.hpp). Drop this patch once
+libdatachannel supports Mbed TLS 4.
+---
+ libdatachannel/src/impl/certificate.cpp   | 115 ++++++++++------------
+ libdatachannel/src/impl/dtlstransport.cpp |  16 +--
+ libdatachannel/src/impl/dtlstransport.hpp |   2 -
+ libdatachannel/src/impl/init.cpp          |   5 +-
+ libdatachannel/src/impl/sha.cpp           |   9 +-
+ libdatachannel/src/impl/tls.hpp           |   6 +-
+ 6 files changed, 67 insertions(+), 86 deletions(-)
+
+diff --git a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/certificate.cpp b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/certificate.cpp
+index d654603..14a2374 100644
+--- a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/certificate.cpp
++++ b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/certificate.cpp
+@@ -180,31 +180,30 @@ string make_fingerprint(mbedtls_x509_crt *crt,
+ 	std::vector<unsigned char> buffer(size);
+ 	std::stringstream fingerprint;
+ 
++	psa_algorithm_t algorithm;
+ 	switch (fingerprintAlgorithm) {
+ 	case CertificateFingerprint::Algorithm::Sha1:
+-		mbedtls::check(mbedtls_sha1(crt->raw.p, crt->raw.len, buffer.data()),
+-		               "Failed to generate certificate fingerprint");
++		algorithm = PSA_ALG_SHA_1;
+ 		break;
+ 	case CertificateFingerprint::Algorithm::Sha224:
+-		mbedtls::check(mbedtls_sha256(crt->raw.p, crt->raw.len, buffer.data(), 1),
+-		               "Failed to generate certificate fingerprint");
+-
++		algorithm = PSA_ALG_SHA_224;
+ 		break;
+ 	case CertificateFingerprint::Algorithm::Sha256:
+-		mbedtls::check(mbedtls_sha256(crt->raw.p, crt->raw.len, buffer.data(), 0),
+-		               "Failed to generate certificate fingerprint");
++		algorithm = PSA_ALG_SHA_256;
+ 		break;
+ 	case CertificateFingerprint::Algorithm::Sha384:
+-		mbedtls::check(mbedtls_sha512(crt->raw.p, crt->raw.len, buffer.data(), 1),
+-		               "Failed to generate certificate fingerprint");
++		algorithm = PSA_ALG_SHA_384;
+ 		break;
+ 	case CertificateFingerprint::Algorithm::Sha512:
+-		mbedtls::check(mbedtls_sha512(crt->raw.p, crt->raw.len, buffer.data(), 0),
+-		               "Failed to generate certificate fingerprint");
++		algorithm = PSA_ALG_SHA_512;
+ 		break;
+ 	default:
+ 		throw std::invalid_argument("Unknown fingerprint algorithm");
+ 	}
++	size_t hashLength = 0;
++	if (psa_hash_compute(algorithm, crt->raw.p, crt->raw.len, buffer.data(), buffer.size(),
++	                     &hashLength) != PSA_SUCCESS)
++		throw std::runtime_error("Failed to generate certificate fingerprint");
+ 
+ 	for (auto i = 0; i < size; i++) {
+ 		fingerprint << std::setfill('0') << std::setw(2) << std::hex
+@@ -233,7 +232,7 @@ Certificate Certificate::FromString(string crt_pem, string key_pem) {
+ 	               "Failed to parse certificate");
+ 	mbedtls::check(mbedtls_pk_parse_key(pk.get(),
+ 	                                    reinterpret_cast<const unsigned char *>(key_pem.c_str()),
+-	                                    key_pem.size() + 1, NULL, 0, NULL, 0),
++	                                    key_pem.size() + 1, NULL, 0),
+ 	               "Failed to parse key");
+ 
+ 	return Certificate(std::move(crt), std::move(pk));
+@@ -248,7 +247,7 @@ Certificate Certificate::FromFile(const string &crt_pem_file, const string &key_
+ 
+ 	mbedtls::check(mbedtls_x509_crt_parse_file(crt.get(), crt_pem_file.c_str()),
+ 	               "Failed to parse certificate");
+-	mbedtls::check(mbedtls_pk_parse_keyfile(pk.get(), key_pem_file.c_str(), pass.c_str(), 0, NULL),
++	mbedtls::check(mbedtls_pk_parse_keyfile(pk.get(), key_pem_file.c_str(), pass.c_str()),
+ 	               "Failed to parse key");
+ 
+ 	return Certificate(std::move(crt), std::move(pk));
+@@ -257,50 +256,42 @@ Certificate Certificate::FromFile(const string &crt_pem_file, const string &key_
+ Certificate Certificate::Generate(CertificateType type, const string &commonName) {
+ 	PLOG_DEBUG << "Generating certificate (MbedTLS)";
+ 
+-	mbedtls_entropy_context entropy;
+-	mbedtls_ctr_drbg_context drbg;
++	// Mbed TLS 4: keys are generated by PSA, then copied into the PK context the certificate and
++	// the DTLS handshake use; random numbers come from PSA too.
++	psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
++	switch (type) {
++	// RFC 8827 WebRTC Security Architecture 6.5. Communications Security
++	// All implementations MUST support DTLS 1.2 with the
++	// TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 cipher suite and the P-256 curve
++	// See https://www.rfc-editor.org/rfc/rfc8827.html#section-6.5
++	case CertificateType::Default:
++	case CertificateType::Ecdsa:
++		psa_set_key_type(&attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
++		psa_set_key_bits(&attributes, 256);
++		psa_set_key_algorithm(&attributes, PSA_ALG_ECDSA(PSA_ALG_ANY_HASH));
++		break;
++	case CertificateType::Rsa:
++		psa_set_key_type(&attributes, PSA_KEY_TYPE_RSA_KEY_PAIR);
++		psa_set_key_bits(&attributes, 2048);
++		psa_set_key_algorithm(&attributes, PSA_ALG_RSA_PKCS1V15_SIGN(PSA_ALG_ANY_HASH));
++		break;
++	default:
++		throw std::invalid_argument("Unknown certificate type");
++	}
++	psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_HASH | PSA_KEY_USAGE_VERIFY_HASH |
++	                                         PSA_KEY_USAGE_EXPORT | PSA_KEY_USAGE_COPY);
++
++	mbedtls_svc_key_id_t key = MBEDTLS_SVC_KEY_ID_INIT;
++	if (psa_generate_key(&attributes, &key) != PSA_SUCCESS)
++		throw std::runtime_error("Unable to generate the certificate's key pair");
++
+ 	mbedtls_x509write_cert wcrt;
+-	mbedtls_mpi serial;
+ 	auto crt = mbedtls::new_x509_crt();
+ 	auto pk = mbedtls::new_pk_context();
+-
+-	mbedtls_entropy_init(&entropy);
+-	mbedtls_ctr_drbg_init(&drbg);
+-	mbedtls_ctr_drbg_set_prediction_resistance(&drbg, MBEDTLS_CTR_DRBG_PR_ON);
+ 	mbedtls_x509write_crt_init(&wcrt);
+-	mbedtls_mpi_init(&serial);
+ 
+ 	try {
+-		mbedtls::check(mbedtls_ctr_drbg_seed(
+-		    &drbg, mbedtls_entropy_func, &entropy,
+-		    reinterpret_cast<const unsigned char *>(commonName.data()), commonName.size()));
+-
+-		switch (type) {
+-		// RFC 8827 WebRTC Security Architecture 6.5. Communications Security
+-		// All implementations MUST support DTLS 1.2 with the
+-		// TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 cipher suite and the P-256 curve
+-		// See https://www.rfc-editor.org/rfc/rfc8827.html#section-6.5
+-		case CertificateType::Default:
+-		case CertificateType::Ecdsa: {
+-			mbedtls::check(mbedtls_pk_setup(pk.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY)));
+-			mbedtls::check(mbedtls_ecp_gen_key(MBEDTLS_ECP_DP_SECP256R1, mbedtls_pk_ec(*pk.get()),
+-			                                   mbedtls_ctr_drbg_random, &drbg),
+-			               "Unable to generate ECDSA P-256 key pair");
+-			break;
+-		}
+-		case CertificateType::Rsa: {
+-			const unsigned int nbits = 2048;
+-			const int exponent = 65537;
+-
+-			mbedtls::check(mbedtls_pk_setup(pk.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_RSA)));
+-			mbedtls::check(mbedtls_rsa_gen_key(mbedtls_pk_rsa(*pk.get()), mbedtls_ctr_drbg_random,
+-			                                   &drbg, nbits, exponent),
+-			               "Unable to generate RSA key pair");
+-			break;
+-		}
+-		default:
+-			throw std::invalid_argument("Unknown certificate type");
+-		}
++		mbedtls::check(mbedtls_pk_copy_from_psa(key, pk.get()), "Unable to use the key pair");
+ 
+ 		auto now = std::chrono::system_clock::now();
+ 		string notBefore = mbedtls::format_time(now - std::chrono::hours(1));
+@@ -308,13 +299,12 @@ Certificate Certificate::Generate(CertificateType type, const string &commonName
+ 
+ 		const size_t serialBufferSize = 16;
+ 		unsigned char serialBuffer[serialBufferSize];
+-		mbedtls::check(mbedtls_ctr_drbg_random(&drbg, serialBuffer, serialBufferSize),
+-		               "Failed to generate certificate");
+-		mbedtls::check(mbedtls_mpi_read_binary(&serial, serialBuffer, serialBufferSize),
+-		               "Failed to generate certificate");
++		if (psa_generate_random(serialBuffer, serialBufferSize) != PSA_SUCCESS)
++			throw std::runtime_error("Failed to generate certificate");
++		serialBuffer[0] &= 0x7F; // A positive serial number
+ 
+ 		std::string name = std::string("O=" + commonName + ",CN=" + commonName);
+-		mbedtls::check(mbedtls_x509write_crt_set_serial(&wcrt, &serial),
++		mbedtls::check(mbedtls_x509write_crt_set_serial_raw(&wcrt, serialBuffer, serialBufferSize),
+ 		               "Failed to generate certificate");
+ 		mbedtls::check(mbedtls_x509write_crt_set_subject_name(&wcrt, name.c_str()),
+ 		               "Failed to generate certificate");
+@@ -333,8 +323,8 @@ Certificate Certificate::Generate(CertificateType type, const string &commonName
+ 		unsigned char certificateBuffer[certificateBufferSize];
+ 		std::memset(certificateBuffer, 0, certificateBufferSize);
+ 
+-		auto certificateLen = mbedtls_x509write_crt_der(
+-		    &wcrt, certificateBuffer, certificateBufferSize, mbedtls_ctr_drbg_random, &drbg);
++		auto certificateLen =
++		    mbedtls_x509write_crt_der(&wcrt, certificateBuffer, certificateBufferSize);
+ 		if (certificateLen <= 0) {
+ 			throw std::runtime_error("Certificate generation failed");
+ 		}
+@@ -344,17 +334,14 @@ Certificate Certificate::Generate(CertificateType type, const string &commonName
+ 		                   certificateLen),
+ 		               "Failed to generate certificate");
+ 	} catch (...) {
+-		mbedtls_entropy_free(&entropy);
+-		mbedtls_ctr_drbg_free(&drbg);
+ 		mbedtls_x509write_crt_free(&wcrt);
+-		mbedtls_mpi_free(&serial);
++		psa_destroy_key(key);
+ 		throw;
+ 	}
+ 
+-	mbedtls_entropy_free(&entropy);
+-	mbedtls_ctr_drbg_free(&drbg);
+ 	mbedtls_x509write_crt_free(&wcrt);
+-	mbedtls_mpi_free(&serial);
++	// The PK context holds its own copy of the key.
++	psa_destroy_key(key);
+ 	return Certificate(std::move(crt), std::move(pk));
+ }
+ 
+diff --git a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.cpp b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.cpp
+index 9bfa1bf..3603fc8 100644
+--- a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.cpp
++++ b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.cpp
+@@ -377,10 +377,12 @@ int DtlsTransport::TimeoutCallback(gnutls_transport_ptr_t ptr, unsigned int /* m
+ 
+ #elif USE_MBEDTLS
+ 
++#ifdef MBEDTLS_SSL_DTLS_SRTP
+ const mbedtls_ssl_srtp_profile srtpSupportedProtectionProfiles[] = {
+     MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80,
+     MBEDTLS_TLS_SRTP_UNSET,
+ };
++#endif
+ 
+ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr certificate,
+                              optional<size_t> mtu,
+@@ -396,29 +398,25 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
+ 	if (!mCertificate)
+ 		throw std::invalid_argument("DTLS certificate is null");
+ 
+-	mbedtls_entropy_init(&mEntropy);
+-	mbedtls_ctr_drbg_init(&mDrbg);
+ 	mbedtls_ssl_init(&mSsl);
+ 	mbedtls_ssl_config_init(&mConf);
+-	mbedtls_ctr_drbg_set_prediction_resistance(&mDrbg, MBEDTLS_CTR_DRBG_PR_ON);
+ 
+ 	try {
+-		mbedtls::check(mbedtls_ctr_drbg_seed(&mDrbg, mbedtls_entropy_func, &mEntropy, NULL, 0));
+-
+ 		mbedtls::check(mbedtls_ssl_config_defaults(
+ 		                   &mConf, mIsClient ? MBEDTLS_SSL_IS_CLIENT : MBEDTLS_SSL_IS_SERVER,
+ 		                   MBEDTLS_SSL_TRANSPORT_DATAGRAM, MBEDTLS_SSL_PRESET_DEFAULT));
+ 
+-		mbedtls_ssl_conf_max_version(&mConf, MBEDTLS_SSL_MAJOR_VERSION_3, MBEDTLS_SSL_MINOR_VERSION_3); // TLS 1.2
++		mbedtls_ssl_conf_max_tls_version(&mConf, MBEDTLS_SSL_VERSION_TLS1_2);
+ 		mbedtls_ssl_conf_authmode(&mConf, MBEDTLS_SSL_VERIFY_OPTIONAL);
+ 		mbedtls_ssl_conf_verify(&mConf, DtlsTransport::CertificateCallback, this);
+-		mbedtls_ssl_conf_rng(&mConf, mbedtls_ctr_drbg_random, &mDrbg);
+ 
+ 		auto [crt, pk] = mCertificate->credentials();
+ 		mbedtls::check(mbedtls_ssl_conf_own_cert(&mConf, crt.get(), pk.get()));
+ 
+ 		mbedtls_ssl_conf_dtls_cookies(&mConf, NULL, NULL, NULL);
++#ifdef MBEDTLS_SSL_DTLS_SRTP
+ 		mbedtls_ssl_conf_dtls_srtp_protection_profiles(&mConf, srtpSupportedProtectionProfiles);
++#endif
+ 
+ 		mbedtls::check(mbedtls_ssl_setup(&mSsl, &mConf));
+ 
+@@ -427,8 +425,6 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
+ 		mbedtls_ssl_set_timer_cb(&mSsl, this, SetTimerCallback, GetTimerCallback);
+ 
+ 	} catch (...) {
+-		mbedtls_entropy_free(&mEntropy);
+-		mbedtls_ctr_drbg_free(&mDrbg);
+ 		mbedtls_ssl_free(&mSsl);
+ 		mbedtls_ssl_config_free(&mConf);
+ 		throw;
+@@ -443,8 +439,6 @@ DtlsTransport::~DtlsTransport() {
+ 	stop();
+ 
+ 	PLOG_DEBUG << "Destroying DTLS transport";
+-	mbedtls_entropy_free(&mEntropy);
+-	mbedtls_ctr_drbg_free(&mDrbg);
+ 	mbedtls_ssl_free(&mSsl);
+ 	mbedtls_ssl_config_free(&mConf);
+ }
+diff --git a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.hpp b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.hpp
+index 10ef502..61b65f0 100644
+--- a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.hpp
++++ b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.hpp
+@@ -73,8 +73,6 @@ protected:
+ 	static int TimeoutCallback(gnutls_transport_ptr_t ptr, unsigned int ms);
+ 
+ #elif USE_MBEDTLS
+-	mbedtls_entropy_context mEntropy;
+-	mbedtls_ctr_drbg_context mDrbg;
+ 	mbedtls_ssl_config mConf;
+ 	mbedtls_ssl_context mSsl;
+ 
+diff --git a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/init.cpp b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/init.cpp
+index 1bc6aab..a85974f 100644
+--- a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/init.cpp
++++ b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/init.cpp
+@@ -136,7 +136,10 @@ void Init::doInit() try {
+ #if USE_GNUTLS
+ 	// Nothing to do
+ #elif USE_MBEDTLS
+-	// Nothing to do
++	// Mbed TLS 4 does its cryptography through PSA, which must be set up first (calling it again
++	// is harmless).
++	if (psa_crypto_init() != PSA_SUCCESS)
++		throw std::runtime_error("Unable to initialize PSA Crypto");
+ #else
+ 	openssl::init();
+ #endif
+diff --git a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/sha.cpp b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/sha.cpp
+index 8f831b8..e13fd55 100644
+--- a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/sha.cpp
++++ b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/sha.cpp
+@@ -17,7 +17,7 @@
+ 
+ #elif USE_MBEDTLS
+ 
+-#include <mbedtls/sha1.h>
++#include <psa/crypto.h>
+ 
+ #else
+ 
+@@ -50,8 +50,11 @@ binary Sha1(const byte *data, size_t size) {
+ #elif USE_MBEDTLS
+ 
+ 	binary output(20);
+-	mbedtls_sha1(reinterpret_cast<const unsigned char *>(data), size,
+-	             reinterpret_cast<unsigned char *>(output.data()));
++	size_t length = 0;
++	if (psa_hash_compute(PSA_ALG_SHA_1, reinterpret_cast<const uint8_t *>(data), size,
++	                     reinterpret_cast<uint8_t *>(output.data()), output.size(),
++	                     &length) != PSA_SUCCESS)
++		throw std::runtime_error("SHA-1 failed");
+ 	return output;
+ 
+ #else
+diff --git a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/tls.hpp b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/tls.hpp
+index 36ad615..8b67c15 100644
+--- a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/tls.hpp
++++ b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/tls.hpp
+@@ -40,15 +40,11 @@ gnutls_datum_t make_datum(char *data, size_t size);
+ 
+ #elif USE_MBEDTLS
+ 
+-#include "mbedtls/ctr_drbg.h"
+-#include "mbedtls/ecdsa.h"
+-#include "mbedtls/entropy.h"
+ #include "mbedtls/error.h"
+ #include "mbedtls/pk.h"
+-#include "mbedtls/rsa.h"
+-#include "mbedtls/sha256.h"
+ #include "mbedtls/ssl.h"
+ #include "mbedtls/x509_crt.h"
++#include "psa/crypto.h"
+ 
+ namespace rtc::mbedtls {
+ 
+-- 
+2.54.0 (Apple Git-157)
+

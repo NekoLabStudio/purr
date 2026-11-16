@@ -1,0 +1,31 @@
+# Unreleased
+
+<!-- unreleased-intro-start (support/prepare-release.sh drops this block at release) -->
+The notes for the next release: everything below is in `main` and ships
+together when the version is tagged.
+<!-- unreleased-intro-end -->
+
+The first release of Purr, based on Godot 4.8 beta 3.
+
+## What's in it
+
+- `Account`, `Saves`, `Achievements`, `Leaderboards`, `Lobbies`, `Friends` and `LocalPlayers`, one API for signing in, saves, achievements (with progress, kept with the player's saves and carried to every platform they play on), leaderboards (scores read back for the game's own screens), lobbies, friends, invites and local players on Steam, Game Center, Google Play Games and devices without a platform. On Steam, friends see the lobby a player is in and join it; on Apple platforms, crossplay lobbies can be Game Center parties.
+- Achievements and Leaderboards tabs in Project Settings, listing each one's name on Steam, Game Center and Play Games.
+- Purr's online services, which you run on your own Cloudflare account, for crossplay lobbies (with host migration), ranked matchmaking (nearest players first), progress and achievements across platforms by email, guests who bring their own profile, checks and flags that catch a player whose game disagrees with everyone else's (with optional removal and escalating automatic bans), and player reports, blocks and bans.
+- Steam (GodotSteam 4.24), Game Center, iCloud saves through CloudKit, and Google Play Games with its saved games.
+- WebRTC built in, for crossplay lobbies and anything else using Godot's `WebRTCPeerConnection`.
+- Steering wheel force feedback on macOS and Windows, with springs, rev lights and a project setting that lets wheels through on macOS. The wheel code also builds without Godot (`WheelSession`).
+- VR the same way on every platform: the player turns it on in the game's settings (`VR.enabled`, shown where `VR.can_choose()`), or a launch decides with `-openxr` or `-novr`, such as Steam's "Launch in VR". On a Mac, Purr's own OpenXR runtime shows the game in Meta Quest and other headsets through Valve's Steam Link app, controllers included, and in Apple Vision Pro on macOS 26 or later.
+- XR fixes on Metal: drawing both eyes at once is no longer many times slower, and MSAA, FSR and MetalFX work in a headset (also with FSR on Windows).
+- Exports to Apple TV, where saves with no copy in iCloud or online are kept in storage tvOS never clears.
+- Recommended graphics settings for the player's computer in four tiers, for the screen and a headset, with a benchmark that measures them in the game.
+- Dynamic resolution, which changes the 3D resolution as the game runs to hold the frame rate, in VR too.
+- Changing the upscaler's scale no longer resets FSR 2's frame history or stalls MetalFX's temporal upscaler.
+- `Viewport.local_focus`, so each local player's menus keep their own focus.
+- The `purr` command for scripts and tests (Homebrew links it; the Linux editor is `purr`, the Windows console one `Purr_console`).
+- Parametric, a film-like tonemapper and the new default: mid grey stays put, shadows fall off softly and highlights roll off into white, with slope, toe, shoulder and white clip to adjust it.
+- The editor for macOS, Windows and Linux, and export templates for those and iOS, Apple TV, Apple Vision Pro and Android, downloadable from the editor.
+
+## Coming from Godot
+
+Purr leaves out the Compatibility renderer (so there are no web exports), Godot Physics for 3D (3D projects use Jolt) and deprecated APIs. Environments that never chose a tonemapper now use Parametric instead of Linear. GDExtensions need building against Purr's API. See [Getting started](/start/getting-started/).

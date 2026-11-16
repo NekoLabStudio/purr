@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Leaderboards" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Scores on the platform's leaderboards.
+	</brief_description>
+	<description>
+		Scores go to Steam, Game Center or Play Games. Each leaderboard's name on a platform is [code]leaderboards/&lt;id&gt;/&lt;platform&gt;[/code] in Project Settings, as with [Achievements].
+		[codeblock]
+		Leaderboards.submit_score("laps", 9512)
+		var result = await Leaderboards.get_scores("laps", Leaderboards.SCOPE_FRIENDS)
+		[/codeblock]
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_scores">
+			<return type="Signal" />
+			<param index="0" name="id" type="String" />
+			<param index="1" name="scope" type="int" enum="Leaderboards.Scope" default="0" />
+			<param index="2" name="count" type="int" default="10" />
+			<description>
+				Loads up to [param count] scores. Await it: the result has [code]ok[/code] and [code]scores[/code], an [Array] of [Dictionary]s with [code]rank[/code], [code]name[/code], [code]score[/code] and [code]player[/code] ([code]true[/code] for the player's own). Play Games returns 25 at most, the others 100.
+			</description>
+		</method>
+		<method name="is_available" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if the platform the game runs on has leaderboards (Steam, Game Center or Play Games).
+			</description>
+		</method>
+		<method name="show">
+			<return type="void" />
+			<param index="0" name="id" type="String" default="&quot;&quot;" />
+			<description>
+				Opens the platform's screen for a leaderboard, or for all the game's leaderboards when [param id] is empty. On Steam, the game's leaderboard pages on Steam's website open in the overlay.
+			</description>
+		</method>
+		<method name="submit_score">
+			<return type="void" />
+			<param index="0" name="id" type="String" />
+			<param index="1" name="score" type="int" />
+			<description>
+				Submits a score, keeping the player's best. Does nothing where leaderboards aren't available.
+			</description>
+		</method>
+	</methods>
+	<constants>
+		<constant name="SCOPE_GLOBAL" value="0" enum="Scope">
+			The best scores.
+		</constant>
+		<constant name="SCOPE_FRIENDS" value="1" enum="Scope">
+			The best among the player's friends.
+		</constant>
+		<constant name="SCOPE_AROUND_PLAYER" value="2" enum="Scope">
+			Those around the player's own, or the best if they have none.
+		</constant>
+	</constants>
+</class>

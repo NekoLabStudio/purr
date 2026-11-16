@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="WebRTCNativePeerConnection" inherits="WebRTCPeerConnectionExtension" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Purr's built-in WebRTC implementation.
+	</brief_description>
+	<description>
+		The implementation [WebRTCPeerConnection] uses on every platform but the web, built on libdatachannel. Use [WebRTCPeerConnection] rather than this class: [code]WebRTCPeerConnection.new()[/code] creates one of these. A GDExtension that calls [method WebRTCPeerConnection.set_default_extension] replaces it.
+		Besides the standard configuration ([code]iceServers[/code], and [code]iceTransportPolicy[/code] [code]"relay"[/code] to connect only through TURN), [method WebRTCPeerConnection.initialize] reads a [code]libdatachannel[/code] dictionary with [code]enableIceTcp[/code], [code]enableIceUdpMux[/code], [code]portRangeBegin[/code], [code]portRangeEnd[/code] and [code]mtu[/code].
+	</description>
+	<tutorials>
+	</tutorials>
+</class>

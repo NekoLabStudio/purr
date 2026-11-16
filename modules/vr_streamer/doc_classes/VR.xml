@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="VR" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Whether the game plays in a VR headset, and the player's choices for it.
+	</brief_description>
+	<description>
+		A game with VR turns on [code]xr/openxr/enabled[/code] and [code]xr/shaders/enabled[/code] in Project Settings, and uses Godot's OpenXR and the usual XR nodes ([XROrigin3D], [XRCamera3D]), the same code on every platform. On macOS, Windows and Linux, the player then decides whether it starts in a headset: show a VR option in the game's settings where [method can_choose] is [code]true[/code], and save their answer in [member enabled]. It takes effect when the game next starts, as OpenXR starts with the game; [method restart] starts it again at once.
+		A launch can decide instead, and [method can_choose] is then [code]false[/code]: [code]-openxr[/code] starts the game in a headset, and [code]-novr[/code] keeps it out of one (and wins if both are given). Use them in a store's launch options, such as Steam's "Launch in VR"; on Steam, limit a [code]-novr[/code] option to Windows and Linux, so Mac players, who have no SteamVR, keep the choice. Godot's own [code]--xr-mode on[/code] and [code]--xr-mode off[/code] work the same way.
+		Other platforms build for a headset or they don't: OpenXR starts as the project says.
+		On a Mac, where headset makers ship no OpenXR runtime, Purr's own shows the game in whichever headset connects: the Steam Link app on Meta Quest and other headsets, or an Apple Vision Pro (macOS 26 or later), on the same network. The remaining properties are the player's choices for it, used when VR next starts; they have no effect elsewhere. A Steam Link headset's controllers reach the game as OpenXR's Meta Touch controller, and [code]xr/controllers[/code] turns them off for games played with a pad, wheel or keyboard. A Vision Pro tracks the head only.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="can_choose" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Whether the player can choose to play in a headset: VR is available ([method is_available]), on macOS, Windows or Linux, and the launch didn't decide. Show the game's VR option only when this is [code]true[/code].
+			</description>
+		</method>
+		<method name="is_available" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Whether the game can play in a headset here: it has VR ([code]xr/openxr/enabled[/code]), and there's an OpenXR runtime to play through (Purr's, shipped with the game, on a Mac; the player's own, such as SteamVR, on Windows and Linux).
+			</description>
+		</method>
+		<method name="is_running" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Whether the game plays in a headset now: OpenXR started.
+			</description>
+		</method>
+		<method name="restart">
+			<return type="void" />
+			<description>
+				Closes the game and starts it again with the same arguments, so a change to [member enabled] takes effect. Save anything the player would lose first.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="bitrate" type="int" setter="set_bitrate" getter="get_bitrate" default="100">
+			The Steam Link stream's bitrate in megabits a second, from 5 to 200. Higher is sharper and needs a better network. Mac only.
+		</member>
+		<member name="enabled" type="bool" setter="set_enabled" getter="is_enabled" default="false">
+			The player's choice to play in a headset, saved with the game's data and used from the next start (see [method restart]), unless the launch decides.
+		</member>
+		<member name="eye_scale" type="float" setter="set_eye_scale" getter="get_eye_scale" default="1.0">
+			The size each eye is drawn at, as a share of the headset's full size, from 0.5 to 1.0. Smaller is faster to draw. Mac only.
+		</member>
+		<member name="mute_computer" type="bool" setter="set_mute_computer" getter="get_mute_computer" default="true">
+			Whether the Mac's speakers go quiet while the game's sound plays in a Steam Link headset.
+		</member>
+		<member name="refresh_rate" type="int" setter="set_refresh_rate" getter="get_refresh_rate" default="72">
+			A Steam Link headset's refresh rate: 72, 80, 90 or 120 Hz. The game draws at this rate. A Vision Pro runs at 90 Hz. Mac only.
+		</member>
+	</members>
+</class>

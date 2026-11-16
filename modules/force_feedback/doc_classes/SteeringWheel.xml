@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="SteeringWheel" inherits="RefCounted" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Force feedback for steering wheels.
+	</brief_description>
+	<description>
+		Plays force feedback on a steering wheel. Set a steady force, the engine's vibration, the road's texture, a damper and friction as often as you like: a thread of its own plays them to the wheel as fast as the wheel accepts, so the wheel's feel doesn't depend on the frame rate and the game never waits for the wheel. It eases in when the wheel opens and fades out if the game stops setting forces.
+		The wheel's axes and buttons still arrive as a normal joypad through [Input]; this class only adds force feedback. Supported on macOS (Logitech, Thrustmaster, Fanatec, Simagic and generic HID force feedback wheels) and Windows (DirectInput). Elsewhere, [method find_wheel] always returns an empty dictionary.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="clear_spring">
+			<return type="void" />
+			<description>
+				Removes the spring [method set_spring] set.
+			</description>
+		</method>
+		<method name="close">
+			<return type="void" />
+			<description>
+				Stops force feedback and releases the wheel, restoring the rotation it had before [method set_rotation].
+			</description>
+		</method>
+		<method name="ease_in">
+			<return type="void" />
+			<param index="0" name="seconds" type="float" />
+			<description>
+				Fades every force in from nothing over [param seconds]. Use it after a teleport, a reset or a pause, whose first physics steps can spike.
+			</description>
+		</method>
+		<method name="find_wheel">
+			<return type="Dictionary" />
+			<param index="0" name="vendor_id" type="int" default="0" />
+			<param index="1" name="product_id" type="int" default="0" />
+			<description>
+				Returns the wheel that would be opened, as a dictionary with [code]name[/code], [code]new[/code] ([code]true[/code] if its force feedback isn't yet confirmed on real hardware), [code]vendor_id[/code], [code]product_id[/code] and [code]family[/code] (its driver: [code]"lg4ff"[/code], [code]"hidpp"[/code], [code]"t150"[/code], [code]"t300"[/code], [code]"fanatec"[/code], [code]"pid"[/code], [code]"simagic"[/code], [code]"logitech_stream"[/code], or [code]"directinput"[/code] on Windows). Returns an empty dictionary when there's no wheel. Pass the USB IDs of the wheel bound to the steering to prefer that one.
+			</description>
+		</method>
+		<method name="get_damping_force">
+			<return type="float" />
+			<description>
+				Returns the force the steering damping last added on the force feedback thread. For tracing.
+			</description>
+		</method>
+		<method name="get_device_name" qualifiers="const">
+			<return type="String" />
+			<description>
+				Returns the open wheel's name, or an empty string.
+			</description>
+		</method>
+		<method name="get_position">
+			<return type="float" />
+			<description>
+				Returns the steering axis as the force feedback thread last read it, or [code]NAN[/code] if it can't be read. For tracing.
+			</description>
+		</method>
+		<method name="get_rotation">
+			<return type="int" />
+			<description>
+				Returns the wheel's rotation in degrees, as last set or read, or [code]0[/code] if it isn't known.
+			</description>
+		</method>
+		<method name="get_spring_force">
+			<return type="float" />
+			<description>
+				Returns the force the steering spring last added on the force feedback thread, for tracing.
+			</description>
+		</method>
+		<method name="is_open" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] while a wheel is open.
+			</description>
+		</method>
+		<method name="open">
+			<return type="bool" />
+			<param index="0" name="vendor_id" type="int" default="0" />
+			<param index="1" name="product_id" type="int" default="0" />
+			<description>
+				Takes the wheel for force feedback. Returns [code]true[/code] if the wheel opened.
+			</description>
+		</method>
+		<method name="prepare">
+			<return type="void" />
+			<description>
+				Switches any attached wheel that started in a compatibility mode to its own mode, without taking it. On macOS this also happens by itself when a wheel is plugged in.
+			</description>
+		</method>
+		<method name="reads_position" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if the open wheel's position can be read on the force feedback thread, which [method set_steering_damping], [method set_column_lock] and [method set_steering_spring] need.
+			</description>
+		</method>
+		<method name="set_column_lock">
+			<return type="void" />
+			<param index="0" name="at" type="float" />
+			<param index="1" name="play" type="float" />
+			<param index="2" name="stiffness" type="float" />
+			<description>
+				Locks the steering column, as when the car is switched off: free play of [param play] either side of [param at] (on the steering axis), then pushed back with [param stiffness], signed as [method set_steering_damping]'s damping (negative where the axis falls as a positive force turns the wheel). Pass [code]NAN[/code] as [param at] to free it. Only works where [method reads_position] is [code]true[/code]. [method set_spring] is the same spring without the sign to work out.
+			</description>
+		</method>
+		<method name="set_rotation">
+			<return type="int" />
+			<param index="0" name="degrees" type="int" />
+			<description>
+				Sets the wheel's rotation, lock to lock in degrees, as near as the wheel allows. Returns what it was set to, or [code]0[/code] if the rotation can't be set from here (keep the player's own setting then). The previous rotation is restored on [method close].
+			</description>
+		</method>
+		<method name="set_spring">
+			<return type="void" />
+			<param index="0" name="centre" type="float" />
+			<param index="1" name="deadband" type="float" />
+			<param index="2" name="positive_stiffness" type="float" />
+			<param index="3" name="negative_stiffness" type="float" />
+			<param index="4" name="positive_saturation" type="float" default="1.0" />
+			<param index="5" name="negative_saturation" type="float" default="1.0" />
+			<description>
+				A spring on the steering, worked out on the wheel's thread from its own position: it pushes back towards [param centre] (on the steering axis, [code]-1[/code] to [code]1[/code]) once the wheel is more than [param deadband] from it. Above the centre it pushes with [param positive_stiffness] (a share of the wheel's strongest per unit of the axis past the deadband) up to [param positive_saturation] ([code]0[/code] to [code]1[/code]); below it, with [param negative_stiffness] up to [param negative_saturation]. A negative stiffness pushes away. It always pushes towards the centre, whichever way the wheel's axis runs. Only works where [method reads_position] is [code]true[/code].
+			</description>
+		</method>
+		<method name="set_steering_spring">
+			<return type="void" />
+			<param index="0" name="stiffness" type="float" />
+			<param index="1" name="lag" type="float" />
+			<description>
+				Sets a centring spring played on the force feedback thread from the wheel's own position, with this [param stiffness], following the game's centre with this [param lag] in seconds.
+			</description>
+		</method>
+		<method name="set_texture">
+			<return type="void" />
+			<param index="0" name="amplitude" type="float" />
+			<param index="1" name="frequency" type="float" />
+			<description>
+				Sets the road's texture: a band of noise around [param frequency] in Hz, with this RMS [param amplitude] ([code]0[/code] to [code]1[/code]). It adds to the vibration.
+			</description>
+		</method>
+		<method name="set_vibration">
+			<return type="void" />
+			<param index="0" name="amplitude" type="float" />
+			<param index="1" name="frequency" type="float" />
+			<description>
+				Sets the engine's vibration: a sine wave with this [param amplitude] ([code]0[/code] to [code]1[/code]) and [param frequency] in Hz.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="damper" type="float" setter="set_damper" getter="get_damper" default="0.0">
+			The damper, from [code]0[/code] to [code]1[/code] of the wheel's strongest.
+		</member>
+		<member name="force" type="float" setter="set_force" getter="get_force" default="0.0">
+			The steady force, from [code]-1[/code] to [code]1[/code], positive turning the wheel to the left. Beyond [code]1[/code] it's rounded off short of the wheel's strongest (soft clipping).
+		</member>
+		<member name="friction" type="float" setter="set_friction" getter="get_friction" default="0.0">
+			The friction, from [code]0[/code] to [code]1[/code] of the wheel's strongest.
+		</member>
+		<member name="quick_damping" type="float" setter="set_quick_damping" getter="get_quick_damping" default="0.0">
+			Damping that only acts on quick turning (a swing), not on steady steering. Same units as [member steering_damping].
+		</member>
+		<member name="rev_lights" type="float" setter="set_rev_lights" getter="get_rev_lights" default="0.0">
+			How many of the wheel's rev lights are lit, a share from [code]0[/code] to [code]1[/code], from the first. Does nothing on a wheel without them (they're on the Logitech G27, G29 and G923 for PlayStation).
+		</member>
+		<member name="steering_damping" type="float" setter="set_steering_damping" getter="get_steering_damping" default="0.0">
+			The steering's damping, worked out on the force feedback thread from the wheel's own position, which is fresher than the game's: force (a share of full scale) per unit of the steering axis ([code]-1[/code] to [code]1[/code]) per second, against the direction of turning. Only works where [method reads_position] is [code]true[/code].
+		</member>
+	</members>
+</class>

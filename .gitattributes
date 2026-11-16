@@ -1,0 +1,10 @@
+# Keep LF line endings everywhere, so scripts and patches work on Windows checkouts too.
+# godot/ has its own .gitattributes from upstream, which takes precedence there.
+* text=auto eol=lf
+
+# Patches must apply byte for byte.
+*.patch -text
+
+*.icns binary
+*.ico binary
+*.png binary

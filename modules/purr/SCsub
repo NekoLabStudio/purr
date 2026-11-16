@@ -1,0 +1,10 @@
+#!/usr/bin/env python
+
+Import("env")
+Import("env_modules")
+
+env_purr = env_modules.Clone()
+env_purr.add_source_files(env.modules_sources, "*.cpp")
+
+if env.editor_build:
+    env_purr.add_source_files(env.modules_sources, "editor/*.cpp")

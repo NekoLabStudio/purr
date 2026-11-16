@@ -1,0 +1,42 @@
+#!/usr/bin/env python
+
+import subprocess
+
+Import("env")
+Import("env_modules")
+
+# The engine side: points Godot's OpenXR at Purr's runtime, and the player's streaming choices.
+env_vr_streamer = env_modules.Clone()
+env_vr_streamer.add_source_files(env.modules_sources, "*.cpp")
+if env.editor_build:
+    env_vr_streamer.add_source_files(env.modules_sources, "editor/*.cpp")
+
+# Purr's OpenXR runtime on macOS, a library of its own that OpenXR's loader loads
+# (bin/libvr_runtime.dylib), shipped beside the game with the streamer (streamer/, built with
+# Cargo). Elsewhere games use the player's own runtime.
+if env["platform"] == "macos":
+    env_runtime = env.Clone()
+    env_runtime.Prepend(CPPPATH=["#thirdparty/openxr/include", "#thirdparty/vulkan/include"])
+    runtime_sources = Glob("runtime/*.cpp") + Glob("runtime/*.mm")
+    # Only the engine's architecture and deployment flags: its frameworks (MoltenVK among them,
+    # which would then exist twice in the process) aren't the runtime's, which reaches Vulkan
+    # through the game's own functions.
+    linkflags = [str(flag) for flag in env["LINKFLAGS"]]
+    env_runtime["LINKFLAGS"] = [flag for i, flag in enumerate(linkflags) if flag in ("-arch", "-isysroot") or flag.startswith("-mmacosx-version-min") or (i > 0 and linkflags[i - 1] in ("-arch", "-isysroot"))]
+    # The Vision Pro's scene is SwiftUI (runtime/vision_pro_scene.swift), built for the same macOS
+    # as the rest; what's newer than that is linked weakly and used only where it exists.
+    minimum = next(flag.split("=")[1] for flag in linkflags if flag.startswith("-mmacosx-version-min="))
+    scene = env_runtime.Command(
+        "runtime/vision_pro_scene.o",
+        ["runtime/vision_pro_scene.swift", "runtime/vision_pro_bridge.h"],
+        f"xcrun swiftc -target {env['arch']}-apple-macos{minimum} -parse-as-library -O -c $SOURCE -import-objc-header ${{SOURCES[1]}} -o $TARGET",
+    )
+    scene[0].attributes.shared = True  # position-independent, as swiftc always builds
+    runtime_sources += scene
+    swift_libraries = subprocess.check_output(["xcrun", "--show-sdk-path"], text=True).strip() + "/usr/lib/swift"
+    env_runtime.Append(
+        LINKFLAGS=["-framework", "Metal", "-framework", "Foundation", "-framework", "AppKit", "-framework", "SwiftUI"]
+        + ["-weak_framework", "CompositorServices", "-weak_framework", "ARKit"]
+        + ["-L" + swift_libraries, "-Wl,-rpath,/usr/lib/swift"]
+    )
+    env_runtime.SharedLibrary("#bin/libvr_runtime", runtime_sources, LIBS=[], SHLIBPREFIX="", SHLIBSUFFIX=".dylib")
