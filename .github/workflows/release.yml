@@ -2,8 +2,10 @@
 # the tag (on the commit that sets VERSION.txt and rolls the upgrade notes), which starts this.
 #
 # It builds the editors (macOS, Windows, Linux) and export templates (those three, iOS, Apple TV
-# and Android) into a draft release, then publishes it. If a build fails, the draft stays unpublished; fix the cause on main and run
-# this workflow again for the same tag (Actions > Release > Run workflow, choosing the tag).
+# and Android) into a draft release, then publishes it. If a build fails, the draft stays unpublished.
+# A passing failure (a runner or network hiccup) is retried by running this workflow again for the
+# same tag (Actions > Release > Run workflow, choosing the tag), which builds that tag's commit again.
+# A failure in the code needs a fix on main and a new version: published tags never move.
 #
 # The Steamworks and Apple secrets live in the `release-build` environment, which only release tags
 # can use, and only the release deploy key can create those tags (the `release tags` ruleset).

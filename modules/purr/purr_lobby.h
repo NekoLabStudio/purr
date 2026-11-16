@@ -21,12 +21,10 @@ class PurrLobby : public RefCounted {
 	Ref<RefCounted> pending_call; // Completed once the lobby has welcomed the player.
 
 	String matchmaking_mode;
-	int matchmaking_players = 0;
 	bool matchmade = false;
 
 	// Completes the waiting call with this failure and leaves.
 	void fail(const String &p_error, const String &p_message);
-	void ice_servers_received(const Dictionary &p_result, const Ref<RefCounted> &p_call, bool p_create, const String &p_code);
 	void matched(const String &p_code);
 	void matchmaking_closed();
 	Error start_peer();
@@ -37,7 +35,7 @@ class PurrLobby : public RefCounted {
 	void disconnect_signals();
 
 	Ref<WebRTCPeerConnection> connection_to(int64_t p_peer_id);
-	void welcomed(int64_t p_peer_id, const Array &p_members);
+	void welcomed(int64_t p_peer_id, const Array &p_members, const Array &p_ice_servers);
 	void peer_joined(int64_t p_peer_id, const String &p_display_name);
 	void peer_left(int64_t p_peer_id);
 	void signal_received(int64_t p_from_peer, const Variant &p_data);

@@ -143,6 +143,45 @@ jobs:
       - name: Split focus
         run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/split_focus -s test.gd
 
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    timeout-minutes: 240
+    defaults:
+      run:
+        shell: bash
+    env:
+      SCONS_CACHE_MSVC_CONFIG: true
+      PYTHONIOENCODING: utf8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Prepare the build
+        uses: ./.github/actions/prepare-build
+
+      - name: Install the Direct3D 12 SDK
+        working-directory: godot
+        run: python misc/scripts/install_d3d12_sdk_windows.py
+
+      - name: Cache SCons build
+        uses: actions/cache@v6
+        with:
+          path: .scons_cache
+          key: windows-editor-scons-${{ github.sha }}
+          restore-keys: |
+            windows-editor-scons-
+
+      - name: Build the editor
+        working-directory: godot
+        run: scons platform=windows arch=x86_64 profile=../build/purr.py custom_modules=../modules module_godotsteam_enabled=no "cache_path=$GITHUB_WORKSPACE/.scons_cache" cache_limit=6 "-j$NUMBER_OF_PROCESSORS" target=editor
+
+      - name: WebRTC
+        run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/webrtc -s test.gd
+
+      - name: Split focus
+        run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/split_focus -s test.gd
+
   play-games:
     name: Play Games plugin
     runs-on: ubuntu-24.04

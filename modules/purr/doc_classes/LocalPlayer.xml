@@ -75,7 +75,7 @@
 	</methods>
 	<members>
 		<member name="account_id" type="String" setter="" getter="get_account_id">
-			The player's account on the online service, or empty.
+			The player's account on the online service. Without it (or before this device has reached it), their ID on the platform they're signed in with, or empty where there's none.
 		</member>
 		<member name="kind" type="int" setter="" getter="get_kind" enum="LocalPlayer.Kind">
 			What kind of player this is.

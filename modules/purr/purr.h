@@ -61,6 +61,8 @@ class Purr : public Object {
 	void play_games_authenticated(const Dictionary &p_result, const Ref<RefCounted> &p_call);
 	void play_games_code_received(const Dictionary &p_result, const Ref<RefCounted> &p_call);
 	String platform_name() const;
+	String platform_owner() const;
+	void carry_over_saves();
 	void sign_in_without_platform(const Ref<RefCounted> &p_call);
 	PlayerSaves::Backend save_backend(bool p_online) const;
 	void attach_saves();

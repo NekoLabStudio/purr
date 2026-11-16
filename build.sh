@@ -49,6 +49,8 @@ cp branding/splash.png godot/main/splash.png
 cp branding/editor/*.svg godot/editor/icons/
 
 # Godot reads its commit hash from godot/.git/HEAD, which can't be stored in this repo.
+# Its build then asks git for that commit's date, which this repo doesn't have: the "fatal: bad
+# object" line that follows is expected, and the build goes on without the date.
 mkdir -p godot/.git
 sed -n '/^\[godot\]/,/^$/s/^commit: //p' UPSTREAM.txt >godot/.git/HEAD
 

@@ -193,6 +193,7 @@ static Dictionary with_name(Dictionary p_body, const String &p_display_name) {
 
 Signal PurrOnline::sign_in_device(const String &p_secret, const String &p_display_name) {
 	Dictionary body;
+	body["game"] = get_game();
 	body["secret"] = p_secret;
 	return call(HTTPClient::METHOD_POST, "/auth/device", with_name(body, p_display_name), String());
 }
@@ -300,9 +301,6 @@ Signal PurrOnline::create_lobby() {
 	return call(HTTPClient::METHOD_POST, "/lobbies", body, String());
 }
 
-Signal PurrOnline::get_ice_servers() {
-	return call(HTTPClient::METHOD_GET, "/turn", Variant(), String());
-}
 
 // A WebSocket to the service, signed in, polled every frame by p_poll.
 Error PurrOnline::open_socket(Ref<WebSocketPeer> &r_socket, const String &p_path, const Callable &p_poll) {
@@ -438,7 +436,7 @@ void PurrOnline::poll_lobby() {
 		}
 		const String type = message.get("type", "");
 		if (type == "welcome") {
-			emit_signal(SNAME("lobby_joined"), message.get("peer_id", 0), message.get("members", Array()));
+			emit_signal(SNAME("lobby_joined"), message.get("peer_id", 0), message.get("members", Array()), message.get("ice_servers", Array()));
 		} else if (type == "joined") {
 			emit_signal(SNAME("lobby_peer_joined"), message.get("peer_id", 0), message.get("display_name", ""));
 		} else if (type == "left") {
@@ -544,7 +542,6 @@ void PurrOnline::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("forget_grant", "grant_token"), &PurrOnline::forget_grant);
 
 	ClassDB::bind_method(D_METHOD("create_lobby"), &PurrOnline::create_lobby);
-	ClassDB::bind_method(D_METHOD("get_ice_servers"), &PurrOnline::get_ice_servers);
 	ClassDB::bind_method(D_METHOD("join_lobby", "code"), &PurrOnline::join_lobby);
 	ClassDB::bind_method(D_METHOD("send_signal", "to_peer", "data"), &PurrOnline::send_signal);
 	ClassDB::bind_method(D_METHOD("leave_lobby"), &PurrOnline::leave_lobby);
@@ -560,7 +557,7 @@ void PurrOnline::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_rating", "mode"), &PurrOnline::get_rating);
 	ClassDB::bind_method(D_METHOD("is_in_lobby"), &PurrOnline::is_in_lobby);
 
-	ADD_SIGNAL(MethodInfo("lobby_joined", PropertyInfo(Variant::INT, "peer_id"), PropertyInfo(Variant::ARRAY, "members")));
+	ADD_SIGNAL(MethodInfo("lobby_joined", PropertyInfo(Variant::INT, "peer_id"), PropertyInfo(Variant::ARRAY, "members"), PropertyInfo(Variant::ARRAY, "ice_servers")));
 	ADD_SIGNAL(MethodInfo("lobby_peer_joined", PropertyInfo(Variant::INT, "peer_id"), PropertyInfo(Variant::STRING, "display_name")));
 	ADD_SIGNAL(MethodInfo("lobby_peer_left", PropertyInfo(Variant::INT, "peer_id")));
 	ADD_SIGNAL(MethodInfo("lobby_signal", PropertyInfo(Variant::INT, "from_peer"), PropertyInfo(Variant::NIL, "data", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NIL_IS_VARIANT)));

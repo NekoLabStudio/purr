@@ -92,6 +92,12 @@ func run() -> void:
 	# A clean start: no device account or saves from an earlier run.
 	DirAccess.remove_absolute("user://purr_credentials.cfg")
 	remove_folder("user://purr")
+	# Project Settings offers exactly the save backends the engine and docs know.
+	var backend_hint := ""
+	for property in ProjectSettings.get_property_list():
+		if property.name == "saves/backend":
+			backend_hint = property.hint_string
+	check("the save backends offered are the ones Purr handles", backend_hint == "automatic,online,platform,local", backend_hint)
 	# Two sign-ins at once share one (each making its own device account would lose one).
 	var first_sign_in := Account.sign_in()
 	var overlapping := Account.sign_in()

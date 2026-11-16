@@ -345,10 +345,10 @@ void PlayerSaves::cloud_upload(const String &p_slot) {
 		return; // Goes up when this upload is done (it's still dirty).
 	}
 	const Dictionary meta = read_meta(p_slot);
-	Dictionary metadata;
-	metadata["summary"] = meta.get("summary", Dictionary());
+	Dictionary file_details;
+	file_details["summary"] = meta.get("summary", Dictionary());
 	uploading.insert(p_slot);
-	Signal done = cloud_store()->call("save_file", steam_file(owner, p_slot), read_local(p_slot), metadata);
+	Signal done = cloud_store()->call("save_file", steam_file(owner, p_slot), read_local(p_slot), file_details);
 	done.connect(callable_mp(this, &PlayerSaves::cloud_uploaded).bind(p_slot, meta.get("edits", 0)), CONNECT_ONE_SHOT);
 }
 
@@ -448,21 +448,45 @@ PackedStringArray PlayerSaves::get_game_slots() const {
 	return slots;
 }
 
+// One slot of another player's saves as this device's own, not yet synced with this backend: the
+// backend compares it with what it has.
+void PlayerSaves::take_slot(const Ref<PlayerSaves> &p_from, const String &p_slot) {
+	Dictionary meta = p_from->read_meta(p_slot);
+	if (p_from->owner != owner) {
+		write_local(p_slot, p_from->read_local(p_slot));
+	}
+	meta.erase("version");
+	meta.erase("modified");
+	meta.erase("conflict_version");
+	meta["dirty"] = true;
+	meta["edits"] = (int64_t)meta.get("edits", 0) + 1;
+	write_meta(p_slot, meta);
+}
+
 void PlayerSaves::adopt(const Ref<PlayerSaves> &p_from) {
 	ERR_FAIL_COND(p_from.is_null());
 	for (const String &slot : p_from->get_slots()) {
-		Dictionary meta = p_from->read_meta(slot);
-		if (p_from->owner != owner) {
-			write_local(slot, p_from->read_local(slot));
-		}
-		// Never synced with this backend: the service compares it with what it has.
-		meta.erase("version");
-		meta.erase("conflict_version");
-		meta["dirty"] = true;
-		meta["edits"] = (int64_t)meta.get("edits", 0) + 1;
-		write_meta(slot, meta);
+		take_slot(p_from, slot);
 	}
 	sync();
+}
+
+void PlayerSaves::carry_over(const Ref<PlayerSaves> &p_from) {
+	ERR_FAIL_COND(p_from.is_null() || p_from->owner == owner);
+	for (const String &slot : p_from->get_slots()) {
+		if (slot == PURR_ACHIEVEMENTS_SLOT) {
+			save(slot, merge_achievements(load(slot), p_from->load(slot)), Dictionary());
+		} else if (has(slot) || (backend == BACKEND_PLATFORM && !cloud && steam() && (bool)steam()->call("fileExists", steam_file(owner, slot)))) {
+			// This player already has a save in that slot (here, or in Steam Cloud, which can't
+			// offer both): it's kept, and so is the other one, where it was.
+			WARN_PRINT(vformat("A save in slot %s from before this account was known on this device wasn't carried over: the account already has one there.", slot));
+			continue;
+		} else {
+			// The online service and iCloud or Play Games offer both when they already have one.
+			take_slot(p_from, slot);
+		}
+		p_from->delete_slot(slot);
+	}
 }
 
 bool PlayerSaves::has_unsynced() const {
@@ -476,13 +500,19 @@ bool PlayerSaves::has_unsynced() const {
 
 void PlayerSaves::delete_all() {
 	for (const String &slot : get_slots()) {
-		if (backend == BACKEND_PLATFORM && cloud) {
-			cloud_store()->call("delete_file", steam_file(owner, slot));
-		} else if (backend == BACKEND_PLATFORM && steam()) {
-			steam()->call("fileDelete", steam_file(owner, slot));
-		}
+		delete_slot(slot);
 	}
 	store.remove_all();
+}
+
+void PlayerSaves::delete_slot(const String &p_slot) {
+	if (backend == BACKEND_PLATFORM && cloud) {
+		cloud_store()->call("delete_file", steam_file(owner, p_slot));
+	} else if (backend == BACKEND_PLATFORM && steam()) {
+		steam()->call("fileDelete", steam_file(owner, p_slot));
+	}
+	store.remove(file_name(p_slot, "save"));
+	store.remove(file_name(p_slot, "json"));
 }
 
 void PlayerSaves::_bind_methods() {

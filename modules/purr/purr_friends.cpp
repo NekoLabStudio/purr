@@ -224,7 +224,7 @@ Array PurrFriends::get_friends() const {
 
 void PurrFriends::invite(const String &p_friend_id) {
 	ERR_FAIL_COND_MSG(lobby_code.is_empty(), "Create or join a lobby before inviting friends.");
-	ERR_FAIL_COND_MSG(!Purr::get_singleton()->steam_ready(), "Inviting a friend by ID needs Steam; invite_friends() opens the platform's invite screen.");
+	ERR_FAIL_COND_MSG(!Purr::get_singleton()->steam_ready(), "Inviting a friend by ID needs Steam; Lobbies.invite_friends() opens the platform's invite screen.");
 	if (crossplay) {
 		steam()->call("inviteUserToGame", steam_id(p_friend_id), vformat("%s %s", PURR_INVITE_ARGUMENT, lobby_code));
 	} else {

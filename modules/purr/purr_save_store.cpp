@@ -23,9 +23,6 @@ void PurrSaveStore::setup(const String &p_owner, bool p_no_other_copy) {
 #else
 	(void)p_no_other_copy;
 #endif
-	if (!preferences) {
-		DirAccess::make_dir_recursive_absolute(folder());
-	}
 }
 
 String PurrSaveStore::folder() const {
@@ -114,6 +111,8 @@ bool PurrSaveStore::write(const String &p_name, const PackedByteArray &p_data) c
 		write_preferences(files);
 		return true;
 	}
+	// The folder is made by the first save, so looking at a player's saves leaves nothing behind.
+	DirAccess::make_dir_recursive_absolute(folder());
 	// Written beside it first and moved over it, so a crash mid-write never leaves half a file.
 	const String final_path = folder().path_join(p_name);
 	const String temporary = final_path + ".tmp";

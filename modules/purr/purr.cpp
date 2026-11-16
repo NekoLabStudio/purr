@@ -75,7 +75,7 @@ Purr::Purr() {
 	friends.instantiate();
 	achievements.instantiate();
 	leaderboards.instantiate();
-	GLOBAL_DEF_BASIC(PropertyInfo(Variant::STRING, "saves/backend", PROPERTY_HINT_ENUM, "automatic,purr_online,platform,local"), "automatic");
+	GLOBAL_DEF_BASIC(PropertyInfo(Variant::STRING, "saves/backend", PROPERTY_HINT_ENUM, "automatic,online,platform,local"), "automatic");
 	GLOBAL_DEF_BASIC(PropertyInfo(Variant::INT, "lobbies/max_players", PROPERTY_HINT_RANGE, "2,8"), 4);
 	// Crossplay lobbies connect only through TURN, so players never see each other's IP address.
 	GLOBAL_DEF(PropertyInfo(Variant::BOOL, "lobbies/relay_only"), false);
@@ -132,6 +132,21 @@ String Purr::platform_name() const {
 	}
 	if (play_games_ready()) {
 		return play_games()->call("get_player_name");
+	}
+	return String();
+}
+
+// The player's ID on the platform they're signed in with, if any: whose saves these are without
+// the online service, or before their account on it is known on this device.
+String Purr::platform_owner() const {
+	if (steam_ready()) {
+		return steam()->call("getSteamID").operator String();
+	}
+	if (game_center_ready()) {
+		return game_center()->call("get_team_player_id");
+	}
+	if (play_games_ready()) {
+		return play_games()->call("get_player_id");
 	}
 	return String();
 }
@@ -365,11 +380,17 @@ void Purr::finish_sign_in(bool p_online, const String &p_account_id, const Strin
 	if (name.is_empty() || (!p_online && !chosen.is_empty() && (provider == "device" || provider == "local"))) {
 		name = chosen.is_empty() ? String("Player") : chosen;
 	}
+	// Offline before this device ever reached the account: the platform's player, whose saves
+	// carry over to the account once it's known.
+	const String owner = p_account_id.is_empty() ? platform_owner() : p_account_id;
 	player.instantiate();
-	player->setup(LocalPlayer::KIND_PLAYER, name, p_account_id, String(), false, save_backend(configured && email_added));
+	player->setup(LocalPlayer::KIND_PLAYER, name, owner, String(), false, save_backend(configured && email_added));
 	local_players.clear();
 	local_players.push_back(player);
 	attach_saves();
+	if (p_online) {
+		carry_over_saves();
+	}
 	player->get_saves()->sync();
 	achievements->start();
 	if (steam_ready() && !steam()->is_connected(SNAME("join_requested"), callable_mp(this, &Purr::steam_join_requested))) {
@@ -400,6 +421,23 @@ void Purr::finish_sign_in(bool p_online, const String &p_account_id, const Strin
 	}
 	if (!invited_code.is_empty()) {
 		join_invited(invited_code);
+	}
+}
+
+// Saves this player kept before their account was known on this device (played offline before
+// it ever signed in, or before the game used the online service) are theirs: kept under the
+// platform's player, or this device where there's no platform.
+void Purr::carry_over_saves() {
+	const String platform_player = platform_owner();
+	const String before_owner = platform_player.is_empty() ? String("local") : platform_player;
+	if (before_owner == player->get_account_id()) {
+		return;
+	}
+	Ref<PlayerSaves> before;
+	before.instantiate();
+	before->setup(before_owner, save_backend(false), String());
+	if (!before->get_slots().is_empty()) {
+		player->get_saves()->carry_over(before);
 	}
 }
 
@@ -818,7 +856,7 @@ void Purr::email_code_sent(const Dictionary &p_result, const Ref<RefCounted> &p_
 Signal Purr::guest_email_finish(const String &p_code, bool p_remember, const String &p_name) {
 	const Ref<PurrOnlineCall> call = new_call();
 	if (pending_guest_challenge.is_empty()) {
-		complete(call, failure("no_code_requested", "Call guest_email_start() first."));
+		complete(call, failure("no_code_requested", "Call LocalPlayers.invite_guest() first."));
 		return signal_of(call);
 	}
 	Signal verified = PurrOnline::get_singleton()->guest_email_verify(pending_guest_email, pending_guest_challenge, p_code, p_remember, get_device_label(), p_name);

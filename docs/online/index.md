@@ -18,7 +18,17 @@ curl -fsSL https://oss.nekolab.studio/purr/online/setup.sh | sh
 
 It downloads the online services from Purr's newest release, signs you in to Cloudflare and asks about your games and how to send email. Then it creates the database and the saves bucket, fills in `wrangler.jsonc`, deploys, and generates and stores the secrets. Last, it makes the folder a git repository and offers to push it to a new private GitHub repository. It prints the service's address, which goes in each game's `online/url`. Keep the identity secret it shows somewhere safe (see [Identity secret](#identity-secret)).
 
-The folder is yours from then on: change `wrangler.jsonc`, add [your own email templates](#email-templates) and deploy with `npx wrangler deploy`. Running `npm run setup` again is safe, and `npm run setup -- --dry-run` prints what it would do.
+The folder is yours from then on. Add [your own email templates](#email-templates) there, and change its settings with `npm run configure` (below). Running `npm run setup` again is safe, and `npm run setup -- --dry-run` prints what it would do.
+
+## Changing settings
+
+```sh
+npm run configure
+```
+
+This shows a menu of what you can change: your games and their sign-ins (Steam, Game Center, Play Games), email, TURN, moderation, how long data is kept, save and rate limits, and rotating the identity secret. Each question shows the current value, which Enter keeps. Secrets are never shown, only whether they're set. Nothing changes until you confirm the summary at the end; then it writes `wrangler.jsonc`, stores the secrets and offers to deploy. `npm run configure -- --dry-run` shows what it would change without changing it.
+
+You can also edit `wrangler.jsonc` yourself and deploy with `npx wrangler deploy`. Every setting is listed under [Settings](#settings).
 
 ## Updating
 
@@ -26,7 +36,11 @@ The folder is yours from then on: change `wrangler.jsonc`, add [your own email t
 npm run update
 ```
 
-This brings in Purr's newest stable release (`npm run update -- v1.2.3` picks one). It replaces the files that come from Purr (`src/`, `migrations/`, the tests and scripts) and keeps your own: `wrangler.jsonc`, `src/email-templates/custom/` and your secrets. If the release's default `wrangler.jsonc` changed, it shows how, so you can copy new settings into yours. It applies new database migrations; review the changes with git, then deploy.
+This brings in Purr's newest stable release (`npm run update -- v1.2.3` picks one). It replaces the files that come from Purr (`src/`, `migrations/`, the tests and scripts) and keeps your own: `src/email-templates/custom/` and your secrets.
+
+Your `wrangler.jsonc` stays yours, with what the release adds to it: new settings with their defaults, new rate limits and anything the service's code needs set up. Where the release changed a default you never touched, yours follows it. A setting you changed yourself is never changed: if the release's default for it moved, the update lists it so you can decide. It also lists settings the release no longer uses, and any new resource (a database or bucket) you'd need to create, which the release's upgrade notes explain.
+
+Before applying new database migrations, it notes where the database stands and prints the command that brings it back there, in case anything goes wrong (D1 keeps 30 days of history). Then it offers to deploy. Commit the changes with git afterwards, so your folder's history shows what each update did.
 
 ## Setting up by hand
 
@@ -84,13 +98,15 @@ To make them your own, put files with the same names in `online/src/email-templa
 
 ### TURN
 
-When two players can't connect directly (behind strict firewalls, or with `lobbies/relay_only` on), their connection goes through a TURN relay. With `TURN_KEY_ID` and `TURN_KEY_API_TOKEN` set, the service hands out short-lived credentials for Cloudflare's TURN service; with `TURN_SERVERS`, your own servers. With neither, players get only Cloudflare's STUN server, which helps them find a direct route but can't relay.
+When two players can't connect directly (behind strict firewalls, or with `lobbies/relay_only` on), their connection goes through a TURN relay. With `TURN_KEY_ID` and `TURN_KEY_API_TOKEN` set, players signed in through Steam, Game Center or Play Games get credentials for Cloudflare's TURN service as they join a lobby, valid for 12 hours, and nobody gets them otherwise; with `TURN_SERVERS`, your own servers. With neither, players get only Cloudflare's STUN server, which helps them find a direct route but can't relay.
+
+TURN is the one part of the service that costs you by the gigabyte, so by default only players a platform has verified get it: nobody can make accounts in bulk to relay their own traffic on your bill. Players with a device account or an email alone get STUN and connect directly where they can. A game with many such players (one on Apple TV without Game Center, say) can give TURN to everyone with `turn_needs_platform` set to `false`.
 
 ### Identity secret
 
 Email addresses and platform IDs are only stored as an HMAC made with `IDENTITY_SECRET`. **If you lose it, no existing player can be matched to their account again.** Keep a copy somewhere safe.
 
-To replace it, set the current one as `IDENTITY_SECRET_PREVIOUS`, the new one as `IDENTITY_SECRET`, and raise `IDENTITY_KEY_VERSION`. Each player is matched under the old secret the next time they sign in and saved again under the new one. Remove `IDENTITY_SECRET_PREVIOUS` once everyone you care about has signed in since.
+To replace it, use Rotate the identity secret in `npm run configure`. It asks for the current secret and checks it against an email address you have an account with, so a mistyped one can't lose your players. Then it keeps the current one as `IDENTITY_SECRET_PREVIOUS`, makes a new `IDENTITY_SECRET`, raises `IDENTITY_KEY_VERSION`, deploys and shows the new secret to keep. Each player is matched under the old secret the next time they sign in and saved again under the new one. It won't rotate again while players are still waiting to move from the last rotation.
 
 ### Session secret
 
@@ -98,7 +114,7 @@ To replace it, set the current one as `IDENTITY_SECRET_PREVIOUS`, the new one as
 
 ## Settings
 
-All in `vars` in `wrangler.jsonc`:
+All in `vars` in `wrangler.jsonc`, and all changeable with `npm run configure`:
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -114,7 +130,7 @@ All in `vars` in `wrangler.jsonc`:
 | `MAX_SAVE_BYTES` | 1048576 | The largest save (1 MB); a game can set its own `max_save_bytes` in `GAMES` |
 | `MAX_SAVE_SLOTS` | 8 | Saves per player in each game; a game can set its own `max_save_slots` |
 
-Each game in `GAMES` can also have a `name`, used in the emails; `min_version` and `max_version`, the game versions that may play online (from each game's `application/config/version`; without them, every version can); `ranked_agreement`, how many players must report the same result before ratings change (`"majority"`, `"all"` or `"host"`); `report_failed_checks`, `false` to stop reporting players who fail a [check or a flag](../api/checks.md); and `kick_cheaters`, `true` to remove them from the lobby too.
+Each game in `GAMES` can also have a `name`, used in the emails; `min_version` and `max_version`, the game versions that may play online (from each game's `application/config/version`; without them, every version can); `ranked_agreement`, how many players must report the same result before ratings change (`"majority"`, `"all"` or `"host"`); `report_failed_checks`, `false` to stop reporting players who fail a [check or a flag](../api/checks.md); `kick_cheaters`, `true` to remove them from the lobby too; `turn_needs_platform`, `false` to give TURN to every signed-in player rather than only those a platform signed in (see TURN above); and `device_accounts`, `false` for a game that only ships where Steam, Game Center or Play Games signs players in, so nobody can make accounts for it without one. Accounts work across an instance's games, so this only keeps anonymous accounts out of the instance when every game it serves turns them off.
 
 ## Retention
 
