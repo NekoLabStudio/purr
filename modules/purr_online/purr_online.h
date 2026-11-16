@@ -97,7 +97,6 @@ public:
 	Signal forget_grant(const String &p_grant_token);
 
 	Signal create_lobby();
-	Signal get_ice_servers();
 	Error join_lobby(const String &p_code);
 	void send_signal(int64_t p_to_peer, const Variant &p_data);
 	void leave_lobby();

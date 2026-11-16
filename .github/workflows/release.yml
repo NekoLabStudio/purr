@@ -2,8 +2,10 @@
 # the tag (on the commit that sets VERSION.txt and rolls the upgrade notes), which starts this.
 #
 # It builds the editors (macOS, Windows, Linux) and export templates (those three, iOS, Apple TV
-# and Android) into a draft release, then publishes it. If a build fails, the draft stays unpublished; fix the cause on main and run
-# this workflow again for the same tag (Actions > Release > Run workflow, choosing the tag).
+# and Android) into a draft release, then publishes it. If a build fails, the draft stays unpublished.
+# A passing failure (a runner or network hiccup) is retried by running this workflow again for the
+# same tag (Actions > Release > Run workflow, choosing the tag), which builds that tag's commit again.
+# A failure in the code needs a fix on main and a new version: published tags never move.
 #
 # The Steamworks and Apple secrets live in the `release-build` environment, which only release tags
 # can use, and only the release deploy key can create those tags (the `release tags` ruleset).
@@ -130,9 +132,10 @@ jobs:
         working-directory: godot
         run: |
           tvos=(platform=tvos arch=arm64 profile=../build/purr.py custom_modules=../modules "-j$(sysctl -n hw.ncpu)")
+          # Devices only, for every Apple platform: a simulator build has neither Metal nor Vulkan
+          # (Godot turns them off there) and Purr leaves out the Compatibility renderer, so a
+          # simulator template couldn't draw anything.
           scons "${tvos[@]}" target=template_debug
-          scons "${tvos[@]}" target=template_debug simulator=yes
-          scons "${tvos[@]}" target=template_release simulator=yes production=yes
           scons "${tvos[@]}" target=template_release production=yes lto=full
           scons "${tvos[@]}" target=template_release production=yes lto=full generate_bundle=yes
 
@@ -140,9 +143,8 @@ jobs:
         working-directory: godot
         run: |
           visionos=(platform=visionos arch=arm64 profile=../build/purr.py custom_modules=../modules "-j$(sysctl -n hw.ncpu)")
+          # Devices only (see the Apple TV templates).
           scons "${visionos[@]}" target=template_debug
-          scons "${visionos[@]}" target=template_debug simulator=yes
-          scons "${visionos[@]}" target=template_release simulator=yes production=yes
           scons "${visionos[@]}" target=template_release production=yes lto=full
           scons "${visionos[@]}" target=template_release production=yes lto=full generate_bundle=yes
 
@@ -150,9 +152,8 @@ jobs:
         working-directory: godot
         run: |
           ios=(platform=ios arch=arm64 profile=../build/purr.py custom_modules=../modules "-j$(sysctl -n hw.ncpu)")
+          # Devices only (see the Apple TV templates).
           scons "${ios[@]}" target=template_debug
-          scons "${ios[@]}" target=template_debug simulator=yes
-          scons "${ios[@]}" target=template_release simulator=yes production=yes
           scons "${ios[@]}" target=template_release production=yes lto=full
           scons "${ios[@]}" target=template_release production=yes lto=full generate_bundle=yes
 

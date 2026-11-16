@@ -24,7 +24,7 @@ The first release of Purr, based on Godot 4.8 beta 3.
 - `Viewport.local_focus`, so each local player's menus keep their own focus.
 - The `purr` command for scripts and tests (Homebrew links it; the Linux editor is `purr`, the Windows console one `Purr_console`).
 - Parametric, a film-like tonemapper and the new default: mid grey stays put, shadows fall off softly and highlights roll off into white, with slope, toe, shoulder and white clip to adjust it.
-- The editor for macOS, Windows and Linux, and export templates for those and iOS, Apple TV, Apple Vision Pro and Android, downloadable from the editor.
+- The editor for macOS, Windows and Linux, and export templates for those and iOS, Apple TV, Apple Vision Pro and Android, downloadable from the editor. The Apple ones are for devices: Purr's renderers don't run in Apple's simulators.
 
 ## Coming from Godot
 

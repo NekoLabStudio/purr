@@ -14,7 +14,7 @@ Each returns `{"account_id", "display_name", "created", "providers", "token", "e
 
 | Request | Body |
 |---|---|
-| `POST /auth/device` | `{"secret"}`: at least 32 random characters the device keeps, for platforms with no sign-in |
+| `POST /auth/device` | `{"game", "secret"}`: at least 32 random characters the device keeps, for platforms with no sign-in. 403 `device_accounts_off` if the game turned device accounts off |
 | `POST /auth/steam` | `{"game", "ticket"}`: the ticket from `GetAuthTicketForWebApi("purr-online")`, as hex |
 | `POST /auth/game_center` | `{"game", "public_key_url", "signature", "salt", "timestamp", "team_player_id", "bundle_id"}`: what `fetchItems(forIdentityVerificationSignature:)` returned (signature and salt as base64, timestamp in milliseconds) |
 | `POST /auth/play_games` | `{"game", "server_auth_code"}`: a server auth code for the game's web client |
@@ -53,7 +53,7 @@ Player 1 is the device's own signed-in account. Other local players are guests.
 - **Forgetting:** `DELETE /grants/current` with a device grant as the token forgets that guest on this device.
 - **Devices that remember you**, on the player's own device: `GET /grants` lists them and `DELETE /grants/<id>` revokes one.
 
-Guest tokens and device grants can only load and save, and only the game they were given for: they can't add or change an email, see or change the account, delete it, use lobbies or TURN.
+Guest tokens and device grants can only load and save, and only the game they were given for: they can't add or change an email, see or change the account, delete it or use lobbies.
 
 ## Lobbies
 
@@ -64,7 +64,7 @@ The lobby only relays WebRTC signalling for Godot's `WebRTCMultiplayerPeer`; gam
 
 | Message | Direction |
 |---|---|
-| `{"type": "welcome", "peer_id", "members": [{"peer_id", "display_name"}], "ranked"}` | to a player as they join. The host is peer 1. `ranked` is true for a lobby made by matchmaking. |
+| `{"type": "welcome", "peer_id", "members": [{"peer_id", "display_name"}], "ranked", "ice_servers"}` | to a player as they join. The host is peer 1. `ranked` is true for a lobby made by matchmaking. `ice_servers` is the `RTCIceServer` list for the player's WebRTC connections: STUN, plus TURN credentials valid for 12 hours when the service has TURN and the player signed in through Steam, Game Center or Play Games (or the game's `turn_needs_platform` is `false`). |
 | `{"type": "joined", "peer_id", "display_name"}` and `{"type": "left", "peer_id"}` | to everyone else |
 | `{"type": "signal", "to", "data"}` | from a player: an offer, answer or ICE candidate for another peer |
 | `{"type": "signal", "from", "data"}` | relayed to that peer |

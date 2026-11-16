@@ -4,9 +4,9 @@
 #   ./build.sh            the editor
 #   ./build.sh templates  the debug and release export templates
 #   ./build.sh all        both
-#   ./build.sh tvos       the Apple TV export templates (device and Apple Silicon simulator),
+#   ./build.sh tvos       the Apple TV export templates (devices),
 #                         bundled as godot/bin/godot_tvos.zip
-#   ./build.sh visionos   the Apple Vision Pro export templates (device and simulator), bundled as
+#   ./build.sh visionos   the Apple Vision Pro export templates (devices), bundled as
 #                         godot/bin/godot_visionos.zip
 #   ./build.sh android    the Android export templates for arm64 devices, and Play Games' plugin
 #                         (godot/bin/purr_play_games.aar); needs ANDROID_HOME and a JDK 17 in
@@ -49,6 +49,8 @@ cp branding/splash.png godot/main/splash.png
 cp branding/editor/*.svg godot/editor/icons/
 
 # Godot reads its commit hash from godot/.git/HEAD, which can't be stored in this repo.
+# Its build then asks git for that commit's date, which this repo doesn't have: the "fatal: bad
+# object" line that follows is expected, and the build goes on without the date.
 mkdir -p godot/.git
 sed -n '/^\[godot\]/,/^$/s/^commit: //p' UPSTREAM.txt >godot/.git/HEAD
 
@@ -115,8 +117,6 @@ fi
 if [ "$what" = tvos ]; then
 	tvos="platform=tvos arch=arm64 profile=../build/purr.py custom_modules=../modules $cache -j$(sysctl -n hw.ncpu)"
 	scons $tvos target=template_debug
-	scons $tvos target=template_debug simulator=yes
-	scons $tvos target=template_release simulator=yes production=yes
 	scons $tvos target=template_release production=yes lto=full
 	# The same flags again, now bundling the four into the Xcode project the exporter uses.
 	scons $tvos target=template_release production=yes lto=full generate_bundle=yes
@@ -124,8 +124,6 @@ fi
 if [ "$what" = visionos ]; then
 	visionos="platform=visionos arch=arm64 profile=../build/purr.py custom_modules=../modules $cache -j$(sysctl -n hw.ncpu)"
 	scons $visionos target=template_debug
-	scons $visionos target=template_debug simulator=yes
-	scons $visionos target=template_release simulator=yes production=yes
 	scons $visionos target=template_release production=yes lto=full
 	scons $visionos target=template_release production=yes lto=full generate_bundle=yes
 fi

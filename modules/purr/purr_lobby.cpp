@@ -26,49 +26,30 @@ PurrOnline *online() {
 
 } // namespace
 
+// The ICE servers (STUN, and TURN credentials) come with the lobby's welcome: only players in a
+// lobby get TURN credentials.
+
 void PurrLobby::create(const Ref<RefCounted> &p_call) {
 	leave();
-	Signal received = online()->get_ice_servers();
-	received.connect(callable_mp(this, &PurrLobby::ice_servers_received).bind(p_call, true, String()), CONNECT_ONE_SHOT);
-}
-
-void PurrLobby::join(const String &p_code, const Ref<RefCounted> &p_call) {
-	leave();
-	Signal received = online()->get_ice_servers();
-	received.connect(callable_mp(this, &PurrLobby::ice_servers_received).bind(p_call, false, p_code.strip_edges()), CONNECT_ONE_SHOT);
-}
-
-void PurrLobby::ice_servers_received(const Dictionary &p_result, const Ref<RefCounted> &p_call, bool p_create, const String &p_code) {
-	if (!p_result.get("ok", false)) {
-		purr_complete(p_call, failure("unavailable", "Couldn't reach the online service."));
-		return;
-	}
-	ice_servers = Dictionary(p_result["data"]).get("ice_servers", Array());
-	if (!matchmaking_mode.is_empty()) {
-		if (online()->join_matchmaking(matchmaking_mode, matchmaking_players) != OK) {
-			matchmaking_mode = String();
-			purr_complete(p_call, failure("matchmaking_failed", "Couldn't reach matchmaking."));
-			return;
-		}
-		pending_call = p_call;
-		online()->connect(SNAME("matchmaking_matched"), callable_mp(this, &PurrLobby::matched));
-		online()->connect(SNAME("matchmaking_closed"), callable_mp(this, &PurrLobby::matchmaking_closed));
-		return;
-	}
-	if (!p_create) {
-		enter(p_code, p_call);
-		return;
-	}
 	Signal created = online()->create_lobby();
 	created.connect(callable_mp(this, &PurrLobby::lobby_created).bind(p_call), CONNECT_ONE_SHOT);
 }
 
+void PurrLobby::join(const String &p_code, const Ref<RefCounted> &p_call) {
+	leave();
+	enter(p_code.strip_edges(), p_call);
+}
+
 void PurrLobby::matchmake(const String &p_mode, int p_players, const Ref<RefCounted> &p_call) {
 	leave();
+	if (online()->join_matchmaking(p_mode, p_players) != OK) {
+		purr_complete(p_call, failure("matchmaking_failed", "Couldn't reach matchmaking."));
+		return;
+	}
 	matchmaking_mode = p_mode;
-	matchmaking_players = p_players;
-	Signal received = online()->get_ice_servers();
-	received.connect(callable_mp(this, &PurrLobby::ice_servers_received).bind(p_call, false, String()), CONNECT_ONE_SHOT);
+	pending_call = p_call;
+	online()->connect(SNAME("matchmaking_matched"), callable_mp(this, &PurrLobby::matched));
+	online()->connect(SNAME("matchmaking_closed"), callable_mp(this, &PurrLobby::matchmaking_closed));
 }
 
 void PurrLobby::matched(const String &p_code) {
@@ -189,8 +170,9 @@ Error PurrLobby::start_peer() {
 	return OK;
 }
 
-void PurrLobby::welcomed(int64_t p_peer_id, const Array &p_members) {
+void PurrLobby::welcomed(int64_t p_peer_id, const Array &p_members, const Array &p_ice_servers) {
 	peer_id = p_peer_id;
+	ice_servers = p_ice_servers;
 	if (start_peer() != OK) {
 		fail("lobby_failed", "Couldn't connect to the host.");
 		return;

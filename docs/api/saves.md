@@ -9,6 +9,8 @@ A save is any value Godot can store (dictionaries, arrays, numbers, strings, vec
 
 Saves are local first. `Saves.save()` writes to disk at once and syncs in the background, so the game doesn't wait for the network and works offline. `Saves.load()` reads the copy on this device, at once. A guest's saves work the same way, through their own `saves`.
 
+Saves made before the player's account is known on this device (offline the first time the game ran, or before the game used the online services) move to the account the first time it signs in online. Where the account already has a save in that slot, both are offered as a conflict; on Steam Cloud, which can't offer both, the account's save stays and the other is left where it was.
+
 ## Where saves go
 
 Each player's saves go to one place:

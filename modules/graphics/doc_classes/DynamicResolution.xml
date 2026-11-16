@@ -37,7 +37,7 @@
 			If [code]true[/code], the 3D resolution changes to hold the frame rate. Off by default.
 		</member>
 		<member name="max_scale" type="float" setter="set_max_scale" getter="get_max_scale" default="1.0">
-			The largest share of the viewport's size it draws the 3D world at. [code]1.0[/code] is full size; lower values cap it, for example at a graphics tier's own scale from [method RecommendedGraphics.settings].
+			The largest share of the viewport's size it draws the 3D world at. [code]1.0[/code] is full size; lower values cap it, for example at a graphics tier's own scale from [method RecommendedGraphics.get_settings].
 		</member>
 		<member name="min_scale" type="float" setter="set_min_scale" getter="get_min_scale" default="0.5">
 			The smallest share of the viewport's size it draws the 3D world at. Below about half size, upscaling looks soft. With MetalFX's temporal upscaler, the device's own limit applies if it's higher.

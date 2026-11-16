@@ -17,7 +17,7 @@ var joined = await Lobbies.join(code)
 
 With the online services set up and the player signed in to them, lobbies are crossplay: players on any platform join with the code and play peer to peer over [WebRTC](../modules/webrtc.md). The service only introduces the players; gameplay never goes through it. When two players can't connect directly, the connection goes through a TURN relay, if the service has one set up (see [the online services](../online/index.md#turn)).
 
-Playing peer to peer shows each player's IP address to the players they connect to. Turn on `lobbies/relay_only` to connect only through TURN, so nobody sees anyone's address.
+Playing peer to peer shows each player's IP address to the players they connect to. Turn on `lobbies/relay_only` to connect only through TURN, so nobody sees anyone's address. Only players who get TURN can then connect: by default, those signed in through Steam, Game Center or Play Games (see [TURN](../online/index.md#turn)).
 
 ## Removing, reporting and blocking players
 

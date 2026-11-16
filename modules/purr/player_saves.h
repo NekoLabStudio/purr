@@ -56,6 +56,7 @@ private:
 	void downloaded(const Dictionary &p_result, const String &p_slot, int64_t p_version, int64_t p_edits);
 	bool saved_meanwhile(const String &p_slot, int64_t p_edits, int64_t p_remote, const Dictionary &p_remote_summary);
 	void steam_write(const String &p_slot);
+	void take_slot(const Ref<PlayerSaves> &p_from, const String &p_slot);
 	void merge_remote_achievements(const PackedByteArray &p_remote, const String &p_key, int64_t p_remote_version);
 
 	void cloud_upload(const String &p_slot);
@@ -94,9 +95,15 @@ public:
 	// this device's own, not yet synced, then syncs: when a player adds an email, their saves go
 	// up to the account, and the conflict signal fires for any slot the account already has.
 	void adopt(const Ref<PlayerSaves> &p_from);
+	// Moves the saves another owner kept for this same player (before their account was known on
+	// this device) into these, without syncing: slots these saves already have stay as they are,
+	// except the achievements, which are merged. What moves is gone from the other owner.
+	void carry_over(const Ref<PlayerSaves> &p_from);
 	// Deletes every save on this device, and in the platform's cloud (a forgotten local profile);
 	// never the online service's.
 	void delete_all();
+	// Deletes one slot on this device and in the platform's cloud; never the online service's.
+	void delete_slot(const String &p_slot);
 	// Whether any save on this device hasn't reached the backend yet.
 	bool has_unsynced() const;
 };

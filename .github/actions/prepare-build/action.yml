@@ -24,7 +24,11 @@ runs:
         STEAMWORKS_SDK_URL: ${{ inputs.steamworks-sdk-url }}
       run: |
         if [ -z "$STEAMWORKS_SDK_URL" ]; then
-          echo "::warning::No Steamworks SDK URL, so this build has no Steam module."
+          # Pull requests never get the SDK (it lives in the release-build environment, for release
+          # tags only), so only a release without it is worth a warning.
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            echo "::warning::No Steamworks SDK URL, so this build has no Steam module."
+          fi
           echo "STEAM=no" >> "$GITHUB_ENV"
           exit 0
         fi
@@ -42,6 +46,8 @@ runs:
         cp branding/splash.png godot/main/splash.png
         cp branding/editor/*.svg godot/editor/icons/
         # Godot reads its commit hash from godot/.git/HEAD, which can't be stored in the repository.
+        # Its build then asks git for that commit's date, which this repo doesn't have: the "fatal: bad
+        # object" line that follows is expected, and the build goes on without the date.
         mkdir -p godot/.git
         sed -n '/^\[godot\]/,/^$/s/^commit: //p' UPSTREAM.txt > godot/.git/HEAD
         echo "BUILD_NAME=$(cat VERSION.txt)" >> "$GITHUB_ENV"

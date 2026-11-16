@@ -37,11 +37,11 @@ A renamed player has no name until they get a new one: a platform's name (such a
 
 ## A daily email
 
-Set `MODERATION_EMAIL` in `wrangler.jsonc` to an address, and each day the service emails it the players reported in the last day: name, account ID, how many reports from how many players and the reasons. It leaves out what reporters wrote; `npm run moderate` shows that. On a day with no reports, no email goes out. The email uses the same driver as players' codes, and its wording is in `email-templates/moderation.txt` and `moderation.html`, which you can override like the others (see [Email templates](index.md#email-templates)).
+Set `MODERATION_EMAIL` to an address (in Moderation in `npm run configure`, or in `wrangler.jsonc`), and each day the service emails it the players reported in the last day: name, account ID, how many reports from how many players and the reasons. It leaves out what reporters wrote; `npm run moderate` shows that. On a day with no reports, no email goes out. The email uses the same driver as players' codes, and its wording is in `email-templates/moderation.txt` and `moderation.html`, which you can override like the others (see [Email templates](index.md#email-templates)).
 
 ## Automatic bans
 
-In games with `kick_cheaters` on, a lobby removes players who fail a [check or a confirmed flag](../api/checks.md). The `AUTO_BAN` setting in `wrangler.jsonc` turns repeated removals into bans:
+In games with `kick_cheaters` on, a lobby removes players who fail a [check or a confirmed flag](../api/checks.md). The `AUTO_BAN` setting turns repeated removals into bans. Change it in Moderation in `npm run configure`, or in `wrangler.jsonc`:
 
 ```jsonc
 "AUTO_BAN": { "kicks": 3, "within_days": 30, "ban_days": [1, 7, 30, null] }
@@ -51,7 +51,7 @@ With these defaults, three removals within 30 days ban the player from multiplay
 
 ## Acting on reports automatically
 
-`REPORT_RULES` bans a player, or clears their name, once enough different players report them. It's off unless you set it:
+`REPORT_RULES` bans a player, or clears their name, once enough different players report them. It's off unless you set it, in Moderation in `npm run configure` or in `wrangler.jsonc`:
 
 ```jsonc
 "REPORT_RULES": {

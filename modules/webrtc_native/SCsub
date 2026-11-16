@@ -24,8 +24,9 @@ thirdparty_dir = Dir("thirdparty").srcnode().abspath + "/"
 env_webrtc_native.Append(CPPDEFINES=[("RTC_ENABLE_MEDIA", 0), ("RTC_ENABLE_WEBSOCKET", 0), "RTC_STATIC"])
 env_webrtc_native.Prepend(CPPPATH=[thirdparty_dir + "libdatachannel/include"])
 if windows:
+    # The sockets, network and crypto libraries it needs (ws2_32, iphlpapi, bcrypt) are already
+    # linked by Godot's Windows build, the right way for MSVC and MinGW alike.
     env_webrtc_native.Append(CPPDEFINES=["WIN32_LEAN_AND_MEAN", "NOMINMAX"])
-    env.Append(LIBS=["ws2_32", "iphlpapi", "bcrypt"])
 
 env_thirdparty = env_webrtc_native.Clone()
 env_thirdparty.disable_warnings()
