@@ -96,12 +96,19 @@ func run() -> void:
 	check("just pressed in physics, the tick it was", InputBindings.is_just_pressed("jump"))
 	await physics_frame
 	check("not the tick after", not InputBindings.is_just_pressed("jump"))
+	# (Input reaches the game as a frame starts, and a slow frame runs several ticks: wait for the tick that sees it.)
 	key(KEY_SPACE, false)
 	await physics_frame
+	while InputBindings.is_pressed("jump"):
+		await physics_frame
 	check("let go in physics", InputBindings.is_just_released("jump"))
 	key(KEY_SPACE, true)
 	key(KEY_SPACE, false)
 	await physics_frame
+	for tick in 60:
+		if InputBindings.is_just_pressed("jump") or InputBindings.is_just_released("jump"):
+			break
+		await physics_frame
 	check("a tap shorter than a tick still seen in physics", InputBindings.is_just_pressed("jump") and InputBindings.is_just_released("jump"))
 	await process_frame
 

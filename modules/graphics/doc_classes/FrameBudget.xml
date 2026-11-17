@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="FrameBudget" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Says what made a frame long, and spreads heavy work over frames.
+	</brief_description>
+	<description>
+		Time named pieces of your game's heavy work with [method measure]. A frame that takes longer than [member long_frame_ms] prints what took its time, so "it's sometimes slow" names its cause:
+		[codeblock]
+		Long frame: 63 ms (city 30.4 ms, traffic 12.1 ms; the rest drawing and the engine's own).
+		[/codeblock]
+		Work that can wait (building collision, loading the next part of a world) runs a slice at a time with [method spread], within a budget each frame, and with more of it while [member screen_hidden] says nobody sees a slow frame.
+		Reports are on in debug builds (except headless, where frames draw nothing); in release builds, set [code]frame_budget/report_in_release_builds[/code] or turn on [member reporting] (for a playtest build, say).
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_spread_count" qualifiers="const">
+			<return type="int" />
+			<description>
+				How many jobs [method spread] is still running.
+			</description>
+		</method>
+		<method name="measure">
+			<return type="void" />
+			<param index="0" name="what" type="String" />
+			<param index="1" name="since_usec" type="int" />
+			<description>
+				Counts the time since [param since_usec] (from [method Time.get_ticks_usec]) to [param what], in this frame's report. Measuring costs nothing while [member reporting] is off.
+				[codeblock]
+				var started := Time.get_ticks_usec()
+				build_paths()
+				FrameBudget.measure("paths", started)
+				[/codeblock]
+			</description>
+		</method>
+		<method name="spread">
+			<return type="void" />
+			<param index="0" name="what" type="String" />
+			<param index="1" name="step" type="Callable" />
+			<param index="2" name="budget_ms" type="float" default="2.0" />
+			<description>
+				Calls [param step] again and again, a slice of the work each time, until it returns [code]false[/code] (or anything but [code]true[/code]) or its object is freed. Each frame it gets [param budget_ms] milliseconds, six times that while [member screen_hidden] is on, and the rest waits for the next frame. Its time is measured as [param what].
+				[codeblock]
+				var waiting: Array[Node3D] = []
+
+				func _make_solid() -&gt; bool:
+				    add_collision(waiting.pop_back())
+				    return not waiting.is_empty()
+
+				func _ready() -&gt; void:
+				    FrameBudget.spread("collision", _make_solid)
+				[/codeblock]
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="long_frame_ms" type="float" setter="set_long_frame_ms" getter="get_long_frame_ms" default="40.0">
+			A frame taking at least this long (milliseconds) is reported. Starts from [code]frame_budget/long_frame_ms[/code].
+		</member>
+		<member name="reporting" type="bool" setter="set_reporting" getter="is_reporting" default="false">
+			Whether long frames are reported and work is measured. On in debug builds unless headless, and in release builds with [code]frame_budget/report_in_release_builds[/code].
+		</member>
+		<member name="screen_hidden" type="bool" setter="set_screen_hidden" getter="is_screen_hidden" default="false">
+			Set while nobody can see a slow frame (a fade to black, a loading screen): work spread with [method spread] gets six times its budget meanwhile.
+		</member>
+	</members>
+	<signals>
+		<signal name="long_frame">
+			<param index="0" name="milliseconds" type="float" />
+			<param index="1" name="work" type="Dictionary" />
+			<description>
+				A frame took [param milliseconds], at least [member long_frame_ms]. [param work] is what was measured in it, by name, in milliseconds. Emitted for every long frame, though the log has one a second at most.
+			</description>
+		</signal>
+	</signals>
+</class>

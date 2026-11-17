@@ -581,6 +581,7 @@ def docs_nav_groups() -> list[tuple[str, list[tuple[str, str]]]]:
                 ("modules/force-feedback", "modules/force-feedback.md"),
                 ("modules/vr", "modules/vr.md"),
                 ("modules/graphics", "modules/graphics.md"),
+                ("modules/world", "modules/world.md"),
             ],
         ),
         (

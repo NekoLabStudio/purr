@@ -1,0 +1,315 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Tue, 17 Nov 2026 19:37:43 +0000
+Subject: [PATCH] Scene: send nothing the servers already have after
+ World3D.shift()
+
+RenderingServer.scenario_shift() and PhysicsServer3D.space_shift()
+move a world's servers' state at once; World3D.shift() calls both and
+keeps a running total of each. The nodes are then moved to match by
+moving what they hang from, and would otherwise send every new
+transform to the servers one by one, undoing the saving.
+
+VisualInstance3D and CollisionObject3D now remember the transform they
+last sent and the world's shift then. After a shift they don't send a
+transform the server already has (the old one moved by the shift); a
+node that has also moved for real sends as before. Where a physics
+engine couldn't shift its space, its total doesn't change and
+collision objects send as before. update_server_transform() resends one
+as it is, for nodes the servers moved while the node stayed where it
+was (outside what moved, or top-level). Nothing in Godot's own nodes
+uses VisualInstance3D's identity transform mode, which this doesn't
+cover.
+
+No upstream issue yet.
+
+Test: a world node's meshes and bodies end up drawn and solid where
+their nodes are after World3D.shift() and moving the world node by the
+same amount, as do nodes outside the world and top-level nodes (put back
+with update_server_transform()), and a node moved for real in the same
+frame. On the city, a shift with Purr's WorldOrigin costs about 30 ms
+over normal frames, down from 55 to 70.
+
+---
+ .../scene/3d/physics/collision_object_3d.cpp  | 43 ++++++++++++++-----
+ godot/scene/3d/physics/collision_object_3d.h  | 10 +++++
+ godot/scene/3d/visual_instance_3d.cpp         | 37 +++++++++++++---
+ godot/scene/3d/visual_instance_3d.h           | 11 +++++
+ godot/scene/resources/3d/world_3d.cpp         | 18 ++++++++
+ godot/scene/resources/3d/world_3d.h           |  8 ++++
+ 6 files changed, 112 insertions(+), 15 deletions(-)
+
+diff --git a/godot/scene/3d/physics/collision_object_3d.cpp b/godot/scene/3d/physics/collision_object_3d.cpp
+index 1b584286..ca15e8d1 100644
+--- a/godot/scene/3d/physics/collision_object_3d.cpp
++++ b/godot/scene/3d/physics/collision_object_3d.cpp
+@@ -39,6 +39,36 @@
+ #include "servers/physics_3d/physics_server_3d.h"
+ #include "servers/rendering/rendering_server.h"
+ 
++// After a shift of the world the physics server has moved it already: what was sent before, moved
++// by the shift since, is sent again only if the node has moved on its own as well.
++void CollisionObject3D::_set_server_transform(const Transform3D &p_transform) {
++	const Ref<World3D> world = is_inside_tree() ? get_world_3d() : Ref<World3D>();
++	const Vector3 shift = world.is_valid() ? world->get_physics_shift() : Vector3();
++	if (transform_sent && shift != sent_shift) {
++		sent_transform.origin += shift - sent_shift;
++		sent_shift = shift;
++		// Recomputed after a shift, a transform differs from the shifted one in its last bits.
++		if (sent_transform.basis == p_transform.basis && sent_transform.origin.distance_squared_to(p_transform.origin) < 1e-6) {
++			return;
++		}
++	}
++	sent_shift = shift;
++	sent_transform = p_transform;
++	transform_sent = true;
++	if (area) {
++		PhysicsServer3D::get_singleton()->area_set_transform(rid, p_transform);
++	} else {
++		PhysicsServer3D::get_singleton()->body_set_state(rid, PS3DE::BODY_STATE_TRANSFORM, p_transform);
++	}
++}
++
++void CollisionObject3D::update_server_transform() {
++	if (is_inside_tree()) {
++		transform_sent = false;
++		_set_server_transform(get_global_transform());
++	}
++}
++
+ void CollisionObject3D::_notification(int p_what) {
+ 	switch (p_what) {
+ 		case NOTIFICATION_ENTER_TREE: {
+@@ -63,11 +93,7 @@ void CollisionObject3D::_notification(int p_what) {
+ 		} break;
+ 
+ 		case NOTIFICATION_ENTER_WORLD: {
+-			if (area) {
+-				PhysicsServer3D::get_singleton()->area_set_transform(rid, get_global_transform());
+-			} else {
+-				PhysicsServer3D::get_singleton()->body_set_state(rid, PS3DE::BODY_STATE_TRANSFORM, get_global_transform());
+-			}
++			_set_server_transform(get_global_transform());
+ 
+ 			bool disabled = !is_enabled();
+ 
+@@ -99,11 +125,7 @@ void CollisionObject3D::_notification(int p_what) {
+ 				return;
+ 			}
+ 
+-			if (area) {
+-				PhysicsServer3D::get_singleton()->area_set_transform(rid, get_global_transform());
+-			} else {
+-				PhysicsServer3D::get_singleton()->body_set_state(rid, PS3DE::BODY_STATE_TRANSFORM, get_global_transform());
+-			}
++			_set_server_transform(get_global_transform());
+ 
+ 			_on_transform_changed();
+ 		} break;
+@@ -113,6 +135,7 @@ void CollisionObject3D::_notification(int p_what) {
+ 		} break;
+ 
+ 		case NOTIFICATION_EXIT_WORLD: {
++			transform_sent = false; // Another world's physics state from here on.
+ 			bool disabled = !is_enabled();
+ 
+ 			if (!disabled || (disable_mode != DISABLE_MODE_REMOVE)) {
+diff --git a/godot/scene/3d/physics/collision_object_3d.h b/godot/scene/3d/physics/collision_object_3d.h
+index beac2924..3a3f0bf6 100644
+--- a/godot/scene/3d/physics/collision_object_3d.h
++++ b/godot/scene/3d/physics/collision_object_3d.h
+@@ -56,6 +56,13 @@ private:
+ 	bool area = false;
+ 
+ 	RID rid;
++
++	// The transform last sent to the physics server, and the world's physics shift then: after a
++	// shift (World3D::shift()) the server has already moved it, so it isn't sent again.
++	Transform3D sent_transform;
++	Vector3 sent_shift;
++	bool transform_sent = false;
++	void _set_server_transform(const Transform3D &p_transform);
+ 	uint32_t callback_lock = 0;
+ 
+ 	DisableMode disable_mode = DISABLE_MODE_REMOVE;
+@@ -177,6 +184,9 @@ public:
+ 	bool get_capture_input_on_drag() const;
+ 
+ 	_FORCE_INLINE_ RID get_rid() const { return rid; }
++	// Sends the body's or area's transform as it is now: for a node the world shifted on the server
++	// while it stayed where it was (outside what moved, or top-level).
++	void update_server_transform();
+ 
+ 	PackedStringArray get_configuration_warnings() const override;
+ 
+diff --git a/godot/scene/3d/visual_instance_3d.cpp b/godot/scene/3d/visual_instance_3d.cpp
+index cce47f93..017960ae 100644
+--- a/godot/scene/3d/visual_instance_3d.cpp
++++ b/godot/scene/3d/visual_instance_3d.cpp
+@@ -39,6 +39,32 @@ STATIC_ASSERT_INCOMPLETE_TYPE(class, RenderingServer);
+ #include "scene/resources/material.h"
+ #include "servers/rendering/rendering_server.h"
+ 
++// After a shift of the world the renderer has moved the instance already: what was sent before,
++// moved by the shift since, is sent again only if the node has moved on its own as well.
++void VisualInstance3D::_set_server_transform(const Transform3D &p_transform) {
++	const Ref<World3D> world = is_inside_tree() ? get_world_3d() : Ref<World3D>();
++	const Vector3 shift = world.is_valid() ? world->get_rendering_shift() : Vector3();
++	if (transform_sent && shift != sent_shift) {
++		sent_transform.origin += shift - sent_shift;
++		sent_shift = shift;
++		// Recomputed after a shift, a transform differs from the shifted one in its last bits.
++		if (sent_transform.basis == p_transform.basis && sent_transform.origin.distance_squared_to(p_transform.origin) < 1e-6) {
++			return;
++		}
++	}
++	sent_shift = shift;
++	sent_transform = p_transform;
++	transform_sent = true;
++	RS::get_singleton()->instance_set_transform(instance, p_transform);
++}
++
++void VisualInstance3D::update_server_transform() {
++	if (is_inside_tree() && _is_vi_visible()) {
++		transform_sent = false;
++		_set_server_transform(_is_using_identity_transform() ? Transform3D() : get_global_transform());
++	}
++}
++
+ AABB VisualInstance3D::get_aabb() const {
+ 	AABB ret;
+ 	GDVIRTUAL_CALL(_get_aabb, ret);
+@@ -58,7 +84,7 @@ void VisualInstance3D::_update_visibility() {
+ 	if (visible && !already_visible) {
+ 		if (!_is_using_identity_transform()) {
+ 			Transform3D gt = get_global_transform();
+-			RS::get_singleton()->instance_set_transform(instance, gt);
++			_set_server_transform(gt);
+ 		}
+ 	}
+ 
+@@ -72,17 +98,17 @@ void VisualInstance3D::set_instance_use_identity_transform(bool p_enable) {
+ 	if (is_inside_tree()) {
+ 		if (p_enable) {
+ 			// Want to make sure instance is using identity transform.
+-			RS::get_singleton()->instance_set_transform(instance, Transform3D());
++			_set_server_transform(Transform3D());
+ 		} else {
+ 			// Want to make sure instance is up to date.
+-			RS::get_singleton()->instance_set_transform(instance, get_global_transform());
++			_set_server_transform(get_global_transform());
+ 		}
+ 	}
+ }
+ 
+ void VisualInstance3D::fti_update_servers_xform() {
+ 	if (!_is_using_identity_transform()) {
+-		RS::get_singleton()->instance_set_transform(get_instance(), _get_cached_global_transform_interpolated());
++		_set_server_transform(_get_cached_global_transform_interpolated());
+ 	}
+ }
+ 
+@@ -98,7 +124,7 @@ void VisualInstance3D::_notification(int p_what) {
+ 			// ToDo : Can we turn off notify transform for physics interpolated cases?
+ 			if (_is_vi_visible() && !(is_inside_tree() && get_tree()->is_physics_interpolation_enabled()) && !_is_using_identity_transform()) {
+ 				// Physics interpolation global off, always send.
+-				RenderingServer::get_singleton()->instance_set_transform(instance, get_global_transform());
++				_set_server_transform(get_global_transform());
+ 			}
+ 		} break;
+ 
+@@ -112,6 +138,7 @@ void VisualInstance3D::_notification(int p_what) {
+ 		} break;
+ 
+ 		case NOTIFICATION_EXIT_WORLD: {
++			transform_sent = false; // Another world's renderer state from here on.
+ 			RenderingServer::get_singleton()->instance_set_scenario(instance, RID());
+ 			RenderingServer::get_singleton()->instance_attach_skeleton(instance, RID());
+ 			_set_vi_visible(false);
+diff --git a/godot/scene/3d/visual_instance_3d.h b/godot/scene/3d/visual_instance_3d.h
+index 2cd5546c..7cd70be6 100644
+--- a/godot/scene/3d/visual_instance_3d.h
++++ b/godot/scene/3d/visual_instance_3d.h
+@@ -41,6 +41,13 @@ class VisualInstance3D : public Node3D {
+ 
+ 	RID base;
+ 	RID instance;
++
++	// The transform last sent to the renderer, and the world's rendering shift then: after a shift
++	// (World3D::shift()) the renderer has already moved it, so it isn't sent again.
++	Transform3D sent_transform;
++	Vector3 sent_shift;
++	bool transform_sent = false;
++	void _set_server_transform(const Transform3D &p_transform);
+ 	uint32_t layers = 1;
+ 	float sorting_offset = 0.0;
+ 	bool sorting_use_aabb_center = true;
+@@ -56,6 +63,10 @@ protected:
+ 
+ 	GDVIRTUAL0RC(AABB, _get_aabb)
+ public:
++	// Sends the instance's transform as it is now: for a node the world shifted on the server while
++	// it stayed where it was (outside what moved, or top-level).
++	void update_server_transform();
++
+ 	static constexpr AncestralClass static_ancestral_class = AncestralClass::VISUAL_INSTANCE_3D;
+ 
+ 	enum GetFacesFlags {
+diff --git a/godot/scene/resources/3d/world_3d.cpp b/godot/scene/resources/3d/world_3d.cpp
+index 2bceb2ad..ff6f26b0 100644
+--- a/godot/scene/resources/3d/world_3d.cpp
++++ b/godot/scene/resources/3d/world_3d.cpp
+@@ -53,6 +53,24 @@ void World3D::_remove_camera(Camera3D *p_camera) {
+ 	cameras.erase(p_camera);
+ }
+ 
++// A floating origin's shift: everything in the world moves by p_by on the servers, at once (far
++// cheaper than node by node). The nodes are moved to match by moving what they hang from, and
++// VisualInstance3D and CollisionObject3D then see that the servers already have their new
++// transforms. Physics engines that can't shift a space (Godot Physics) leave its objects to be
++// moved one by one, as before.
++void World3D::shift(const Vector3 &p_by) {
++	if (p_by == Vector3()) {
++		return;
++	}
++	RS::get_singleton()->scenario_shift(scenario, p_by);
++	rendering_shift += p_by;
++#ifndef PHYSICS_3D_DISABLED
++	if (space.is_valid() && PhysicsServer3D::get_singleton()->space_shift(space, p_by)) {
++		physics_shift += p_by;
++	}
++#endif // PHYSICS_3D_DISABLED
++}
++
+ RID World3D::get_space() const {
+ #ifndef PHYSICS_3D_DISABLED
+ 	if (space.is_null()) {
+diff --git a/godot/scene/resources/3d/world_3d.h b/godot/scene/resources/3d/world_3d.h
+index 32087f06..4d467d0d 100644
+--- a/godot/scene/resources/3d/world_3d.h
++++ b/godot/scene/resources/3d/world_3d.h
+@@ -49,6 +49,10 @@ class World3D : public Resource {
+ private:
+ 	RID scenario;
+ 	mutable RID space;
++	// What shift() has moved the scenario and the space by, in all: nodes compare what they last
++	// sent the servers against these, so they needn't send it again after a shift.
++	Vector3 rendering_shift;
++	Vector3 physics_shift;
+ #ifndef NAVIGATION_3D_DISABLED
+ 	mutable RID navigation_map;
+ #endif // NAVIGATION_3D_DISABLED
+@@ -75,6 +79,10 @@ public:
+ #endif // NAVIGATION_3D_DISABLED
+ 	RID get_scenario() const;
+ 
++	void shift(const Vector3 &p_by);
++	Vector3 get_rendering_shift() const { return rendering_shift; }
++	Vector3 get_physics_shift() const { return physics_shift; }
++
+ 	void set_environment(const Ref<Environment> &p_environment);
+ 	Ref<Environment> get_environment() const;
+ 
+-- 
+2.54.0 (Apple Git-157)
+

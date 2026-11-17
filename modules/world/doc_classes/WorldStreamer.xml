@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="WorldStreamer" inherits="Node3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Loads a large world's cells round the player and drops them behind.
+	</brief_description>
+	<description>
+		A large world is split into cells, each a scene. Register them with [method add_cell], each with its area on the map, and WorldStreamer loads those within [member load_radius] of the [member observer] and drops them past [member unload_radius]. Cells load in the background and join the world a few nodes a frame within [member budget_ms], so moving never waits for them: their collision, lights and meshes arrive in slices. Beyond the detail, out to [member far_radius], a cell can show a lighter far scene instead.
+		Cell scenes are placed at the streamer's origin, so make them in map coordinates and keep the streamer at its world's origin (under [member WorldOrigin.world], where it moves with every shift).
+		[codeblock]
+		func _ready() -&gt; void:
+		    for x in 40:
+		        for z in 40:
+		            var name := "%d_%d" % [x, z]
+		            $WorldStreamer.add_cell(name, Rect2(x * 250, z * 250, 250, 250), "res://world/%s.tscn" % name, "res://world/%s_far.tscn" % name)
+		[/codeblock]
+		Cells are instantiated on worker threads, several at once, so resources cell scenes share must be safe to read from several threads: imported meshes are, but a [PrimitiveMesh] isn't unless it's local to the scene. Headless, everything loads at once on the main thread, so tests run the same every time.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="add_cell">
+			<return type="void" />
+			<param index="0" name="name" type="String" />
+			<param index="1" name="area" type="Rect2" />
+			<param index="2" name="scene" type="String" />
+			<param index="3" name="far_scene" type="String" default="&quot;&quot;" />
+			<description>
+				Adds a cell: its [param area] on the map (x and z, in metres), the [param scene] that loads near it, and optionally a lighter [param far_scene] shown further out.
+			</description>
+		</method>
+		<method name="clear_cells">
+			<return type="void" />
+			<description>
+				Removes every cell, and frees whatever of them was loaded.
+			</description>
+		</method>
+		<method name="get_cell_node" qualifiers="const">
+			<return type="Node3D" />
+			<param index="0" name="name" type="String" />
+			<description>
+				The root of a cell's scene while its detail is in the world, or [code]null[/code].
+			</description>
+		</method>
+		<method name="get_cells" qualifiers="const">
+			<return type="PackedStringArray" />
+			<description>
+				The names of every cell added.
+			</description>
+		</method>
+		<method name="is_busy" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Whether cells are still wanted, loading or joining the world: while it's [code]true[/code], keep a loading screen or fade up.
+			</description>
+		</method>
+		<method name="is_cell_loaded" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="name" type="String" />
+			<description>
+				Whether a cell's detail is in the world, all of it.
+			</description>
+		</method>
+		<method name="load_around">
+			<return type="void" />
+			<param index="0" name="position" type="Vector3" />
+			<param index="1" name="radius" type="float" />
+			<description>
+				Loads every cell within [param radius] metres of [param position] (on the map) before returning: for putting the player somewhere new, behind a loading screen or a fade.
+			</description>
+		</method>
+		<method name="remove_cell">
+			<return type="void" />
+			<param index="0" name="name" type="String" />
+			<description>
+				Removes a cell, and frees it if it was loaded.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="budget_ms" type="float" setter="set_budget_ms" getter="get_budget_ms" default="3.0">
+			Milliseconds a frame for cells joining the world, and half that for those leaving it. Six times as much while [member FrameBudget.screen_hidden] is set.
+		</member>
+		<member name="far_radius" type="float" setter="set_far_radius" getter="get_far_radius" default="0.0">
+			Metres out to which cells show their far scene where their detail isn't loaded. 0 shows no far scenes.
+		</member>
+		<member name="far_unload_radius" type="float" setter="set_far_unload_radius" getter="get_far_unload_radius" default="0.0">
+			Metres beyond which far scenes are dropped. Set it above [member far_radius], so a far scene isn't loaded and dropped again as the observer moves back and forth at its edge.
+		</member>
+		<member name="load_radius" type="float" setter="set_load_radius" getter="get_load_radius" default="1000.0">
+			Metres from the observer, on the ground, within which cells load.
+		</member>
+		<member name="loading_at_once" type="int" setter="set_loading_at_once" getter="get_loading_at_once" default="4">
+			How many cells load at the same time.
+		</member>
+		<member name="observer" type="Node3D" setter="set_observer" getter="get_observer">
+			What cells load round: the player, or what the camera follows. Unless set, the viewport's camera.
+		</member>
+		<member name="prepare" type="Callable" setter="set_prepare" getter="get_prepare">
+			Called on a worker thread with each cell's name, its scene's root and whether it's the far scene ([code]func(name: String, node: Node, far: bool)[/code]), before it joins the world: for heavy work of your own on a cell, such as building collision from its meshes. The root isn't in the tree yet, so keep to the cell itself.
+		</member>
+		<member name="unload_radius" type="float" setter="set_unload_radius" getter="get_unload_radius" default="1300.0">
+			Metres from the observer beyond which cells are dropped. Set it above [member load_radius], so a cell isn't loaded and dropped again as the observer moves back and forth at its edge.
+		</member>
+	</members>
+	<signals>
+		<signal name="cell_loaded">
+			<param index="0" name="name" type="String" />
+			<param index="1" name="node" type="Object" />
+			<param index="2" name="far" type="bool" />
+			<description>
+				A cell's scene ([param far] for its far scene) has joined the world, all of it.
+			</description>
+		</signal>
+		<signal name="cell_unloading">
+			<param index="0" name="name" type="String" />
+			<param index="1" name="node" type="Object" />
+			<param index="2" name="far" type="bool" />
+			<description>
+				A cell's scene ([param far] for its far scene) is leaving the world: it's hidden now, and freed over the next frames.
+			</description>
+		</signal>
+	</signals>
+</class>

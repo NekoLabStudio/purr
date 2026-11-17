@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="MultiMeshBody3D" inherits="Node3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Collision for each instance of a [MultiMesh].
+	</brief_description>
+	<description>
+		A [MultiMeshInstance3D] draws thousands of objects cheaply, but nothing can bump into them. MultiMeshBody3D gives each instance a [member shape], placed by its transform, so scattered props (bollards, benches, rocks) are solid too. Put it where the [MultiMeshInstance3D] is (as its child, say) with the same [member multimesh]:
+		[codeblock]
+		var body := MultiMeshBody3D.new()
+		body.multimesh = $Bollards.multimesh
+		body.shape = preload("res://props/bollard_shape.tres")
+		$Bollards.add_child(body)
+		[/codeblock]
+		The shapes are made a few dozen at a time over frames. Every MultiMeshBody3D shares one queue and one budget a frame, [code]physics/3d/multimesh_collision_budget_ms[/code] (spread with [FrameBudget]), working on the one nearest the camera first and its nearest instances first: a streamed world's props never hold up a frame, and what's ahead of the player is solid before what's far off. Raycasts and contacts report this node as the collider; [method get_instance] says which instance was hit. Switched off with [member Node.process_mode], it leaves the physics world, as a [CollisionObject3D] does.
+		The instances' transforms are read from the [MultiMesh] once, when the shapes are made: call [method rebuild] after moving its instances. Headless, Godot's stand-in renderer keeps a [MultiMesh]'s transforms only when its [member MultiMesh.buffer] is set whole, as a loaded one's is.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_instance" qualifiers="const">
+			<return type="int" />
+			<param index="0" name="body" type="RID" />
+			<param index="1" name="shape" type="int" />
+			<description>
+				The [member multimesh] instance a collision was with, from the collider's [param body] and [param shape] index as a raycast or contact reports them, or -1.
+				[codeblock]
+				var hit := space.intersect_ray(query)
+				if hit.collider is MultiMeshBody3D:
+				    var bollard: int = hit.collider.get_instance(hit.rid, hit.shape)
+				[/codeblock]
+			</description>
+		</method>
+		<method name="is_built" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Whether every instance has its shape.
+			</description>
+		</method>
+		<method name="rebuild">
+			<return type="void" />
+			<description>
+				Makes the shapes again, from the [member multimesh]'s instances as they are now. Setting [member multimesh], [member shape] or [member shape_offset] does it for you.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="collision_layer" type="int" setter="set_collision_layer" getter="get_collision_layer" default="1">
+			The physics layers the instances are on, as [member CollisionObject3D.collision_layer].
+		</member>
+		<member name="collision_mask" type="int" setter="set_collision_mask" getter="get_collision_mask" default="1">
+			The physics layers the instances scan, as [member CollisionObject3D.collision_mask].
+		</member>
+		<member name="multimesh" type="MultiMesh" setter="set_multimesh" getter="get_multimesh">
+			The instances to give collision to.
+		</member>
+		<member name="shape" type="Shape3D" setter="set_shape" getter="get_shape">
+			Each instance's shape.
+		</member>
+		<member name="shape_offset" type="Transform3D" setter="set_shape_offset" getter="get_shape_offset" default="Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)">
+			Where the shape sits in each instance's own frame: for a shape that isn't centred on the mesh's origin.
+		</member>
+	</members>
+</class>

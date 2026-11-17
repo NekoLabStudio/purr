@@ -1,0 +1,238 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Tue, 17 Nov 2026 19:26:15 +0000
+Subject: [PATCH] Physics: add space_shift() to move a whole space at once
+ (Jolt)
+
+A floating origin moves a large world's physics bodies with it. Moved
+one by one through body_set_state(), each is a separate update, and a
+kinematic body works out a velocity from the jump, so a kilometre in one
+step flings whatever it touches.
+
+PhysicsServer3D.space_shift() moves everything in a space at once, as a
+teleport: nothing is woken or given velocity, constraints and soft
+bodies' vertices (held in their bodies' frames) come along, and a
+kinematic body's target moves too. Jolt's broad phase is rebuilt once
+afterwards (OptimizeBroadPhase()): left, the next step rebuilt it
+piecemeal, 20 to 33 ms with a city's thousands of bodies. It returns
+false where an engine can't do it (Godot Physics, which keeps the
+default), so callers fall back to moving objects one by one.
+
+No upstream issue yet.
+
+Test: with Jolt, static bodies under a world shifted by (-1000, 0, 0)
+are hit by rays 1 km away and not where they were, and those outside it
+where they stayed (Purr's samples/world). On a city of about 32,000
+nodes, the physics step after a shift stays at its usual 2.5 ms.
+
+---
+ godot/doc/classes/PhysicsServer3D.xml         |  8 +++++
+ .../jolt_physics/jolt_physics_server_3d.cpp   |  8 +++++
+ .../jolt_physics/jolt_physics_server_3d.h     |  1 +
+ .../jolt_physics/objects/jolt_body_3d.cpp     |  5 ++++
+ .../jolt_physics/objects/jolt_body_3d.h       |  5 ++++
+ .../jolt_physics/objects/jolt_object_3d.h     |  6 ++++
+ .../jolt_physics/spaces/jolt_space_3d.cpp     | 29 +++++++++++++++++++
+ .../jolt_physics/spaces/jolt_space_3d.h       |  2 ++
+ .../servers/physics_3d/physics_server_3d.cpp  |  1 +
+ godot/servers/physics_3d/physics_server_3d.h  |  3 ++
+ .../physics_3d/physics_server_3d_wrap_mt.h    |  1 +
+ 11 files changed, 69 insertions(+)
+
+diff --git a/godot/doc/classes/PhysicsServer3D.xml b/godot/doc/classes/PhysicsServer3D.xml
+index 53ca4452..d18e84ae 100644
+--- a/godot/doc/classes/PhysicsServer3D.xml
++++ b/godot/doc/classes/PhysicsServer3D.xml
+@@ -1426,6 +1426,14 @@
+ 				Returns whether the space is active.
+ 			</description>
+ 		</method>
++		<method name="space_shift">
++			<return type="bool" />
++			<param index="0" name="space" type="RID" />
++			<param index="1" name="by" type="Vector3" />
++			<description>
++				Moves every body, area and soft body in the space by [param by] at once, for a floating origin: a teleport, so nothing is woken or given velocity, and nothing moves relative to anything else. Returns [code]false[/code] where the physics engine can't do this (Godot Physics), and then nothing is moved. Objects' transforms change on the server only: the nodes that own them must be moved to match.
++			</description>
++		</method>
+ 		<method name="space_set_active">
+ 			<return type="void" />
+ 			<param index="0" name="space" type="RID" />
+diff --git a/godot/modules/jolt_physics/jolt_physics_server_3d.cpp b/godot/modules/jolt_physics/jolt_physics_server_3d.cpp
+index a725c039..e96302dc 100644
+--- a/godot/modules/jolt_physics/jolt_physics_server_3d.cpp
++++ b/godot/modules/jolt_physics/jolt_physics_server_3d.cpp
+@@ -194,6 +194,14 @@ RID JoltPhysicsServer3D::space_create() {
+ 	return rid;
+ }
+ 
++bool JoltPhysicsServer3D::space_shift(RID p_space, const Vector3 &p_by) {
++	JoltSpace3D *space = space_owner.get_or_null(p_space);
++	ERR_FAIL_NULL_V(space, false);
++
++	space->shift(p_by);
++	return true;
++}
++
+ void JoltPhysicsServer3D::space_set_active(RID p_space, bool p_active) {
+ 	JoltSpace3D *space = space_owner.get_or_null(p_space);
+ 	ERR_FAIL_NULL(space);
+diff --git a/godot/modules/jolt_physics/jolt_physics_server_3d.h b/godot/modules/jolt_physics/jolt_physics_server_3d.h
+index dda15c11..5b76607e 100644
+--- a/godot/modules/jolt_physics/jolt_physics_server_3d.h
++++ b/godot/modules/jolt_physics/jolt_physics_server_3d.h
+@@ -151,6 +151,7 @@ public:
+ 	virtual RID space_create() override;
+ 
+ 	virtual void space_set_active(RID p_space, bool p_active) override;
++	virtual bool space_shift(RID p_space, const Vector3 &p_by) override;
+ 	virtual bool space_is_active(RID p_space) const override;
+ 
+ 	virtual void space_set_param(RID p_space, PS3DE::SpaceParameter p_param, real_t p_value) override;
+diff --git a/godot/modules/jolt_physics/objects/jolt_body_3d.cpp b/godot/modules/jolt_physics/objects/jolt_body_3d.cpp
+index b26952be..c91803a2 100644
+--- a/godot/modules/jolt_physics/objects/jolt_body_3d.cpp
++++ b/godot/modules/jolt_physics/objects/jolt_body_3d.cpp
+@@ -477,6 +477,11 @@ void JoltBody3D::_joints_changed() {
+ 	wake_up();
+ }
+ 
++// Where it's moving to (kinematic) moves too: left, it would be pulled back the whole shift in one step.
++void JoltBody3D::space_shifted(const Vector3 &p_by) {
++	kinematic_transform.origin += p_by;
++}
++
+ void JoltBody3D::_transform_changed() {
+ 	wake_up();
+ }
+diff --git a/godot/modules/jolt_physics/objects/jolt_body_3d.h b/godot/modules/jolt_physics/objects/jolt_body_3d.h
+index 7c0af910..87b51b9d 100644
+--- a/godot/modules/jolt_physics/objects/jolt_body_3d.h
++++ b/godot/modules/jolt_physics/objects/jolt_body_3d.h
+@@ -147,6 +147,11 @@ private:
+ 	void _areas_changed();
+ 	void _joints_changed();
+ 	void _transform_changed();
++
++public:
++	virtual void space_shifted(const Vector3 &p_by) override;
++
++private:
+ 	void _motion_changed();
+ 	void _exceptions_changed();
+ 	void _axis_lock_changed();
+diff --git a/godot/modules/jolt_physics/objects/jolt_object_3d.h b/godot/modules/jolt_physics/objects/jolt_object_3d.h
+index 2206b379..0e971d93 100644
+--- a/godot/modules/jolt_physics/objects/jolt_object_3d.h
++++ b/godot/modules/jolt_physics/objects/jolt_object_3d.h
+@@ -88,6 +88,12 @@ protected:
+ 	virtual void _space_changing() {}
+ 	virtual void _space_changed() {}
+ 
++public:
++	// Its space moved everything by p_by (JoltSpace3D::shift()): anything it keeps in world space moves too.
++	virtual void space_shifted(const Vector3 &p_by) {}
++
++protected:
++
+ public:
+ 	explicit JoltObject3D(ObjectType p_object_type);
+ 	virtual ~JoltObject3D() = 0;
+diff --git a/godot/modules/jolt_physics/spaces/jolt_space_3d.cpp b/godot/modules/jolt_physics/spaces/jolt_space_3d.cpp
+index 09c5c911..2b03183f 100644
+--- a/godot/modules/jolt_physics/spaces/jolt_space_3d.cpp
++++ b/godot/modules/jolt_physics/spaces/jolt_space_3d.cpp
+@@ -34,6 +34,7 @@
+ #include "../jolt_physics_server_3d.h"
+ #include "../jolt_project_settings.h"
+ #include "../misc/jolt_stream_wrappers.h"
++#include "../misc/jolt_type_conversions.h"
+ #include "../objects/jolt_area_3d.h"
+ #include "../objects/jolt_body_3d.h"
+ #include "../shapes/jolt_shape_3d.h"
+@@ -599,3 +600,31 @@ void JoltSpace3D::set_max_debug_contacts(int p_count) {
+ }
+ 
+ #endif
++
++// A floating origin's shift: every body moves by p_by together, a teleport (no velocity, nothing
++// woken), so nothing moves relative to anything else. Constraints are held in their bodies' own
++// frames, and a soft body's vertices in its body's, so they come along.
++void JoltSpace3D::shift(const Vector3 &p_by) {
++	if (p_by == Vector3()) {
++		return;
++	}
++
++	JPH::BodyIDVector body_ids;
++	physics_system->GetBodies(body_ids);
++
++	JPH::BodyInterface &body_iface = get_body_iface();
++	const JPH::RVec3 by = to_jolt_r(p_by);
++
++	for (const JPH::BodyID &body_id : body_ids) {
++		body_iface.SetPosition(body_id, body_iface.GetPosition(body_id) + by, JPH::EActivation::DontActivate);
++
++		JoltObject3D *object = reinterpret_cast<JoltObject3D *>(body_iface.GetUserData(body_id));
++		if (object != nullptr) {
++			object->space_shifted(p_by);
++		}
++	}
++
++	// Every body moved, its broad phase's tree is rebuilt at once: left, the next step rebuilt it piecemeal, tens of
++	// milliseconds with thousands of bodies.
++	physics_system->OptimizeBroadPhase();
++}
+diff --git a/godot/modules/jolt_physics/spaces/jolt_space_3d.h b/godot/modules/jolt_physics/spaces/jolt_space_3d.h
+index 1fa188e1..0d4f8a02 100644
+--- a/godot/modules/jolt_physics/spaces/jolt_space_3d.h
++++ b/godot/modules/jolt_physics/spaces/jolt_space_3d.h
+@@ -146,6 +146,8 @@ public:
+ 	void remove_object(const JPH::BodyID &p_jolt_id);
+ 	void flush_pending_objects();
+ 
++	void shift(const Vector3 &p_by);
++
+ 	void set_is_object_sleeping(const JPH::BodyID &p_jolt_id, bool p_enable);
+ 
+ 	void enqueue_call_queries(SelfList<JoltBody3D> *p_body);
+diff --git a/godot/servers/physics_3d/physics_server_3d.cpp b/godot/servers/physics_3d/physics_server_3d.cpp
+index 85b1a917..c5b4ffb9 100644
+--- a/godot/servers/physics_3d/physics_server_3d.cpp
++++ b/godot/servers/physics_3d/physics_server_3d.cpp
+@@ -120,6 +120,7 @@ void PhysicsServer3D::_bind_methods() {
+ 	ClassDB::bind_method(D_METHOD("space_create"), &PhysicsServer3D::space_create);
+ 	ClassDB::bind_method(D_METHOD("space_set_active", "space", "active"), &PhysicsServer3D::space_set_active);
+ 	ClassDB::bind_method(D_METHOD("space_is_active", "space"), &PhysicsServer3D::space_is_active);
++	ClassDB::bind_method(D_METHOD("space_shift", "space", "by"), &PhysicsServer3D::space_shift);
+ 	ClassDB::bind_method(D_METHOD("space_set_param", "space", "param", "value"), &PhysicsServer3D::space_set_param);
+ 	ClassDB::bind_method(D_METHOD("space_get_param", "space", "param"), &PhysicsServer3D::space_get_param);
+ 	ClassDB::bind_method(D_METHOD("space_get_direct_state", "space"), &PhysicsServer3D::space_get_direct_state);
+diff --git a/godot/servers/physics_3d/physics_server_3d.h b/godot/servers/physics_3d/physics_server_3d.h
+index f59bf0ab..275ea386 100644
+--- a/godot/servers/physics_3d/physics_server_3d.h
++++ b/godot/servers/physics_3d/physics_server_3d.h
+@@ -97,6 +97,9 @@ public:
+ 	virtual RID space_create() = 0;
+ 	virtual void space_set_active(RID p_space, bool p_active) = 0;
+ 	virtual bool space_is_active(RID p_space) const = 0;
++	// Moves everything in the space by p_by at once, for a floating origin; false where the physics
++	// engine can't (its objects then have to be moved one by one).
++	virtual bool space_shift(RID p_space, const Vector3 &p_by) { return false; }
+ 
+ 	virtual void space_set_param(RID p_space, PS3DE::SpaceParameter p_param, real_t p_value) = 0;
+ 	virtual real_t space_get_param(RID p_space, PS3DE::SpaceParameter p_param) const = 0;
+diff --git a/godot/servers/physics_3d/physics_server_3d_wrap_mt.h b/godot/servers/physics_3d/physics_server_3d_wrap_mt.h
+index dd41ff89..2cf188bd 100644
+--- a/godot/servers/physics_3d/physics_server_3d_wrap_mt.h
++++ b/godot/servers/physics_3d/physics_server_3d_wrap_mt.h
+@@ -112,6 +112,7 @@ public:
+ 
+ 	FUNCRID(space);
+ 	FUNC2(space_set_active, RID, bool);
++	FUNC2R(bool, space_shift, RID, const Vector3 &);
+ 	FUNC1RC(bool, space_is_active, RID);
+ 
+ 	FUNC3(space_set_param, RID, PS3DE::SpaceParameter, real_t);
+-- 
+2.54.0 (Apple Git-157)
+

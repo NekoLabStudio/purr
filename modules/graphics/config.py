@@ -7,7 +7,7 @@ def configure(env):
 
 
 def get_doc_classes():
-    return ["DynamicResolution", "RecommendedGraphics"]
+    return ["DynamicResolution", "FrameBudget", "RecommendedGraphics"]
 
 
 def get_doc_path():

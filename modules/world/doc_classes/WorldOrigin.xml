@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="WorldOrigin" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		A floating origin: keeps the player near (0, 0, 0) in a large world.
+	</brief_description>
+	<description>
+		Far from (0, 0, 0), single-precision positions step in millimetres and things near the camera shimmer and jitter. WorldOrigin moves the whole world back under the player in whole steps ([member step], a kilometre by default), so everything near them stays near the origin.
+		Call [method follow] with the player's position every frame. Positions on the map, which don't change with a shift, are global positions plus [member offset]: save and send them with [method to_map], and read them back with [method to_global]. Nodes under [member world] move with it; anything that keeps global positions of its own adds the shift when [signal shifted] says. Shaders find a vertex's map position as its world position plus the [code]map_offset[/code] global shader parameter.
+		Shifts are whole metres, so [member offset] is exact in single precision for any world on the scale of a planet.
+		A shift moves everything in the world's [World3D] at once on the renderer and in physics ([method RenderingServer.scenario_shift], [method PhysicsServer3D.space_shift]), rather than node by node. Nodes that don't move with [member world] (outside it, or top-level) are put back where they are.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="follow">
+			<return type="void" />
+			<param index="0" name="global" type="Vector3" />
+			<param index="1" name="calm" type="bool" default="true" />
+			<description>
+				Keeps [param global] (the player, or what the camera follows) near the origin. Past [member calm_distance] from it, measured on the ground, the world shifts when [param calm] is [code]true[/code]; past [member max_distance], it shifts whatever's happening. Pass [code]false[/code] for [param calm] while a shift's moment of work would show (the player moving fast), and [code]true[/code] while it wouldn't (standing still, the screen dark).
+			</description>
+		</method>
+		<method name="reset">
+			<return type="void" />
+			<description>
+				Puts the world back in the map's own frame, with no offset: for a new world loading.
+			</description>
+		</method>
+		<method name="shift">
+			<return type="void" />
+			<param index="0" name="by" type="Vector3" />
+			<description>
+				Moves the world, and everything under it, by [param by], rounded to whole metres. [method follow] calls it when it's time.
+			</description>
+		</method>
+		<method name="to_global" qualifiers="const">
+			<return type="Vector3" />
+			<param index="0" name="map" type="Vector3" />
+			<description>
+				The global position of a point on the map.
+			</description>
+		</method>
+		<method name="to_map" qualifiers="const">
+			<return type="Vector3" />
+			<param index="0" name="global" type="Vector3" />
+			<description>
+				The map position of a global point: what to save or send.
+			</description>
+		</method>
+		<method name="transform_to_global" qualifiers="const">
+			<return type="Transform3D" />
+			<param index="0" name="map" type="Transform3D" />
+			<description>
+				[method to_global] for a whole transform.
+			</description>
+		</method>
+		<method name="transform_to_map" qualifiers="const">
+			<return type="Transform3D" />
+			<param index="0" name="global" type="Transform3D" />
+			<description>
+				[method to_map] for a whole transform.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="calm_distance" type="float" setter="set_calm_distance" getter="get_calm_distance" default="1500.0">
+			Metres from the origin, on the ground, past which [method follow] shifts the world at a calm moment. Starts from [code]world_origin/calm_distance[/code].
+		</member>
+		<member name="max_distance" type="float" setter="set_max_distance" getter="get_max_distance" default="4000.0">
+			Metres from the origin past which [method follow] shifts the world whatever's happening. Starts from [code]world_origin/max_distance[/code].
+		</member>
+		<member name="offset" type="Vector3" setter="" getter="get_offset">
+			The map position of the global origin: map positions are global ones plus this.
+		</member>
+		<member name="step" type="float" setter="set_step" getter="get_step" default="1000.0">
+			The world shifts by whole multiples of this many metres. Starts from [code]world_origin/step[/code].
+		</member>
+		<member name="world" type="Node3D" setter="set_world" getter="get_world">
+			The node the world hangs from, moved by each shift. Unless set, the current scene when it's a [Node3D]. Particles simulating in world space under it start afresh with a shift, as Godot can't move them.
+		</member>
+	</members>
+	<signals>
+		<signal name="shifted">
+			<param index="0" name="by" type="Vector3" />
+			<description>
+				The world moved by [param by]. Add it to any global positions you keep yourself.
+			</description>
+		</signal>
+	</signals>
+</class>

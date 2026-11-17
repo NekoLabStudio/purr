@@ -109,6 +109,12 @@ jobs:
       - name: Controls
         run: godot/bin/godot.macos.editor.arm64 --headless --path samples/controls -s test.gd
 
+      - name: Graphics
+        run: godot/bin/godot.macos.editor.arm64 --headless --path samples/graphics -s test.gd
+
+      - name: World
+        run: godot/bin/godot.macos.editor.arm64 --headless --path samples/world -s test.gd
+
       - name: VR streamer
         run: cargo test --release --manifest-path modules/vr_streamer/streamer/Cargo.toml
 
@@ -148,6 +154,12 @@ jobs:
 
       - name: Controls
         run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/controls -s test.gd
+
+      - name: Graphics
+        run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/graphics -s test.gd
+
+      - name: World
+        run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/world -s test.gd
 
   windows:
     name: Windows
@@ -190,6 +202,12 @@ jobs:
 
       - name: Controls
         run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/controls -s test.gd
+
+      - name: Graphics
+        run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/graphics -s test.gd
+
+      - name: World
+        run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/world -s test.gd
 
   play-games:
     name: Play Games plugin
