@@ -238,6 +238,7 @@ jobs:
 
       - name: Package the templates
         run: |
+          mkdir -p dist
           app=dist/macos_template.app
           cp -R godot/misc/dist/macos_template.app "$app"
           mkdir -p "$app/Contents/MacOS"
