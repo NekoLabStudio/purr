@@ -9,3 +9,4 @@ GDExtensions built against an earlier Purr version need building again against t
 ## Versions
 
 <!-- newest-first: the docs site build regenerates this list -->
+- [Purr 0.1.0](/upgrading/0.1.0/)
