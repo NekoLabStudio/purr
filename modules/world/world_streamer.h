@@ -82,7 +82,7 @@ class WorldStreamer : public Node3D {
 	void _join_all(Cell &p_cell, bool p_far);
 	void _finish_joining(Cell &p_cell, bool p_far);
 	void _unload(Cell &p_cell, bool p_far);
-	void _leave(double p_budget_usec);
+	void _free_leaving(double p_budget_usec);
 	void _frame(double p_delta);
 	Part &_part(Cell &p_cell, bool p_far) { return p_far ? p_cell.far : p_cell.detail; }
 

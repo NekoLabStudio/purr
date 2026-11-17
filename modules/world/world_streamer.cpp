@@ -436,7 +436,7 @@ void WorldStreamer::_unload(Cell &p_cell, bool p_far) {
 	}
 }
 
-void WorldStreamer::_leave(double p_budget_usec) {
+void WorldStreamer::_free_leaving(double p_budget_usec) {
 	const uint64_t started = OS::get_singleton()->get_ticks_usec();
 	bool first = true;
 	while (!leaving.is_empty() && (first || OS::get_singleton()->get_ticks_usec() - started < p_budget_usec)) {
@@ -478,7 +478,7 @@ void WorldStreamer::_frame(double p_delta) {
 	FrameBudget *frame_budget = FrameBudget::get_singleton();
 	const double times = frame_budget != nullptr && frame_budget->is_screen_hidden() ? FrameBudget::HIDDEN_TIMES : 1.0;
 	_join(budget_ms * times * 1000.0);
-	_leave(budget_ms * times * 500.0);
+	_free_leaving(budget_ms * times * 500.0);
 	if (frame_budget != nullptr) {
 		frame_budget->measure("world streaming", started);
 	}
