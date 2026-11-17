@@ -1,0 +1,29 @@
+config_version=5
+
+[application]
+
+config/name="Controls sample"
+run/main_scene="res://main.tscn"
+
+[input]
+
+jump={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"device":-1,"physical_keycode":32), Object(InputEventJoypadButton,"device":-1,"button_index":0)]
+}
+fire={
+"deadzone": 0.5,
+"events": [Object(InputEventMouseButton,"device":-1,"button_index":1)]
+}
+move_left={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":-1,"physical_keycode":65), Object(InputEventJoypadMotion,"device":-1,"axis":0,"axis_value":-1.0)]
+}
+move_right={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"device":-1,"physical_keycode":68), Object(InputEventJoypadMotion,"device":-1,"axis":0,"axis_value":1.0)]
+}
+
+[input_devices]
+
+bindings/defaults="res://controls.json"

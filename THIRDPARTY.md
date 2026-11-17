@@ -27,6 +27,7 @@ Godot's own scripts download these when Purr is built. They aren't stored in thi
 | [libjuice](https://github.com/paullouisageneau/libjuice) | `modules/webrtc_native/thirdparty/libjuice/` | MPL 2.0, see [its license](modules/webrtc_native/thirdparty/libjuice/LICENSE) |
 | [usrsctp](https://github.com/sctplab/usrsctp) | `modules/webrtc_native/thirdparty/usrsctp/` | BSD 3-Clause, see [its license](modules/webrtc_native/thirdparty/usrsctp/LICENSE.md) |
 | [plog](https://github.com/SergiusTheBest/plog) | `modules/webrtc_native/thirdparty/plog/` | MIT, see [its license](modules/webrtc_native/thirdparty/plog/LICENSE) |
+| [Kenney's Input Prompts](https://kenney.nl/assets/input-prompts) and [Input Prompts Pixel 16x](https://kenney.nl/assets/input-prompts-pixel-16) (button prompts) | `modules/controls/thirdparty/kenney_input_prompts/` | CC0, see [its license](modules/controls/thirdparty/kenney_input_prompts/License.txt) |
 
 libdatachannel and libjuice are under the Mozilla Public License 2.0, which covers those files only. Purr changes libdatachannel with one patch, [patches/0014-libdatachannel-build-with-Mbed-TLS-4.patch](patches/0014-libdatachannel-build-with-Mbed-TLS-4.patch), so their source (with Purr's changes) is available here as the license asks. Games that ship Purr's export templates should credit them and say where their source is available.
 

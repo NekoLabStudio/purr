@@ -18,6 +18,7 @@ On a Mac, `brew install --cask nekolabstudio/tap/purr` installs the editor. Each
 - Online services you run on your own Cloudflare account (`online/`), for crossplay lobbies, ranked matchmaking, progress across platforms by email and guests who bring their own profile.
 - Steam (GodotSteam), Game Center, iCloud saves and Google Play Games.
 - WebRTC, built into the engine.
+- Controls players can change and keep, with button prompts for whatever controller they're holding, and controllers for each local player.
 - Force feedback and hat switches for steering wheels, on macOS and Windows.
 - VR on a Mac through Godot's OpenXR: Meta Quest and other headsets with Valve's Steam Link app, and Apple Vision Pro.
 - Apple TV exports.
