@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="LightPool3D" inherits="Node3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		A few real lights, moved to the best of many light points round the player.
+	</brief_description>
+	<description>
+		A city at night has thousands of street lamps and lit shop windows. Each can glow (an emissive material), but only a few real lights can light the street before the frame rate suffers. LightPool3D keeps [member count] lights on the points that matter most: the nearest, with stronger points counting from further away.
+		Add a light as its child, set up as each point should light (a [SpotLight3D] pointing down, for a street lamp): the pool's lights are copies of it, and it stays hidden. Then add the points, in the pool's own frame (map coordinates when the pool sits at the world's origin):
+		[codeblock]
+		for lamp in street_lamps:
+		    $LampPool.add_point(lamp.position, lamp.strength)
+		[/codeblock]
+		Points rank by their distance from the [member observer] over the square root of their strength. A light keeps its point while that point is still among the best, fades out as its rank nears that of the first point left without a light, and eases to each new brightness, so none pops on or off as the player moves. Use one pool for each kind of light (lamps, shopfronts, screens), each with its own template and count.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="add_point">
+			<return type="int" />
+			<param index="0" name="position" type="Vector3" />
+			<param index="1" name="strength" type="float" default="1.0" />
+			<param index="2" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<description>
+				Adds a point that can have a light, at [param position] in the pool's frame, and returns its ID. [param strength] scales its light's brightness, and its range by its square root (a street light 1, a dimmer lamp less), and [param color] tints it. A point of strength 0 never gets a light.
+			</description>
+		</method>
+		<method name="clear_points">
+			<return type="void" />
+			<description>
+				Removes every point. Their lights fade out.
+			</description>
+		</method>
+		<method name="get_lit_point" qualifiers="const">
+			<return type="int" />
+			<param index="0" name="light" type="int" />
+			<description>
+				The point the pool's [param light]th light is on, or -1.
+			</description>
+		</method>
+		<method name="get_point_color" qualifiers="const">
+			<return type="Color" />
+			<param index="0" name="id" type="int" />
+			<description>
+				A point's colour.
+			</description>
+		</method>
+		<method name="get_point_count" qualifiers="const">
+			<return type="int" />
+			<description>
+				How many points there are.
+			</description>
+		</method>
+		<method name="get_point_strength" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="id" type="int" />
+			<description>
+				A point's strength.
+			</description>
+		</method>
+		<method name="remove_point">
+			<return type="void" />
+			<param index="0" name="id" type="int" />
+			<description>
+				Removes a point. Its light fades out and moves on.
+			</description>
+		</method>
+		<method name="set_point_color">
+			<return type="void" />
+			<param index="0" name="id" type="int" />
+			<param index="1" name="color" type="Color" />
+			<description>
+				Changes a point's colour, which its light takes at once: a video screen's light following its pictures, say.
+			</description>
+		</method>
+		<method name="set_point_strength">
+			<return type="void" />
+			<param index="0" name="id" type="int" />
+			<param index="1" name="strength" type="float" />
+			<description>
+				Changes a point's strength. At 0 it loses its light, which fades out (a shop shutting for the night); turned up again, it can have one back at the next ranking.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="brightness" type="float" setter="set_brightness" getter="get_brightness" default="1.0">
+			Scales every light: fade the pool in at dusk with it, from 0 to 1.
+		</member>
+		<member name="count" type="int" setter="set_count" getter="get_count" default="16">
+			How many real lights the pool has.
+		</member>
+		<member name="height_weight" type="float" setter="set_height_weight" getter="get_height_weight" default="1.0">
+			How much height counts in a point's distance. Above 1, points far above or below the observer rank further away: under a viaduct, its own lamps overhead would otherwise take every light from the street beneath.
+		</member>
+		<member name="observer" type="Node3D" setter="set_observer" getter="get_observer">
+			What the points are ranked round: the player, or what the camera follows. Unless set, the viewport's camera.
+		</member>
+		<member name="reach" type="float" setter="set_reach" getter="get_reach" default="200.0">
+			Metres within which points can get a light, by their rank.
+		</member>
+		<member name="reach_above" type="float" setter="set_reach_above" getter="get_reach_above" default="0.0">
+			Metres above the observer past which points never get a light, or 0 for no limit. The pool's lights are best without shadows, so a lamp on a deck overhead would light the street beneath through it.
+		</member>
+	</members>
+</class>

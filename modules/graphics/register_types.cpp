@@ -1,6 +1,7 @@
 #include "register_types.h"
 
 #include "dynamic_resolution.h"
+#include "frame_budget.h"
 #include "recommended_graphics.h"
 #include "recommended_graphics_benchmark.h"
 
@@ -9,6 +10,7 @@
 
 static RecommendedGraphics *recommended_graphics = nullptr;
 static DynamicResolution *dynamic_resolution = nullptr;
+static FrameBudget *frame_budget = nullptr;
 
 void initialize_graphics_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
@@ -19,11 +21,16 @@ void initialize_graphics_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(DynamicResolution);
 		dynamic_resolution = memnew(DynamicResolution);
 		Engine::get_singleton()->add_singleton(Engine::Singleton("DynamicResolution", DynamicResolution::get_singleton()));
+		GDREGISTER_CLASS(FrameBudget);
+		frame_budget = memnew(FrameBudget);
+		Engine::get_singleton()->add_singleton(Engine::Singleton("FrameBudget", FrameBudget::get_singleton()));
 	}
 }
 
 void uninitialize_graphics_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
+		memdelete(frame_budget);
+		frame_budget = nullptr;
 		memdelete(dynamic_resolution);
 		dynamic_resolution = nullptr;
 		memdelete(recommended_graphics);

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="ReflectionProbePool" inherits="Node3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Reflection probes at the nearest of many sites round the player.
+	</brief_description>
+	<description>
+		Wet streets, glass and car paint should reflect the place round them, but a large world can't have probes everywhere, and screen-space reflections only show what's on screen. ReflectionProbePool places [member count] probes at the sites nearest the [member observer], and moves them as the player goes.
+		Add a [ReflectionProbe] as its child, set up as every probe should be (box projection, blend distance, which layers it captures): the pool's probes are copies of it, and it stays hidden. Then add the sites, in the pool's own frame (map coordinates when the pool sits at the world's origin):
+		[codeblock]
+		for junction in junctions:
+		    $Reflections.add_site(Transform3D(junction.basis, junction.position + Vector3.UP * 9.0), Vector3(junction.width, 18.0, junction.width), Vector3(0, -7.5, 0))
+		[/codeblock]
+		Capturing a probe draws the scene round it, so new probes are placed one a frame. Leave what moves (traffic, people) out of the template's [member ReflectionProbe.cull_mask]: captured once, a car would stay in every puddle. Call [method recapture] when the light changes enough to show (the time of day, the weather).
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="add_site">
+			<return type="int" />
+			<param index="0" name="transform" type="Transform3D" />
+			<param index="1" name="size" type="Vector3" />
+			<param index="2" name="origin_offset" type="Vector3" default="Vector3(0, 0, 0)" />
+			<description>
+				Adds a place a probe can go, and returns its ID: the probe's [param transform] (the middle of its box) in the pool's frame, its box's [param size], and where it captures from, as [member ReflectionProbe.origin_offset] (a driver's eye over a road, say).
+			</description>
+		</method>
+		<method name="clear_sites">
+			<return type="void" />
+			<description>
+				Removes every site and its probe.
+			</description>
+		</method>
+		<method name="get_placed_sites" qualifiers="const">
+			<return type="PackedInt32Array" />
+			<description>
+				The sites that have a probe now, in order.
+			</description>
+		</method>
+		<method name="get_site_count" qualifiers="const">
+			<return type="int" />
+			<description>
+				How many sites there are.
+			</description>
+		</method>
+		<method name="recapture">
+			<return type="void" />
+			<description>
+				Captures every probe again, one a frame: after a change of light that their reflections should show.
+			</description>
+		</method>
+		<method name="remove_site">
+			<return type="void" />
+			<param index="0" name="id" type="int" />
+			<description>
+				Removes a site, and its probe if it has one.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="count" type="int" setter="set_count" getter="get_count" default="8">
+			How many probes the pool places at once.
+		</member>
+		<member name="height_reach" type="float" setter="set_height_reach" getter="get_height_reach" default="0.0">
+			Metres above or below the observer past which sites are left out, or 0 for no limit: on an expressway, the junctions of the street beneath aren't its own.
+		</member>
+		<member name="observer" type="Node3D" setter="set_observer" getter="get_observer">
+			What the sites are chosen round: the player, or what the camera follows. Unless set, the viewport's camera.
+		</member>
+		<member name="reach" type="float" setter="set_reach" getter="get_reach" default="150.0">
+			Metres within which sites can get a probe.
+		</member>
+	</members>
+</class>

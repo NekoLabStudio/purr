@@ -52,3 +52,36 @@ It measures how long the GPU takes to draw the 3D world, so it works with vertic
 It changes the main viewport unless you set `viewport`, for a game that draws its 3D world in a `SubViewport` (a headset's view drawn in one with `use_xr`, say).
 
 It works with any upscaler. If the viewport has none, it uses the platform's while it's on. Temporal upscalers (FSR 2 and MetalFX's, with TAA) hide the changes best; in VR, where TAA smears as the head turns, it uses a spatial one. Turning it off puts the viewport's own upscaler and scale back. It pauses while `benchmark()` runs, so each tier is measured as it is.
+
+## Long frames
+
+`FrameBudget` says what made a frame long. Time your game's heavy work by name:
+
+```gdscript
+var started := Time.get_ticks_usec()
+rebuild_paths()
+FrameBudget.measure("paths", started)
+```
+
+A frame taking 40 ms or more (`frame_budget/long_frame_ms`) then prints what took its time, once a second at most:
+
+```
+Long frame: 63 ms (city 30.4 ms, paths 12.1 ms; the rest drawing and the engine's own).
+```
+
+Reports are on in debug builds, except headless ones, whose frames draw nothing. In release builds, turn on `frame_budget/report_in_release_builds`, or set `FrameBudget.reporting` from a playtest option. The `long_frame` signal gives each long frame with its measured work, to show in your own overlay or send with a bug report.
+
+## Spreading heavy work
+
+Work that can wait, such as building collision for what just loaded, runs a slice at a time within a budget each frame:
+
+```gdscript
+func _make_solid() -> bool:
+	add_collision(waiting.pop_back())
+	return not waiting.is_empty() # true: more to do next time
+
+func _ready() -> void:
+	FrameBudget.spread("collision", _make_solid, 2.0) # 2 ms a frame
+```
+
+The step is called again and again until it returns `false` or its object is freed. While nobody can see a slow frame (a fade to black, a loading screen), set `FrameBudget.screen_hidden` and spread work gets six times its budget.

@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[sub_resource type="BoxMesh" id="box"]
+resource_local_to_scene = true
+size = Vector3(20, 2, 20)
+
+[node name="Far" type="Node3D"]
+
+[node name="Block" type="MeshInstance3D" parent="."]
+mesh = SubResource("box")

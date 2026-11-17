@@ -9,6 +9,13 @@ together when the version is tagged.
 
 - `InputBindings`: players change their controls and keep them, saved in the user folder over your Input Map's defaults. Controllers are found by name rather than number, axes can be calibrated, sets of bindings switch on with contexts, and each local player can have their own controllers and bindings. See [Controls](/modules/controls/).
 - Button prompts for whatever controller the player is holding (Xbox, PlayStation, Nintendo, Steam Deck, keyboard and mouse, and Logitech's G29, G920 and G923 wheels), as an `InputPrompt` node, an image or inline in text. Purr ships Kenney's Input Prompts in a vector style and a pixel art one, and games can use their own images.
+- `FrameBudget`: time your game's heavy work by name, and a long frame prints what took its time. Work that can wait runs a slice at a time within a budget each frame. See [Graphics settings](/modules/graphics/#long-frames).
+- `WorldOrigin`: a floating origin for large worlds. The world shifts back under the player in whole steps, with map positions to save and send, and a `map_offset` shader global. See [Large worlds](/modules/world/).
+- `RenderingServer.scenario_shift()` and `PhysicsServer3D.space_shift()` move everything in a scenario or physics space at once, which `WorldOrigin` uses: a shift of a large world costs a fraction of moving it node by node. `space_shift()` works with Jolt; with Godot Physics it returns `false` and objects move one by one.
+- `WorldStreamer`: loads a large world's cells round the player in the background, joining them a few nodes a frame, with lighter far scenes beyond. See [Large worlds](/modules/world/#streaming).
+- `MultiMeshBody3D`: collision for each instance of a `MultiMesh`, made a few dozen shapes a frame. See [Large worlds](/modules/world/#props-with-collision).
+- `LightPool3D`: a few real lights kept on the best of thousands of light points round the player, fading as they move. See [Large worlds](/modules/world/#lights-at-night).
+- `ReflectionProbePool`: reflection probes at the nearest of many sites round the player, placed and captured one a frame. See [Large worlds](/modules/world/#reflections).
 
 ## Changes to check
 
