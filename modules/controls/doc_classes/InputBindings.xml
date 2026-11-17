@@ -1,0 +1,434 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="InputBindings" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		The player's own controls: bindings over the Input Map, saved for each player, with button prompts for whatever controller they're using.
+	</brief_description>
+	<description>
+		The game's defaults are its Input Map (Project Settings &gt; Input Map), and optionally a defaults file ([code]input_devices/bindings/defaults[/code], JSON) that can calibrate axes and add [i]contexts[/i]: sets of bindings that only apply while the game says (driving a manual, say). Each player's changes are saved in the user folder and loaded over the defaults; actions the game adds later get their defaults, and actions it drops are forgotten.
+		A binding is a [Dictionary], saved as readable JSON:
+		[codeblock]
+		{"key": "W"}                                   # a key, by where it is (Godot's name for it)
+		{"mouse": "left"}                              # left, right, middle, wheel_up, wheel_down, back or forward
+		{"device": "gamepad", "button": "a"}           # a joypad button, by name or number
+		{"device": "gamepad", "axis": "left_x", "from": 0.0, "to": -1.0, "deadzone": 0.1, "curve": 1.5}
+		{"device": "Logitech G923", "hat": "up"}       # a steering wheel's hat
+		[/codeblock]
+		[code]"device"[/code] is a joypad's name (with its [code]"guid"[/code] where known), so a binding follows its controller between sessions and ports, or [code]"gamepad"[/code] for any controller, never a steering wheel (some read as gamepads, their pedals as triggers). Buttons are named as Godot names them, by position: [code]"a"[/code] is the bottom face button whatever it says on it. An axis maps raw values from [code]"from"[/code] to [code]"to"[/code] (which covers its range and which way it goes), ignores the first [code]"deadzone"[/code] of its travel, and with a [code]"curve"[/code] above 1 is progressive.
+		Player 1's bindings are put into the Input Map, so [method Input.is_action_pressed] and the rest work as usual. Every player's are read with [method get_value], [method is_pressed] and the like. Player 1 has the keyboard, the mouse and every controller nobody else has; give a local player their own with [method set_player_devices], and their own saved bindings with [method set_player_profile]. Presses the game makes itself, with [method Input.action_press] or an [InputEventAction], count for player 1.
+		Each binding has a prompt: an image for the controller the player is using ([method get_prompt], or an [InputPrompt] node), or words ([method describe]). Purr's images are Kenney's Input Prompts, in a crisp vector style or a 16 by 16 pixel one ([code]input_devices/prompts/style[/code]); a game can use its own with an [InputPromptSet]. Steering wheels Purr knows name their own buttons ("Right paddle", "Gear 3") and show icons where a button wears one.
+		Godot's own menu movement ([code]ui_up[/code] and the rest) is kept to controllers: a steering wheel no longer moves the highlight round the menus with its pedals.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="bind">
+			<return type="void" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="binding" type="Dictionary" />
+			<param index="2" name="player" type="int" default="0" />
+			<param index="3" name="context" type="String" default="&quot;&quot;" />
+			<description>
+				Adds a binding to an action, for a player, and saves it. An input already bound to the action isn't added twice.
+			</description>
+		</method>
+		<method name="cancel_capture">
+			<return type="void" />
+			<description>
+				Stops a [method capture] under way; it completes with [code]error[/code] [code]"cancelled"[/code].
+			</description>
+		</method>
+		<method name="capture">
+			<return type="Signal" />
+			<param index="0" name="player" type="int" default="0" />
+			<description>
+				Waits for the next key, mouse button, joypad button or axis movement on the player's devices, to bind. Await it: the result has [code]ok[/code] and the [code]binding[/code]. An axis counts once it moves well away from where it rested, and comes back calibrated from rest to the far end. Escape cancels ([code]error[/code] [code]"cancelled"[/code]).
+			</description>
+		</method>
+		<method name="describe">
+			<return type="String" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				The name of what the player presses for an action now, on the controller they're using: [code]"Space"[/code], [code]"Right Shoulder"[/code], [code]"Gear 3"[/code]. Empty if it isn't bound.
+			</description>
+		</method>
+		<method name="describe_binding">
+			<return type="String" />
+			<param index="0" name="binding" type="Dictionary" />
+			<description>
+				A binding in words. Keys are named as the player's keyboard layout prints them, and steering wheels Purr knows name their own buttons.
+			</description>
+		</method>
+		<method name="export_bindings">
+			<return type="Dictionary" />
+			<param index="0" name="player" type="int" default="0" />
+			<description>
+				A player's whole set of bindings, as they're saved: [code]{"bindings": {...}, "contexts": {...}}[/code]. For presets the player can pick, or sharing a set between players.
+			</description>
+		</method>
+		<method name="get_actions">
+			<return type="PackedStringArray" />
+			<description>
+				The actions this manages: the Input Map's own (not Godot's [code]ui_*[/code]) and the defaults file's.
+			</description>
+		</method>
+		<method name="get_actions_using">
+			<return type="PackedStringArray" />
+			<param index="0" name="binding" type="Dictionary" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				The actions that a binding's input also works, for a player: for warning that an input is already in use.
+			</description>
+		</method>
+		<method name="get_active_bindings">
+			<return type="Dictionary[]" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				An action's bindings that apply now for a player: its own and those of the active contexts.
+			</description>
+		</method>
+		<method name="get_axis">
+			<return type="float" />
+			<param index="0" name="negative_action" type="StringName" />
+			<param index="1" name="positive_action" type="StringName" />
+			<param index="2" name="player" type="int" default="0" />
+			<description>
+				[method get_value] of [param positive_action] less that of [param negative_action], for a player.
+			</description>
+		</method>
+		<method name="get_binding_devices">
+			<return type="PackedInt32Array" />
+			<param index="0" name="binding" type="Dictionary" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				The connected joypads a binding means, for a player.
+			</description>
+		</method>
+		<method name="get_binding_events">
+			<return type="InputEvent[]" />
+			<param index="0" name="binding" type="Dictionary" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				The input events a binding becomes on a player's devices.
+			</description>
+		</method>
+		<method name="get_binding_prompt">
+			<return type="Texture2D" />
+			<param index="0" name="binding" type="Dictionary" />
+			<param index="1" name="player" type="int" default="0" />
+			<param index="2" name="size" type="int" default="0" />
+			<description>
+				A binding's prompt image, as it shows on the controller it's on (else the one the player is using), [param size] pixels high in the standard style (0: [code]input_devices/prompts/size[/code]). Null where there's no image: show [method describe_binding] instead.
+			</description>
+		</method>
+		<method name="get_binding_value">
+			<return type="float" />
+			<param index="0" name="binding" type="Dictionary" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				How far a binding is pressed now, for a player, from 0 to 1.
+			</description>
+		</method>
+		<method name="get_bindings">
+			<return type="Dictionary[]" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="player" type="int" default="0" />
+			<param index="2" name="context" type="String" default="&quot;&quot;" />
+			<description>
+				An action's bindings, for a player (their own, or the game's defaults): those that always apply, or a [param context]'s.
+			</description>
+		</method>
+		<method name="get_device_family">
+			<return type="int" enum="InputBindings.DeviceFamily" />
+			<param index="0" name="device" type="int" />
+			<description>
+				What kind of controller a device is ([constant KEYBOARD] for the keyboard and mouse).
+			</description>
+		</method>
+		<method name="get_device_name">
+			<return type="String" />
+			<param index="0" name="device" type="int" />
+			<description>
+				A device's name, for the player to recognise: [code]"Keyboard and mouse"[/code], a wheel's model, or the name the controller gives.
+			</description>
+		</method>
+		<method name="get_device_player">
+			<return type="int" />
+			<param index="0" name="device" type="int" />
+			<description>
+				The local player a device belongs to: player 1 (0) unless [method set_player_devices] gave it to another, or -1 if nobody has it (once player 1 has devices of their own).
+			</description>
+		</method>
+		<method name="get_events">
+			<return type="InputEvent[]" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				The input events of an action's bindings on a player's devices: for adding them to other actions (a game's menu controls to Godot's [code]ui_*[/code]).
+			</description>
+		</method>
+		<method name="get_player_devices">
+			<return type="PackedInt32Array" />
+			<param index="0" name="player" type="int" />
+			<description>
+				The devices a player has now: [constant KEYBOARD] and joypad numbers.
+			</description>
+		</method>
+		<method name="get_player_family">
+			<return type="int" enum="InputBindings.DeviceFamily" />
+			<param index="0" name="player" type="int" />
+			<description>
+				What kind of controller the player used last.
+			</description>
+		</method>
+		<method name="get_player_last_device">
+			<return type="int" />
+			<param index="0" name="player" type="int" />
+			<description>
+				The device the player used last.
+			</description>
+		</method>
+		<method name="get_player_profile">
+			<return type="String" />
+			<param index="0" name="player" type="int" />
+			<description>
+				The name a player's bindings are saved under.
+			</description>
+		</method>
+		<method name="get_prompt">
+			<return type="Texture2D" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="player" type="int" default="0" />
+			<param index="2" name="size" type="int" default="0" />
+			<description>
+				An action's prompt image for a player now, on the controller they're using (see [method get_binding_prompt]).
+			</description>
+		</method>
+		<method name="get_prompt_binding">
+			<return type="Dictionary" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				The binding a player would use for an action now: on the keyboard if that's what they used last, else on their controller.
+			</description>
+		</method>
+		<method name="get_value">
+			<return type="float" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				How far an action is pressed for a player, from 0 to 1: the strongest of its bindings on their devices, axes calibrated.
+			</description>
+		</method>
+		<method name="get_vector">
+			<return type="Vector2" />
+			<param index="0" name="negative_x" type="StringName" />
+			<param index="1" name="positive_x" type="StringName" />
+			<param index="2" name="negative_y" type="StringName" />
+			<param index="3" name="positive_y" type="StringName" />
+			<param index="4" name="player" type="int" default="0" />
+			<description>
+				A direction from four actions, for a player, no longer than 1.
+			</description>
+		</method>
+		<method name="has_axis">
+			<return type="bool" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				Whether an action is bound to an axis of a joypad the player has (a handbrake on a real lever, held rather than switched).
+			</description>
+		</method>
+		<method name="import_bindings">
+			<return type="void" />
+			<param index="0" name="bindings" type="Dictionary" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				Sets a player's whole set of bindings at once, as [method export_bindings] gives them (and the defaults file has them), and saves. Actions it leaves out keep the game's defaults.
+			</description>
+		</method>
+		<method name="is_axis_heard">
+			<return type="bool" />
+			<param index="0" name="device" type="int" />
+			<param index="1" name="axis" type="int" />
+			<description>
+				Whether a joypad's axis has reported since it was plugged in. Until then Godot reads it as 0, which isn't where it rests (a pedal rests at one end): [method get_value] reads an axis it hasn't heard as at rest.
+			</description>
+		</method>
+		<method name="is_capturing" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Whether a [method capture] is under way.
+			</description>
+		</method>
+		<method name="is_context_active" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="context" type="String" />
+			<description>
+				Whether a context's bindings apply now.
+			</description>
+		</method>
+		<method name="is_customised">
+			<return type="bool" />
+			<param index="0" name="player" type="int" default="0" />
+			<description>
+				Whether a player has changed their bindings from the game's defaults.
+			</description>
+		</method>
+		<method name="is_digital">
+			<return type="bool" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				Whether an action's strongest input now is a key or button, which jumps straight to full, rather than an axis.
+			</description>
+		</method>
+		<method name="is_just_pressed">
+			<return type="bool" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				Whether an action was pressed for a player this frame, or this physics tick when asked from [method Node._physics_process], as [method Input.is_action_just_pressed] does.
+			</description>
+		</method>
+		<method name="is_just_released">
+			<return type="bool" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				Whether an action was let go for a player this frame, or this physics tick when asked from [method Node._physics_process].
+			</description>
+		</method>
+		<method name="is_pressed">
+			<return type="bool" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="player" type="int" default="0" />
+			<description>
+				Whether an action is pressed for a player (an axis past half way).
+			</description>
+		</method>
+		<method name="is_steering_wheel">
+			<return type="bool" />
+			<param index="0" name="device" type="int" />
+			<description>
+				Whether a joypad is a steering wheel: one Purr knows by its USB IDs, or one calling itself a wheel.
+			</description>
+		</method>
+		<method name="reset">
+			<return type="void" />
+			<param index="0" name="player" type="int" default="0" />
+			<description>
+				Puts a player's bindings back to the game's defaults, deleting what they saved.
+			</description>
+		</method>
+		<method name="set_bindings">
+			<return type="void" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="bindings" type="Dictionary[]" />
+			<param index="2" name="player" type="int" default="0" />
+			<param index="3" name="context" type="String" default="&quot;&quot;" />
+			<description>
+				Sets an action's bindings for a player (those that always apply, or a [param context]'s), and saves them.
+			</description>
+		</method>
+		<method name="set_context_active">
+			<return type="void" />
+			<param index="0" name="context" type="String" />
+			<param index="1" name="active" type="bool" />
+			<description>
+				Turns a context's bindings on or off (the contexts in the defaults file).
+			</description>
+		</method>
+		<method name="set_player_devices">
+			<return type="void" />
+			<param index="0" name="player" type="int" />
+			<param index="1" name="devices" type="PackedInt32Array" />
+			<description>
+				Gives a player these devices ([constant KEYBOARD] and joypad numbers), taking them from anyone who had them. Player 1 has whatever nobody else has until they're given devices of their own; then a controller nobody has belongs to nobody, so it can ask to join without moving player 1. An empty list gives a player back what they have by default.
+			</description>
+		</method>
+		<method name="set_player_profile">
+			<return type="void" />
+			<param index="0" name="player" type="int" />
+			<param index="1" name="profile" type="String" />
+			<description>
+				Sets the name a player's bindings are saved under, so each of a game's players or profiles keeps their own. Players start with [code]"default"[/code], shared.
+			</description>
+		</method>
+		<method name="show_prompts_in">
+			<return type="void" />
+			<param index="0" name="label" type="RichTextLabel" />
+			<param index="1" name="text" type="String" />
+			<param index="2" name="player" type="int" default="0" />
+			<param index="3" name="size" type="int" default="0" />
+			<description>
+				Shows [param text] in a [RichTextLabel] with each [code]{action}[/code] as its prompt for the player (or in words where it has no image), as tall as the label's text or [param size]. Show it again when [signal player_family_changed] or [signal bindings_changed] fires.
+			</description>
+		</method>
+		<method name="unbind">
+			<return type="void" />
+			<param index="0" name="action" type="StringName" />
+			<param index="1" name="binding" type="Dictionary" />
+			<param index="2" name="player" type="int" default="0" />
+			<param index="3" name="context" type="String" default="&quot;&quot;" />
+			<description>
+				Removes a binding from an action, for a player, and saves it.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="save_folder" type="String" setter="set_save_folder" getter="get_save_folder">
+			Where players' bindings are saved, one file for each profile ([method set_player_profile]): [code]user://input_bindings[/code] by default. A game that keeps its saves somewhere of its own (a folder its tests or a development copy redirect) can put the controls with them.
+		</member>
+	</members>
+	<signals>
+		<signal name="bindings_changed">
+			<param index="0" name="player" type="int" />
+			<description>
+				A player's bindings changed: they rebound something, reset, or a context turned on or off.
+			</description>
+		</signal>
+		<signal name="devices_changed">
+			<description>
+				A controller was plugged in or out, or devices were given to another player.
+			</description>
+		</signal>
+		<signal name="player_family_changed">
+			<param index="0" name="player" type="int" />
+			<param index="1" name="family" type="int" enum="InputBindings.DeviceFamily" />
+			<description>
+				A player picked up another kind of controller: time for other prompts.
+			</description>
+		</signal>
+	</signals>
+	<constants>
+		<constant name="KEYBOARD" value="-1">
+			The keyboard and mouse, where a device number is asked for.
+		</constant>
+		<constant name="FAMILY_KEYBOARD" value="0" enum="DeviceFamily">
+			A keyboard and mouse.
+		</constant>
+		<constant name="FAMILY_XBOX" value="1" enum="DeviceFamily">
+			An Xbox controller.
+		</constant>
+		<constant name="FAMILY_PLAYSTATION_4" value="2" enum="DeviceFamily">
+			A PlayStation 4 controller (or an older one).
+		</constant>
+		<constant name="FAMILY_PLAYSTATION_5" value="3" enum="DeviceFamily">
+			A PlayStation 5 controller.
+		</constant>
+		<constant name="FAMILY_NINTENDO" value="4" enum="DeviceFamily">
+			A Nintendo controller: its bottom button says B and its right one A, and prompts show what's printed.
+		</constant>
+		<constant name="FAMILY_STEAM_DECK" value="5" enum="DeviceFamily">
+			A Steam Deck's own controls.
+		</constant>
+		<constant name="FAMILY_STEERING_WHEEL" value="6" enum="DeviceFamily">
+			A steering wheel.
+		</constant>
+		<constant name="FAMILY_GENERIC" value="7" enum="DeviceFamily">
+			Any other controller, shown with Xbox prompts (SDL reads it in that layout).
+		</constant>
+	</constants>
+</class>

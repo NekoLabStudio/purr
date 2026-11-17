@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="InputPromptSet" inherits="Resource" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		A game's own button prompt images, over Purr's.
+	</brief_description>
+	<description>
+		Maps a control to an image: [code]"family/control"[/code], such as [code]"xbox/a"[/code], [code]"playstation5/left_trigger"[/code], [code]"keyboard/space"[/code] or [code]"mouse/left"[/code]. Families are [code]xbox[/code], [code]playstation4[/code], [code]playstation5[/code], [code]nintendo[/code], [code]steam_deck[/code], [code]keyboard[/code] and [code]mouse[/code]. A controller's controls are Godot's button names ([code]a[/code], [code]start[/code], [code]dpad_up[/code]), the sticks' directions ([code]left_stick_right[/code]), [code]left_trigger[/code] and [code]right_trigger[/code]; keys are Godot's key names in lower case ([code]space[/code], [code]kp_enter[/code]). Anything it leaves out shows Purr's own. Set it in Project Settings ([code]input_devices/prompts/custom_set[/code]).
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_image" qualifiers="const">
+			<return type="Texture2D" />
+			<param index="0" name="control" type="String" />
+			<description>
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="images" type="Dictionary" setter="set_images" getter="get_images" default="{}">
+			Each control's image.
+		</member>
+	</members>
+</class>

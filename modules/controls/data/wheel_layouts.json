@@ -1,0 +1,65 @@
+{
+	"about": "Steering wheels' buttons by their own numbers (as Godot reports a wheel it reads as a plain joystick, or Purr reads its own buttons): a name for each, and an icon (family/control, prompt_images.py) where the button wears one. Keyed by USB vendor:product. A wheel SDL reads as a gamepad comes in its layout instead, and faces says whose icons its face buttons wear.",
+	"layouts": {
+		"logitech_playstation": {
+			"faces": "playstation4",
+			"buttons": {
+				"0": {"name": "Cross", "icon": "playstation4/a"},
+				"1": {"name": "Square", "icon": "playstation4/x"},
+				"2": {"name": "Circle", "icon": "playstation4/b"},
+				"3": {"name": "Triangle", "icon": "playstation4/y"},
+				"4": {"name": "Right paddle"},
+				"5": {"name": "Left paddle"},
+				"6": {"name": "R2", "icon": "playstation4/right_trigger"},
+				"7": {"name": "L2", "icon": "playstation4/left_trigger"},
+				"8": {"name": "Share", "icon": "playstation4/back"},
+				"9": {"name": "Options", "icon": "playstation4/start"},
+				"10": {"name": "R3", "icon": "playstation4/right_stick_press"},
+				"11": {"name": "L3", "icon": "playstation4/left_stick_press"},
+				"12": {"name": "Gear 1"},
+				"13": {"name": "Gear 2"},
+				"14": {"name": "Gear 3"},
+				"15": {"name": "Gear 4"},
+				"16": {"name": "Gear 5"},
+				"17": {"name": "Gear 6"},
+				"18": {"name": "Reverse"},
+				"19": {"name": "Plus"},
+				"20": {"name": "Minus"},
+				"21": {"name": "Dial right"},
+				"22": {"name": "Dial left"},
+				"23": {"name": "Enter"},
+				"24": {"name": "PlayStation button"}
+			}
+		},
+		"logitech_xbox": {
+			"faces": "xbox",
+			"buttons": {
+				"0": {"name": "A", "icon": "xbox/a"},
+				"1": {"name": "B", "icon": "xbox/b"},
+				"2": {"name": "X", "icon": "xbox/x"},
+				"3": {"name": "Y", "icon": "xbox/y"},
+				"4": {"name": "Right paddle"},
+				"5": {"name": "Left paddle"},
+				"6": {"name": "Menu", "icon": "xbox/start"},
+				"7": {"name": "View", "icon": "xbox/back"},
+				"8": {"name": "RSB", "icon": "xbox/right_stick_press"},
+				"9": {"name": "LSB", "icon": "xbox/left_stick_press"},
+				"10": {"name": "Xbox button", "icon": "xbox/guide"},
+				"12": {"name": "Gear 1"},
+				"13": {"name": "Gear 2"},
+				"14": {"name": "Gear 3"},
+				"15": {"name": "Gear 4"},
+				"16": {"name": "Gear 5"},
+				"17": {"name": "Gear 6"},
+				"18": {"name": "Reverse"}
+			}
+		}
+	},
+	"wheels": {
+		"046D:C24F": {"name": "Logitech G29", "layout": "logitech_playstation"},
+		"046D:C266": {"name": "Logitech G923", "layout": "logitech_playstation"},
+		"046D:C267": {"name": "Logitech G923", "layout": "logitech_playstation"},
+		"046D:C262": {"name": "Logitech G920", "layout": "logitech_xbox"},
+		"046D:C26E": {"name": "Logitech G923", "layout": "logitech_xbox"}
+	}
+}

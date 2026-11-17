@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="InputPrompt" inherits="Control" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Shows what to press for an action, on the controller the player is using.
+	</brief_description>
+	<description>
+		Shows an action's prompt for a player (see [method InputBindings.get_prompt]): its image, or its name where it has none ("Gear 3"). It follows the player as they pick up another controller or change their bindings. With the pixel style ([code]input_devices/prompts/style[/code]) it draws with nearest filtering.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="action" type="StringName" setter="set_action" getter="get_action" default="&amp;&quot;&quot;">
+			The action to show the prompt of.
+		</member>
+		<member name="binding" type="Dictionary" setter="set_binding" getter="get_binding" default="{}">
+			A binding to show instead of an action's (in a controls screen's list of bindings, say).
+		</member>
+		<member name="height" type="int" setter="set_height" getter="get_height" default="0">
+			How tall the prompt is, in pixels; 0 for [code]input_devices/prompts/size[/code] (16 in the pixel style).
+		</member>
+		<member name="mouse_filter" type="int" setter="set_mouse_filter" getter="get_mouse_filter" overrides="Control" enum="Control.MouseFilter" default="2" />
+		<member name="player" type="int" setter="set_player" getter="get_player" default="0">
+			The local player whose controller and bindings it shows (0 is player 1).
+		</member>
+	</members>
+</class>

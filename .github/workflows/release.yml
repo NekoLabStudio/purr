@@ -1,8 +1,9 @@
 # Builds and publishes a Purr release for a vX.Y.Z tag. The Prepare release workflow creates
 # the tag (on the commit that sets VERSION.txt and rolls the upgrade notes), which starts this.
 #
-# It builds the editors (macOS, Windows, Linux) and export templates (those three, iOS, Apple TV
-# and Android) into a draft release, then publishes it. If a build fails, the draft stays unpublished.
+# It builds the editors (macOS, Windows, Linux) and export templates (those three, iOS, Apple TV,
+# Apple Vision Pro and Android) into a draft release, each in its own job so they build side by
+# side, then publishes it. If a build fails, the draft stays unpublished.
 # A passing failure (a runner or network hiccup) is retried by running this workflow again for the
 # same tag (Actions > Release > Run workflow, choosing the tag), which builds that tag's commit again.
 # A failure in the code needs a fix on main and a new version: published tags never move.
@@ -89,8 +90,10 @@ jobs:
           tar -czf purr-online.tar.gz -C online --exclude node_modules --exclude .wrangler --exclude .dev.vars .
           gh release upload "$GITHUB_REF_NAME" purr-online.tar.gz
 
+  # The macOS editor, its templates and the iOS, Apple TV and Vision Pro templates build in
+  # parallel; apple-templates packs the templates into one Apple templates download.
   macos:
-    name: macOS
+    name: macOS editor
     needs: prepare
     runs-on: macos-26
     environment: release-build
@@ -115,11 +118,7 @@ jobs:
 
       - name: Build
         working-directory: godot
-        run: |
-          flags=(platform=macos arch=arm64 profile=../build/purr.py custom_modules=../modules "module_godotsteam_enabled=$STEAM" "-j$(sysctl -n hw.ncpu)")
-          scons "${flags[@]}" target=editor
-          scons "${flags[@]}" target=template_debug
-          scons "${flags[@]}" target=template_release production=yes lto=full
+        run: scons platform=macos arch=arm64 profile=../build/purr.py custom_modules=../modules "module_godotsteam_enabled=$STEAM" "-j$(sysctl -n hw.ncpu)" target=editor
 
       # Purr's OpenXR runtime (bin/libvr_runtime.dylib, from SCons) streams through this helper.
       - name: Build the VR streamer
@@ -127,35 +126,6 @@ jobs:
           cargo build --release --manifest-path modules/vr_streamer/streamer/Cargo.toml
           cp modules/vr_streamer/streamer/target/release/vr_streamer godot/bin/
           python3 support/streamer-notices.py aarch64-apple-darwin godot/bin/vr_streamer_notices.txt
-
-      - name: Build the Apple TV templates
-        working-directory: godot
-        run: |
-          tvos=(platform=tvos arch=arm64 profile=../build/purr.py custom_modules=../modules "-j$(sysctl -n hw.ncpu)")
-          # Devices only, for every Apple platform: a simulator build has neither Metal nor Vulkan
-          # (Godot turns them off there) and Purr leaves out the Compatibility renderer, so a
-          # simulator template couldn't draw anything.
-          scons "${tvos[@]}" target=template_debug
-          scons "${tvos[@]}" target=template_release production=yes lto=full
-          scons "${tvos[@]}" target=template_release production=yes lto=full generate_bundle=yes
-
-      - name: Build the Apple Vision Pro templates
-        working-directory: godot
-        run: |
-          visionos=(platform=visionos arch=arm64 profile=../build/purr.py custom_modules=../modules "-j$(sysctl -n hw.ncpu)")
-          # Devices only (see the Apple TV templates).
-          scons "${visionos[@]}" target=template_debug
-          scons "${visionos[@]}" target=template_release production=yes lto=full
-          scons "${visionos[@]}" target=template_release production=yes lto=full generate_bundle=yes
-
-      - name: Build the iOS templates
-        working-directory: godot
-        run: |
-          ios=(platform=ios arch=arm64 profile=../build/purr.py custom_modules=../modules "-j$(sysctl -n hw.ncpu)")
-          # Devices only (see the Apple TV templates).
-          scons "${ios[@]}" target=template_debug
-          scons "${ios[@]}" target=template_release production=yes lto=full
-          scons "${ios[@]}" target=template_release production=yes lto=full generate_bundle=yes
 
       - name: Check the editor starts
         run: |
@@ -228,6 +198,44 @@ jobs:
           codesign --force --sign - dist/Purr.app/Contents/MacOS/libvr_runtime.dylib dist/Purr.app/Contents/MacOS/vr_streamer
           codesign --force --entitlements godot/misc/dist/macos/editor.entitlements --sign - dist/Purr.app
 
+      - name: Upload to the release
+        run: |
+          ditto -c -k --keepParent dist/Purr.app "dist/purr-$VERSION-macos-editor.zip"
+          gh release upload "v$VERSION" "dist/purr-$VERSION-macos-editor.zip"
+
+  macos-templates:
+    name: macOS templates
+    needs: prepare
+    runs-on: macos-26
+    environment: release-build
+    timeout-minutes: 300
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Prepare the build
+        uses: ./.github/actions/prepare-build
+        with:
+          steamworks-sdk-url: ${{ secrets.STEAMWORKS_SDK_URL }}
+
+      - name: Install the Vulkan SDK
+        run: sh godot/misc/scripts/install_vulkan_sdk_macos.sh
+
+      - name: Build
+        working-directory: godot
+        run: |
+          flags=(platform=macos arch=arm64 profile=../build/purr.py custom_modules=../modules "module_godotsteam_enabled=$STEAM" "-j$(sysctl -n hw.ncpu)")
+          scons "${flags[@]}" target=template_debug
+          scons "${flags[@]}" target=template_release production=yes lto=full
+
+      # Purr's OpenXR runtime (bin/libvr_runtime.dylib, from SCons) streams through this helper.
+      - name: Build the VR streamer
+        run: |
+          cargo build --release --manifest-path modules/vr_streamer/streamer/Cargo.toml
+          cp modules/vr_streamer/streamer/target/release/vr_streamer godot/bin/
+          python3 support/streamer-notices.py aarch64-apple-darwin godot/bin/vr_streamer_notices.txt
+
       - name: Package the templates
         run: |
           app=dist/macos_template.app
@@ -237,23 +245,80 @@ jobs:
           cp godot/bin/godot.macos.template_release.arm64 "$app/Contents/MacOS/godot_macos_release.arm64"
           mkdir -p dist/templates
           (cd dist && zip -q -r -y templates/macos.zip macos_template.app)
-          cp godot/bin/godot_tvos.zip dist/templates/tvos.zip
-          cp godot/bin/godot_ios.zip dist/templates/ios.zip
-          cp godot/bin/godot_visionos.zip dist/templates/visionos.zip
           # Purr's export plugin adds Steam's library to every macOS export from here.
-          if [ "$STEAM" = yes ]; then cp godot/bin/libsteam_api.dylib dist/templates/; fi
+          if [ "$STEAM" = yes ]; then cp sdk/steamworks/redistributable_bin/osx/libsteam_api.dylib dist/templates/; fi
           # And the VR runtime and streamer to macOS exports that use them.
           mkdir -p dist/templates/vr_streamer/macos
           cp godot/bin/libvr_runtime.dylib godot/bin/vr_streamer godot/bin/vr_streamer_notices.txt dist/templates/vr_streamer/macos/
 
+      - name: Hand over to apple-templates
+        uses: actions/upload-artifact@v7
+        with:
+          name: apple-macos
+          path: dist/templates/
+          retention-days: 1
+
+  apple-devices:
+    name: Apple templates (${{ matrix.platform }})
+    needs: prepare
+    runs-on: macos-26
+    environment: release-build
+    timeout-minutes: 300
+    strategy:
+      matrix:
+        platform: [ios, tvos, visionos]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Prepare the build
+        uses: ./.github/actions/prepare-build
+        with:
+          steamworks-sdk-url: ${{ secrets.STEAMWORKS_SDK_URL }}
+
+      - name: Install the Vulkan SDK
+        run: sh godot/misc/scripts/install_vulkan_sdk_macos.sh
+
+      # Devices only, for every Apple platform: a simulator build has neither Metal nor Vulkan
+      # (Godot turns them off there) and Purr leaves out the Compatibility renderer, so a
+      # simulator template couldn't draw anything.
+      - name: Build
+        working-directory: godot
+        run: |
+          flags=(platform=${{ matrix.platform }} arch=arm64 profile=../build/purr.py custom_modules=../modules "-j$(sysctl -n hw.ncpu)")
+          scons "${flags[@]}" target=template_debug
+          scons "${flags[@]}" target=template_release production=yes lto=full
+          scons "${flags[@]}" target=template_release production=yes lto=full generate_bundle=yes
+          mkdir -p ../dist/templates
+          cp bin/godot_${{ matrix.platform }}.zip ../dist/templates/${{ matrix.platform }}.zip
+
+      - name: Hand over to apple-templates
+        uses: actions/upload-artifact@v7
+        with:
+          name: apple-${{ matrix.platform }}
+          path: dist/templates/
+          retention-days: 1
+
+  apple-templates:
+    name: Apple templates
+    needs: [prepare, macos-templates, apple-devices]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: apple-*
+          merge-multiple: true
+          path: dist/templates
+
+      # One download with every Apple platform's templates: macOS, iOS, Apple TV and Vision Pro.
       - name: Upload to the release
         run: |
-          ditto -c -k --keepParent dist/Purr.app "dist/purr-$VERSION-macos-editor.zip"
-          (cd dist/templates && zip -q -r "../purr-$VERSION-macos-templates.zip" .)
-          gh release upload "v$VERSION" "dist/purr-$VERSION-macos-editor.zip" "dist/purr-$VERSION-macos-templates.zip"
+          (cd dist/templates && zip -q -r "../purr-$VERSION-apple-templates.zip" .)
+          gh release upload "v$VERSION" "dist/purr-$VERSION-apple-templates.zip" --repo "$GITHUB_REPOSITORY"
 
   windows:
-    name: Windows
+    name: Windows editor
     needs: prepare
     runs-on: windows-latest
     environment: release-build
@@ -287,8 +352,6 @@ jobs:
         run: |
           flags=(platform=windows arch=x86_64 profile=../build/purr.py custom_modules=../modules "module_godotsteam_enabled=$STEAM" "-j$NUMBER_OF_PROCESSORS")
           scons "${flags[@]}" target=editor
-          scons "${flags[@]}" target=template_debug
-          scons "${flags[@]}" target=template_release production=yes lto=full
 
       - name: Check the editor starts
         run: |
@@ -298,30 +361,73 @@ jobs:
 
       - name: Package
         run: |
-          mkdir -p dist/editor dist/templates
+          mkdir -p dist/editor
           bin=godot/bin
           cp $bin/godot.windows.editor.x86_64.exe dist/editor/Purr.exe
           cp $bin/godot.windows.editor.x86_64.console.exe dist/editor/Purr_console.exe
-          for target in debug release; do
-            cp $bin/godot.windows.template_$target.x86_64.exe dist/templates/windows_${target}_x86_64.exe
-            cp $bin/godot.windows.template_$target.x86_64.console.exe dist/templates/windows_${target}_x86_64_console.exe
-          done
-          if [ "$STEAM" = yes ]; then
-            cp $bin/steam_api64.dll dist/editor/
-            # Purr's export plugin adds it to every Windows export from here.
-            cp $bin/steam_api64.dll dist/templates/
-          fi
+          if [ "$STEAM" = yes ]; then cp $bin/steam_api64.dll dist/editor/; fi
           d3d12="$(find $bin -name D3D12Core.dll | head -n 1)"
-          if [ -n "$d3d12" ]; then
-            cp "$d3d12" dist/editor/D3D12Core.dll
-            cp "$d3d12" dist/templates/D3D12Core.x86_64.dll
-          fi
+          if [ -n "$d3d12" ]; then cp "$d3d12" dist/editor/D3D12Core.dll; fi
 
       - name: Upload to the release
         run: |
           (cd dist/editor && 7z a -bso0 "../purr-$VERSION-windows-editor.zip" .)
+          gh release upload "v$VERSION" "dist/purr-$VERSION-windows-editor.zip"
+
+  windows-templates:
+    name: Windows templates
+    needs: prepare
+    runs-on: windows-latest
+    environment: release-build
+    timeout-minutes: 300
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      SCONS_CACHE_MSVC_CONFIG: true
+      PYTHONIOENCODING: utf8
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Prepare the build
+        uses: ./.github/actions/prepare-build
+        with:
+          steamworks-sdk-url: ${{ secrets.STEAMWORKS_SDK_URL }}
+
+      - name: Windows icons
+        run: |
+          cp branding/purr.ico godot/platform/windows/godot.ico
+          cp branding/purr.ico godot/platform/windows/godot_console.ico
+
+      - name: Install the Direct3D 12 SDK
+        working-directory: godot
+        run: python misc/scripts/install_d3d12_sdk_windows.py
+
+      - name: Build
+        working-directory: godot
+        run: |
+          flags=(platform=windows arch=x86_64 profile=../build/purr.py custom_modules=../modules "module_godotsteam_enabled=$STEAM" "-j$NUMBER_OF_PROCESSORS")
+          scons "${flags[@]}" target=template_debug
+          scons "${flags[@]}" target=template_release production=yes lto=full
+
+      - name: Package
+        run: |
+          mkdir -p dist/templates
+          bin=godot/bin
+          for target in debug release; do
+            cp $bin/godot.windows.template_$target.x86_64.exe dist/templates/windows_${target}_x86_64.exe
+            cp $bin/godot.windows.template_$target.x86_64.console.exe dist/templates/windows_${target}_x86_64_console.exe
+          done
+          # Purr's export plugin adds Steam's library to every Windows export from here.
+          if [ "$STEAM" = yes ]; then cp sdk/steamworks/redistributable_bin/win64/steam_api64.dll dist/templates/; fi
+          d3d12="$(find $bin -name D3D12Core.dll | head -n 1)"
+          if [ -n "$d3d12" ]; then cp "$d3d12" dist/templates/D3D12Core.x86_64.dll; fi
+
+      - name: Upload to the release
+        run: |
           (cd dist/templates && 7z a -bso0 "../purr-$VERSION-windows-templates.zip" .)
-          gh release upload "v$VERSION" "dist/purr-$VERSION-windows-editor.zip" "dist/purr-$VERSION-windows-templates.zip"
+          gh release upload "v$VERSION" "dist/purr-$VERSION-windows-templates.zip"
 
   linux:
     name: Linux
@@ -430,7 +536,7 @@ jobs:
 
   publish:
     name: Publish
-    needs: [prepare, macos, windows, linux, android]
+    needs: [prepare, macos, apple-templates, windows, windows-templates, linux, android]
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
