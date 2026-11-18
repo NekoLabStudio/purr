@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Scatter3D" inherits="MultiMeshInstance3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Copies of a mesh scattered over whatever is below a box.
+	</brief_description>
+	<description>
+		Fills a box with copies of [member mesh], each dropped from the top of the box onto the first surface below it: a physics body on [member surface_mask], or a [Terrain3D]. Copies land only where the surface is no steeper than [member max_slope], turned and sized at random within the limits set here, and are drawn as one [MultiMesh], so thousands cost little.
+		In the editor it scatters again whenever it's changed or moved, and the copies are saved with the scene, so a game doesn't place them again. A [Scatter3D] made in code scatters when it's ready; call [method scatter] to place its copies again after changing it or what's below it.
+		Set [member collision_shape] to make the copies solid.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_count" qualifiers="const">
+			<return type="int" />
+			<description>
+				The number of copies placed.
+			</description>
+		</method>
+		<method name="scatter">
+			<return type="void" />
+			<description>
+				Places the copies again, from the current settings and whatever is below the box now. The same [member seed] places them the same way over the same surfaces.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="align_to_surface" type="float" setter="set_align_to_surface" getter="get_align_to_surface" default="0.0">
+			How far copies lean with the surface they land on: [code]0.0[/code] stands them upright, [code]1.0[/code] tilts them to the surface, as a rock would lie.
+		</member>
+		<member name="collision_layer" type="int" setter="set_collision_layer" getter="get_collision_layer" default="1">
+			The physics layers the copies are on, when [member collision_shape] is set.
+		</member>
+		<member name="collision_shape" type="Shape3D" setter="set_collision_shape" getter="get_collision_shape">
+			A shape for each copy, placed and sized with it, to make the copies solid. They get their shapes through a [MultiMeshBody3D], so a hit reports that body.
+		</member>
+		<member name="density" type="float" setter="set_density" getter="get_density" default="1.0">
+			How many copies to try for each square metre of the box's floor. Fewer land where there's no surface below or it's too steep.
+		</member>
+		<member name="max_slope" type="float" setter="set_max_slope" getter="get_max_slope" default="45.0">
+			The steepest surface a copy lands on, in degrees.
+		</member>
+		<member name="mesh" type="Mesh" setter="set_mesh" getter="get_mesh">
+			The mesh to scatter.
+		</member>
+		<member name="random_rotation" type="bool" setter="set_random_rotation" getter="is_random_rotation" default="true">
+			If [code]true[/code], each copy is turned to a random direction about its up axis.
+		</member>
+		<member name="scale_max" type="float" setter="set_scale_max" getter="get_scale_max" default="1.0">
+			The largest a copy is scaled, picked at random between [member scale_min] and this.
+		</member>
+		<member name="scale_min" type="float" setter="set_scale_min" getter="get_scale_min" default="1.0">
+			The smallest a copy is scaled, picked at random between this and [member scale_max].
+		</member>
+		<member name="seed" type="int" setter="set_seed" getter="get_seed" default="0">
+			Which random arrangement to place. Change it for another arrangement with the same settings.
+		</member>
+		<member name="size" type="Vector3" setter="set_size" getter="get_size" default="Vector3(20, 10, 20)">
+			The size of the box to fill, centred on the node. Copies land on surfaces inside it.
+		</member>
+		<member name="surface_mask" type="int" setter="set_surface_mask" getter="get_surface_mask" default="1">
+			The physics layers of the surfaces copies land on.
+		</member>
+	</members>
+</class>

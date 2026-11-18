@@ -1,7 +1,7 @@
-From 24c94f72b428ea4a7bfef4cee55937b94640cae0 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ivo Nunes <ivo@nunes.uk>
 Date: Sun, 15 Nov 2026 14:40:36 +0000
-Subject: [PATCH 08/13] tvOS: template frameworks in the Xcode project
+Subject: [PATCH] tvOS: template frameworks in the Xcode project
 
 The Xcode project the tvOS export uses needs a place for the tvOS
 template libraries, as it has for iOS and visionOS: the build's
@@ -35,7 +35,7 @@ the tvOS backport.
 
 diff --git a/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/Info.plist b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/Info.plist
 new file mode 100644
-index 0000000..ea990d4
+index 00000000..ea990d4c
 --- /dev/null
 +++ b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/Info.plist
 @@ -0,0 +1,40 @@
@@ -81,21 +81,21 @@ index 0000000..ea990d4
 +</plist>
 diff --git a/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/tvos-arm64/empty b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/tvos-arm64/empty
 new file mode 100644
-index 0000000..bd3e894
+index 00000000..bd3e8943
 --- /dev/null
 +++ b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/tvos-arm64/empty
 @@ -0,0 +1 @@
 +Dummy file to make dylibs folder exported
 diff --git a/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/tvos-arm64_x86_64-simulator/empty b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/tvos-arm64_x86_64-simulator/empty
 new file mode 100644
-index 0000000..bd3e894
+index 00000000..bd3e8943
 --- /dev/null
 +++ b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.debug.xcframework/tvos-arm64_x86_64-simulator/empty
 @@ -0,0 +1 @@
 +Dummy file to make dylibs folder exported
 diff --git a/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/Info.plist b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/Info.plist
 new file mode 100644
-index 0000000..ea990d4
+index 00000000..ea990d4c
 --- /dev/null
 +++ b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/Info.plist
 @@ -0,0 +1,40 @@
@@ -141,14 +141,14 @@ index 0000000..ea990d4
 +</plist>
 diff --git a/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/tvos-arm64/empty b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/tvos-arm64/empty
 new file mode 100644
-index 0000000..bd3e894
+index 00000000..bd3e8943
 --- /dev/null
 +++ b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/tvos-arm64/empty
 @@ -0,0 +1 @@
 +Dummy file to make dylibs folder exported
 diff --git a/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/tvos-arm64_x86_64-simulator/empty b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/tvos-arm64_x86_64-simulator/empty
 new file mode 100644
-index 0000000..bd3e894
+index 00000000..bd3e8943
 --- /dev/null
 +++ b/godot/misc/dist/apple_embedded_xcode/libgodot.tvos.release.xcframework/tvos-arm64_x86_64-simulator/empty
 @@ -0,0 +1 @@

@@ -1,4 +1,4 @@
-From 038c8a82dcd06c9d1a08368809b3c30ad315a91a Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ivo Nunes <ivo@nunes.uk>
 Date: Sun, 15 Nov 2026 14:55:22 +0000
 Subject: [PATCH] libdatachannel: build with Mbed TLS 4
@@ -23,16 +23,16 @@ Upstream: libdatachannel v0.24.6 (src/impl/certificate.cpp,
 dtlstransport.cpp, init.cpp, sha.cpp, tls.hpp). Drop this patch once
 libdatachannel supports Mbed TLS 4.
 ---
- libdatachannel/src/impl/certificate.cpp   | 115 ++++++++++------------
- libdatachannel/src/impl/dtlstransport.cpp |  16 +--
- libdatachannel/src/impl/dtlstransport.hpp |   2 -
- libdatachannel/src/impl/init.cpp          |   5 +-
- libdatachannel/src/impl/sha.cpp           |   9 +-
- libdatachannel/src/impl/tls.hpp           |   6 +-
+ .../libdatachannel/src/impl/certificate.cpp   | 115 ++++++++----------
+ .../libdatachannel/src/impl/dtlstransport.cpp |  16 +--
+ .../libdatachannel/src/impl/dtlstransport.hpp |   2 -
+ .../libdatachannel/src/impl/init.cpp          |   5 +-
+ .../libdatachannel/src/impl/sha.cpp           |   9 +-
+ .../libdatachannel/src/impl/tls.hpp           |   6 +-
  6 files changed, 67 insertions(+), 86 deletions(-)
 
 diff --git a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/certificate.cpp b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/certificate.cpp
-index d654603..14a2374 100644
+index d6546030..14a23741 100644
 --- a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/certificate.cpp
 +++ b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/certificate.cpp
 @@ -180,31 +180,30 @@ string make_fingerprint(mbedtls_x509_crt *crt,
@@ -227,7 +227,7 @@ index d654603..14a2374 100644
  }
  
 diff --git a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.cpp b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.cpp
-index 9bfa1bf..3603fc8 100644
+index 9bfa1bf1..3603fc81 100644
 --- a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.cpp
 +++ b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.cpp
 @@ -377,10 +377,12 @@ int DtlsTransport::TimeoutCallback(gnutls_transport_ptr_t ptr, unsigned int /* m
@@ -295,7 +295,7 @@ index 9bfa1bf..3603fc8 100644
  	mbedtls_ssl_config_free(&mConf);
  }
 diff --git a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.hpp b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.hpp
-index 10ef502..61b65f0 100644
+index 10ef5027..61b65f01 100644
 --- a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.hpp
 +++ b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/dtlstransport.hpp
 @@ -73,8 +73,6 @@ protected:
@@ -308,7 +308,7 @@ index 10ef502..61b65f0 100644
  	mbedtls_ssl_context mSsl;
  
 diff --git a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/init.cpp b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/init.cpp
-index 1bc6aab..a85974f 100644
+index 1bc6aab1..a85974f9 100644
 --- a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/init.cpp
 +++ b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/init.cpp
 @@ -136,7 +136,10 @@ void Init::doInit() try {
@@ -324,7 +324,7 @@ index 1bc6aab..a85974f 100644
  	openssl::init();
  #endif
 diff --git a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/sha.cpp b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/sha.cpp
-index 8f831b8..e13fd55 100644
+index 8f831b8c..e13fd558 100644
 --- a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/sha.cpp
 +++ b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/sha.cpp
 @@ -17,7 +17,7 @@
@@ -351,7 +351,7 @@ index 8f831b8..e13fd55 100644
  
  #else
 diff --git a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/tls.hpp b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/tls.hpp
-index 36ad615..8b67c15 100644
+index 36ad6155..8b67c15e 100644
 --- a/modules/webrtc_native/thirdparty/libdatachannel/src/impl/tls.hpp
 +++ b/modules/webrtc_native/thirdparty/libdatachannel/src/impl/tls.hpp
 @@ -40,15 +40,11 @@ gnutls_datum_t make_datum(char *data, size_t size);

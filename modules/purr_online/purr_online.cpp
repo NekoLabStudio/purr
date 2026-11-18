@@ -218,6 +218,13 @@ Signal PurrOnline::sign_in_play_games(const String &p_server_auth_code, const St
 	return call(HTTPClient::METHOD_POST, "/auth/play_games", with_name(body, p_display_name), String());
 }
 
+Signal PurrOnline::send_crash_report(const String &p_report) {
+	Dictionary body;
+	body["game"] = get_game();
+	body["report"] = p_report;
+	return call(HTTPClient::METHOD_POST, "/crash-reports", body, String());
+}
+
 Signal PurrOnline::get_account(const String &p_token) {
 	return call(HTTPClient::METHOD_GET, "/account", Variant(), p_token);
 }
@@ -300,7 +307,6 @@ Signal PurrOnline::create_lobby() {
 	body["game"] = get_game();
 	return call(HTTPClient::METHOD_POST, "/lobbies", body, String());
 }
-
 
 // A WebSocket to the service, signed in, polled every frame by p_poll.
 Error PurrOnline::open_socket(Ref<WebSocketPeer> &r_socket, const String &p_path, const Callable &p_poll) {
@@ -525,6 +531,7 @@ void PurrOnline::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("sign_in_steam", "ticket_hex", "display_name"), &PurrOnline::sign_in_steam, DEFVAL(String()));
 	ClassDB::bind_method(D_METHOD("sign_in_game_center", "proof", "display_name"), &PurrOnline::sign_in_game_center, DEFVAL(String()));
 	ClassDB::bind_method(D_METHOD("sign_in_play_games", "server_auth_code", "display_name"), &PurrOnline::sign_in_play_games, DEFVAL(String()));
+	ClassDB::bind_method(D_METHOD("send_crash_report", "report"), &PurrOnline::send_crash_report);
 	ClassDB::bind_method(D_METHOD("get_account", "token"), &PurrOnline::get_account, DEFVAL(String()));
 	ClassDB::bind_method(D_METHOD("set_display_name", "name"), &PurrOnline::set_display_name);
 	ClassDB::bind_method(D_METHOD("delete_account"), &PurrOnline::delete_account);

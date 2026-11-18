@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="TestCase" inherits="Node" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		What a test script extends: its test_ methods are run by [code]purr --run-tests[/code].
+	</brief_description>
+	<description>
+		Put test scripts in the project's [code]tests[/code] folder (set by [code]testing/tests_folder[/code]), named so they end in [code]_test.gd[/code] or start with [code]test_[/code]. Every method whose name starts with [code]test_[/code] is a test:
+		[codeblock]
+		extends TestCase
+
+		var score: Score
+
+		func _before_each():
+		    score = Score.new()
+
+		func test_adds_points():
+		    score.add(5)
+		    score.add(3)
+		    assert_equal(score.points, 8)
+
+		func test_says_when_there_is_a_new_best():
+		    (func(): score.add(1)).call_deferred()
+		    assert_true(await wait_for(score.new_best))
+		[/codeblock]
+		Run them with [code]purr --headless --run-tests[/code]. Tests run in the order they're written, each with [method _before_each] and [method _after_each] round it. A failed assertion records what went wrong and the line it was on, and the test carries on, so one run shows every failure. A script error fails the test it happens in. Tests can [code]await[/code]: frames, signals, timers, or the wait methods here. A test that hasn't finished after [code]testing/timeout_seconds[/code] (30 by default) fails.
+		The test script is a [Node] in the scene tree while it runs. Nodes a test adds as its children are freed after it, so each test starts clean.
+		[code]--run-tests=text[/code] runs only test files whose paths contain [code]text[/code], or, if none do, only tests whose names contain it. [code]--test-report=path.xml[/code] also writes a JUnit report, which CI systems show. Purr exits with 1 if a test failed, a test file couldn't run, or no tests were found.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="_after_all" qualifiers="virtual">
+			<return type="void" />
+			<description>
+				Called once after the script's last test. Can [code]await[/code].
+			</description>
+		</method>
+		<method name="_after_each" qualifiers="virtual">
+			<return type="void" />
+			<description>
+				Called after each test, even one that failed. Can [code]await[/code].
+			</description>
+		</method>
+		<method name="_before_all" qualifiers="virtual">
+			<return type="void" />
+			<description>
+				Called once before the script's first test. If it fails an assertion, the script's tests are skipped. Can [code]await[/code].
+			</description>
+		</method>
+		<method name="_before_each" qualifiers="virtual">
+			<return type="void" />
+			<description>
+				Called before each test. Can [code]await[/code].
+			</description>
+		</method>
+		<method name="assert_almost_equal">
+			<return type="void" />
+			<param index="0" name="actual" type="Variant" />
+			<param index="1" name="expected" type="Variant" />
+			<param index="2" name="message" type="String" default="&quot;&quot;" />
+			<description>
+				Fails unless [param actual] is about [param expected]: numbers, vectors, colours, quaternions, bases and transforms close enough to count as equal, as [method @GlobalScope.is_equal_approx] and their own [code]is_equal_approx()[/code] decide. [param message] says what was being checked.
+			</description>
+		</method>
+		<method name="assert_equal">
+			<return type="void" />
+			<param index="0" name="actual" type="Variant" />
+			<param index="1" name="expected" type="Variant" />
+			<param index="2" name="message" type="String" default="&quot;&quot;" />
+			<description>
+				Fails unless [param actual] equals [param expected], as [code]==[/code] decides. [param message] says what was being checked, and shows beside what was expected and what came instead.
+			</description>
+		</method>
+		<method name="assert_false">
+			<return type="void" />
+			<param index="0" name="condition" type="bool" />
+			<param index="1" name="message" type="String" default="&quot;&quot;" />
+			<description>
+				Fails if [param condition] is true.
+			</description>
+		</method>
+		<method name="assert_greater">
+			<return type="void" />
+			<param index="0" name="actual" type="Variant" />
+			<param index="1" name="than" type="Variant" />
+			<param index="2" name="message" type="String" default="&quot;&quot;" />
+			<description>
+				Fails unless [param actual] is more than [param than].
+			</description>
+		</method>
+		<method name="assert_has">
+			<return type="void" />
+			<param index="0" name="container" type="Variant" />
+			<param index="1" name="value" type="Variant" />
+			<param index="2" name="message" type="String" default="&quot;&quot;" />
+			<description>
+				Fails unless [param value] is in [param container], as GDScript's [code]in[/code] decides: an item of an array, a key of a dictionary, a part of a string.
+			</description>
+		</method>
+		<method name="assert_less">
+			<return type="void" />
+			<param index="0" name="actual" type="Variant" />
+			<param index="1" name="than" type="Variant" />
+			<param index="2" name="message" type="String" default="&quot;&quot;" />
+			<description>
+				Fails unless [param actual] is less than [param than].
+			</description>
+		</method>
+		<method name="assert_not_equal">
+			<return type="void" />
+			<param index="0" name="actual" type="Variant" />
+			<param index="1" name="expected" type="Variant" />
+			<param index="2" name="message" type="String" default="&quot;&quot;" />
+			<description>
+				Fails if [param actual] equals [param expected].
+			</description>
+		</method>
+		<method name="assert_not_null">
+			<return type="void" />
+			<param index="0" name="value" type="Variant" />
+			<param index="1" name="message" type="String" default="&quot;&quot;" />
+			<description>
+				Fails if [param value] is [code]null[/code] or a freed object.
+			</description>
+		</method>
+		<method name="assert_null">
+			<return type="void" />
+			<param index="0" name="value" type="Variant" />
+			<param index="1" name="message" type="String" default="&quot;&quot;" />
+			<description>
+				Fails unless [param value] is [code]null[/code] or a freed object.
+			</description>
+		</method>
+		<method name="assert_true">
+			<return type="void" />
+			<param index="0" name="condition" type="bool" />
+			<param index="1" name="message" type="String" default="&quot;&quot;" />
+			<description>
+				Fails unless [param condition] is true.
+			</description>
+		</method>
+		<method name="fail">
+			<return type="void" />
+			<param index="0" name="message" type="String" />
+			<description>
+				Fails the test with [param message].
+			</description>
+		</method>
+		<method name="measure">
+			<return type="Signal" />
+			<param index="0" name="what" type="String" />
+			<param index="1" name="step" type="Callable" />
+			<param index="2" name="frames" type="int" default="120" />
+			<description>
+				Calls [param step] once a frame for [param frames] frames, timing each call alone, and returns a signal to await. It comes with a [Dictionary] of [code]median_ms[/code], [code]p95_ms[/code] (95 calls in 100 come within it), [code]worst_ms[/code] and, if this test measured [param what] before on this computer, [code]last_run_ms[/code]. It also prints them, with the change since the last run:
+				[codeblock]
+				var timed: Dictionary = await measure("traffic", func(): traffic.update(1.0 / 60.0))
+				assert_less(timed.median_ms, 2.0)
+				[/codeblock]
+				[param step] shouldn't await: only its time up to the first [code]await[/code] is counted.
+			</description>
+		</method>
+		<method name="skip">
+			<return type="void" />
+			<param index="0" name="reason" type="String" default="&quot;&quot;" />
+			<description>
+				Marks the test as skipped, with [param reason]. Return after calling it: the rest of the test still runs otherwise. A skipped test that also fails an assertion counts as failed.
+			</description>
+		</method>
+		<method name="wait_for">
+			<return type="Signal" />
+			<param index="0" name="signal" type="Signal" />
+			<param index="1" name="timeout" type="float" default="5.0" />
+			<description>
+				Returns a signal to await that comes when [param signal] is emitted, with [code]true[/code], or after [param timeout] seconds, with [code]false[/code]:
+				[codeblock]
+				assert_true(await wait_for(door.opened), "the door opened")
+				[/codeblock]
+			</description>
+		</method>
+		<method name="wait_frames">
+			<return type="Signal" />
+			<param index="0" name="count" type="int" />
+			<description>
+				Returns a signal to await that comes after [param count] frames.
+			</description>
+		</method>
+		<method name="wait_physics_frames">
+			<return type="Signal" />
+			<param index="0" name="count" type="int" />
+			<description>
+				Returns a signal to await that comes after [param count] physics ticks.
+			</description>
+		</method>
+		<method name="wait_seconds">
+			<return type="Signal" />
+			<param index="0" name="seconds" type="float" />
+			<description>
+				Returns a signal to await that comes after [param seconds].
+			</description>
+		</method>
+	</methods>
+</class>

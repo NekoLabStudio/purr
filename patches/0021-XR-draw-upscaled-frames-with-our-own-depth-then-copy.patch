@@ -1,0 +1,278 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 20:15:00 +0000
+Subject: [PATCH] XR: draw upscaled frames with our own depth, then copy it to
+ the runtime's
+
+When an XR runtime takes depth (OpenXR's xr/openxr/submit_depth_buffer),
+the renderer drew straight into the runtime's depth texture, which is
+at the target size. With any 3D scaling the colour is drawn at the
+internal size, so the framebuffer mixed sizes ("All textures in a
+framebuffer should be the same size") and nothing was drawn; MetalFX
+aborted.
+
+The runtime's depth is now used directly only at the target size
+(RenderSceneBuffersRD::get_override_depth). Otherwise the renderer
+draws into its own depth and, after post-processing, draws it into the
+runtime's depth texture at full size with a small depth-writing shader
+(copy_depth_to_fb.glsl), so the compositor still gets the frame's
+depth.
+
+Test: an XR viewport with two views whose colour and depth textures
+come from an XRInterfaceExtension, with FSR, FSR 2, MetalFX spatial or
+temporal scaling at 0.75: it renders without errors, and the
+runtime's depth after a frame matches an unscaled frame's.
+
+Upstream: to propose.
+---
+ .../renderer_rd/effects/copy_effects.cpp      | 40 +++++++++++++++++++
+ .../renderer_rd/effects/copy_effects.h        |  9 +++++
+ .../forward_mobile/render_forward_mobile.cpp  |  2 +-
+ .../renderer_rd/renderer_scene_render_rd.cpp  | 10 +++++
+ .../shaders/effects/copy_depth_to_fb.glsl     | 37 +++++++++++++++++
+ .../storage_rd/render_scene_buffers_rd.cpp    | 16 +++++---
+ .../storage_rd/render_scene_buffers_rd.h      |  3 ++
+ 7 files changed, 110 insertions(+), 7 deletions(-)
+ create mode 100644 godot/servers/rendering/renderer_rd/shaders/effects/copy_depth_to_fb.glsl
+
+diff --git a/godot/servers/rendering/renderer_rd/effects/copy_effects.cpp b/godot/servers/rendering/renderer_rd/effects/copy_effects.cpp
+index 8882b12b..171bf8d5 100644
+--- a/godot/servers/rendering/renderer_rd/effects/copy_effects.cpp
++++ b/godot/servers/rendering/renderer_rd/effects/copy_effects.cpp
+@@ -158,6 +158,23 @@ CopyEffects::CopyEffects(BitField<RasterEffects> p_raster_effects) {
+ 		cube_to_dp.pipeline.setup(shader, RD::RENDER_PRIMITIVE_TRIANGLES, RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), dss, RD::PipelineColorBlendState(), 0);
+ 	}
+ 
++	{
++		copy_depth_to_fb.shader.initialize({ "\n", "\n#define USE_MULTIVIEW\n" });
++		if (!RendererCompositorRD::get_singleton()->is_xr_enabled()) {
++			copy_depth_to_fb.shader.set_variant_enabled(1, false);
++		}
++		copy_depth_to_fb.shader_version = copy_depth_to_fb.shader.version_create();
++		RD::PipelineDepthStencilState dss;
++		dss.enable_depth_test = true;
++		dss.depth_compare_operator = RD::COMPARE_OP_ALWAYS;
++		dss.enable_depth_write = true;
++		for (int i = 0; i < 2; i++) {
++			if (copy_depth_to_fb.shader.is_variant_enabled(i)) {
++				copy_depth_to_fb.pipelines[i].setup(copy_depth_to_fb.shader.version_get_shader(copy_depth_to_fb.shader_version, i), RD::RENDER_PRIMITIVE_TRIANGLES, RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), dss, RD::PipelineColorBlendState(), 0);
++			}
++		}
++	}
++
+ 	{
+ 		// Initialize cubemap to octmap copier.
+ 		cube_to_octmap.shader.initialize({ "" });
+@@ -392,6 +409,7 @@ CopyEffects::~CopyEffects() {
+ 
+ 	copy_to_fb.shader.version_free(copy_to_fb.shader_version);
+ 	cube_to_dp.shader.version_free(cube_to_dp.shader_version);
++	copy_depth_to_fb.shader.version_free(copy_depth_to_fb.shader_version);
+ 	cube_to_octmap.shader.version_free(cube_to_octmap.shader_version);
+ 
+ 	singleton = nullptr;
+@@ -673,6 +691,28 @@ void CopyEffects::copy_to_fb_rect(RID p_source_rd_texture, RID p_dest_framebuffe
+ 	RD::get_singleton()->draw_list_end();
+ }
+ 
++void CopyEffects::copy_depth_to_framebuffer(RID p_source_depth, RID p_dest_framebuffer, bool p_multiview) {
++	UniformSetCacheRD *uniform_set_cache = UniformSetCacheRD::get_singleton();
++	ERR_FAIL_NULL(uniform_set_cache);
++	MaterialStorage *material_storage = MaterialStorage::get_singleton();
++	ERR_FAIL_NULL(material_storage);
++
++	const int variant = p_multiview ? 1 : 0;
++	RID shader = copy_depth_to_fb.shader.version_get_shader(copy_depth_to_fb.shader_version, variant);
++	ERR_FAIL_COND(shader.is_null());
++
++	// Depth isn't blended between texels.
++	RID sampler = material_storage->sampler_rd_get_default(RSE::CANVAS_ITEM_TEXTURE_FILTER_NEAREST, RSE::CANVAS_ITEM_TEXTURE_REPEAT_DISABLED);
++	RD::Uniform u_source(RD::UNIFORM_TYPE_SAMPLER_WITH_TEXTURE, 0, Vector<RID>({ sampler, p_source_depth }));
++
++	RD::DrawListID draw_list = RD::get_singleton()->draw_list_begin(p_dest_framebuffer, RD::DRAW_DEFAULT_ALL);
++	RD::get_singleton()->draw_list_bind_render_pipeline(draw_list, copy_depth_to_fb.pipelines[variant].get_render_pipeline(RD::INVALID_ID, RD::get_singleton()->framebuffer_get_format(p_dest_framebuffer)));
++	RD::get_singleton()->draw_list_bind_uniform_set(draw_list, uniform_set_cache->get_cache(shader, 0, u_source), 0);
++	RD::get_singleton()->draw_list_bind_index_array(draw_list, material_storage->get_quad_index_array());
++	RD::get_singleton()->draw_list_draw(draw_list, true);
++	RD::get_singleton()->draw_list_end();
++}
++
+ void CopyEffects::copy_to_drawlist(RD::DrawListID p_draw_list, RD::FramebufferFormatID p_fb_format, RID p_source_rd_texture, bool p_linear, float p_linear_luminance_multiplier) {
+ 	UniformSetCacheRD *uniform_set_cache = UniformSetCacheRD::get_singleton();
+ 	ERR_FAIL_NULL(uniform_set_cache);
+diff --git a/godot/servers/rendering/renderer_rd/effects/copy_effects.h b/godot/servers/rendering/renderer_rd/effects/copy_effects.h
+index c1077d61..e4fa98a4 100644
+--- a/godot/servers/rendering/renderer_rd/effects/copy_effects.h
++++ b/godot/servers/rendering/renderer_rd/effects/copy_effects.h
+@@ -34,6 +34,7 @@
+ #include "servers/rendering/renderer_rd/pipeline_deferred_rd.h"
+ #include "servers/rendering/renderer_rd/shaders/effects/blur_raster.glsl.gen.h"
+ #include "servers/rendering/renderer_rd/shaders/effects/copy.glsl.gen.h"
++#include "servers/rendering/renderer_rd/shaders/effects/copy_depth_to_fb.glsl.gen.h"
+ #include "servers/rendering/renderer_rd/shaders/effects/copy_to_fb.glsl.gen.h"
+ #include "servers/rendering/renderer_rd/shaders/effects/cube_to_dp.glsl.gen.h"
+ #include "servers/rendering/renderer_rd/shaders/effects/cube_to_octmap.glsl.gen.h"
+@@ -208,6 +209,12 @@ private:
+ 		float set_color[4];
+ 	};
+ 
++	struct CopyDepthToFb {
++		CopyDepthToFbShaderRD shader;
++		RID shader_version;
++		PipelineCacheRD pipelines[2]; // Single view, multiview.
++	} copy_depth_to_fb;
++
+ 	struct CopyToFb {
+ 		CopyToFbPushConstant push_constant;
+ 		CopyToFbShaderRD shader;
+@@ -369,6 +376,8 @@ public:
+ 	void copy_octmap_to_panorama(RID p_source_octmap, RID p_dest_panorama, const Size2i &p_panorama_size, float p_lod, bool p_is_array, const Size2 &p_source_octmap_border_size);
+ 	void copy_depth_to_rect(RID p_source_rd_texture, RID p_dest_framebuffer, const Rect2i &p_rect, bool p_flip_y = false);
+ 	void copy_depth_to_rect_and_linearize(RID p_source_rd_texture, RID p_dest_texture, const Rect2i &p_rect, bool p_flip_y, float p_z_near, float p_z_far);
++	// Draws a depth texture into a framebuffer whose only attachment is depth, scaled to fill it.
++	void copy_depth_to_framebuffer(RID p_source_depth, RID p_dest_framebuffer, bool p_multiview);
+ 	void copy_to_fb_rect(RID p_source_rd_texture, RID p_dest_framebuffer, const Rect2i &p_rect, bool p_flip_y = false, bool p_force_luminance = false, bool p_alpha_to_zero = false, bool p_srgb = false, RID p_secondary = RID(), bool p_multiview = false, bool alpha_to_one = false, bool p_linear = false, bool p_normal = false, const Rect2 &p_src_rect = Rect2(), float p_linear_luminance_multiplier = 1.0, bool p_bilinear_filtering = true);
+ 	void copy_to_atlas_fb(RID p_source_rd_texture, RID p_dest_framebuffer, const Rect2 &p_uv_rect, RD::DrawListID p_draw_list, bool p_flip_y = false, bool p_panorama = false);
+ 	void copy_to_drawlist(RD::DrawListID p_draw_list, RD::FramebufferFormatID p_fb_format, RID p_source_rd_texture, bool p_linear = false, float p_linear_luminance_multiplier = 1.0);
+diff --git a/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp b/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
+index 77b26d2b..8909445b 100644
+--- a/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
++++ b/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
+@@ -893,7 +893,7 @@ void RenderForwardMobile::_render_scene(RenderDataRD *p_render_data, const Color
+ 	RID render_target = rb->get_render_target();
+ 	if (render_target.is_valid()) {
+ 		p_render_data->scene_data->calculate_motion_vectors = texture_storage->render_target_get_override_velocity(render_target).is_valid();
+-		has_depth_texture_override = texture_storage->render_target_get_override_depth(render_target).is_valid();
++		has_depth_texture_override = rb->get_override_depth().is_valid();
+ 	} else {
+ 		p_render_data->scene_data->calculate_motion_vectors = false;
+ 	}
+diff --git a/godot/servers/rendering/renderer_rd/renderer_scene_render_rd.cpp b/godot/servers/rendering/renderer_rd/renderer_scene_render_rd.cpp
+index f4e8c24a..d42e78b6 100644
+--- a/godot/servers/rendering/renderer_rd/renderer_scene_render_rd.cpp
++++ b/godot/servers/rendering/renderer_rd/renderer_scene_render_rd.cpp
+@@ -906,6 +906,16 @@ void RendererSceneRenderRD::_render_buffers_post_process_and_tonemap(const Rende
+ 		RD::get_singleton()->draw_command_end_label();
+ 	}
+ 
++	// An XR runtime that takes depth (OpenXR's depth submission) gets ours, at its size: when
++	// upscaling, we drew into our own depth (see RenderSceneBuffersRD::get_override_depth).
++	RID xr_depth = texture_storage->render_target_get_override_depth(render_target);
++	if (rb.is_valid() && xr_depth.is_valid() && rb->get_internal_size() != rb->get_target_size()) {
++		RD::get_singleton()->draw_command_begin_label("Copy Depth To XR");
++		RID dest_fb = FramebufferCacheRD::get_singleton()->get_cache_multiview(rb->get_view_count(), xr_depth);
++		copy_effects->copy_depth_to_framebuffer(rb->get_texture(RB_SCOPE_BUFFERS, RB_TEX_DEPTH), dest_fb, rb->get_view_count() > 1);
++		RD::get_singleton()->draw_command_end_label();
++	}
++
+ 	texture_storage->render_target_disable_clear_request(render_target);
+ }
+ 
+diff --git a/godot/servers/rendering/renderer_rd/shaders/effects/copy_depth_to_fb.glsl b/godot/servers/rendering/renderer_rd/shaders/effects/copy_depth_to_fb.glsl
+new file mode 100644
+index 00000000..fcc73b89
+--- /dev/null
++++ b/godot/servers/rendering/renderer_rd/shaders/effects/copy_depth_to_fb.glsl
+@@ -0,0 +1,37 @@
++#[vertex]
++
++#version 450
++
++#VERSION_DEFINES
++
++layout(location = 0) out vec2 uv_interp;
++
++void main() {
++	vec2 base_arr[4] = vec2[](vec2(0.0, 0.0), vec2(0.0, 1.0), vec2(1.0, 1.0), vec2(1.0, 0.0));
++	uv_interp = base_arr[gl_VertexIndex];
++	gl_Position = vec4(uv_interp * 2.0 - 1.0, 0.0, 1.0);
++}
++
++#[fragment]
++
++#version 450
++
++#VERSION_DEFINES
++
++#ifdef USE_MULTIVIEW
++#extension GL_EXT_multiview : enable
++layout(set = 0, binding = 0) uniform sampler2DArray source_depth;
++#else
++layout(set = 0, binding = 0) uniform sampler2D source_depth;
++#endif
++
++layout(location = 0) in vec2 uv_interp;
++
++// Draws a depth texture into a depth attachment of another size, such as an XR runtime's.
++void main() {
++#ifdef USE_MULTIVIEW
++	gl_FragDepth = textureLod(source_depth, vec3(uv_interp, float(gl_ViewIndex)), 0.0).r;
++#else
++	gl_FragDepth = textureLod(source_depth, uv_interp, 0.0).r;
++#endif
++}
+diff --git a/godot/servers/rendering/renderer_rd/storage_rd/render_scene_buffers_rd.cpp b/godot/servers/rendering/renderer_rd/storage_rd/render_scene_buffers_rd.cpp
+index 140ff30a..e7496271 100644
+--- a/godot/servers/rendering/renderer_rd/storage_rd/render_scene_buffers_rd.cpp
++++ b/godot/servers/rendering/renderer_rd/storage_rd/render_scene_buffers_rd.cpp
+@@ -293,6 +293,13 @@ bool RenderSceneBuffersRD::upscales_into_own_texture() {
+ 	return !(RD::get_singleton()->texture_get_format(target).usage_bits & RD::TEXTURE_USAGE_STORAGE_BIT);
+ }
+ 
++RID RenderSceneBuffersRD::get_override_depth() {
++	if (render_target.is_null() || internal_size != target_size) {
++		return RID();
++	}
++	return RendererRD::TextureStorage::get_singleton()->render_target_get_override_depth(render_target);
++}
++
+ RID RenderSceneBuffersRD::get_upscale_texture() {
+ 	if (has_texture(SNAME("Upscaler"), SNAME("destination"))) {
+ 		return get_texture(SNAME("Upscaler"), SNAME("destination"));
+@@ -619,9 +626,7 @@ bool RenderSceneBuffersRD::has_depth_texture() {
+ 		return false;
+ 	}
+ 
+-	RendererRD::TextureStorage *texture_storage = RendererRD::TextureStorage::get_singleton();
+-	RID depth = texture_storage->render_target_get_override_depth(render_target);
+-	if (depth.is_valid()) {
++	if (get_override_depth().is_valid()) {
+ 		return true;
+ 	} else {
+ 		return has_texture(RB_SCOPE_BUFFERS, RB_TEX_DEPTH);
+@@ -634,8 +639,7 @@ RID RenderSceneBuffersRD::get_depth_texture() {
+ 		return RID();
+ 	}
+ 
+-	RendererRD::TextureStorage *texture_storage = RendererRD::TextureStorage::get_singleton();
+-	RID depth = texture_storage->render_target_get_override_depth(render_target);
++	RID depth = get_override_depth();
+ 	if (depth.is_valid()) {
+ 		return depth;
+ 	} else {
+@@ -645,7 +649,7 @@ RID RenderSceneBuffersRD::get_depth_texture() {
+ 
+ RID RenderSceneBuffersRD::get_depth_texture(const uint32_t p_layer) {
+ 	RendererRD::TextureStorage *texture_storage = RendererRD::TextureStorage::get_singleton();
+-	RID depth_slice = texture_storage->render_target_get_override_depth_slice(render_target, p_layer);
++	RID depth_slice = get_override_depth().is_valid() ? texture_storage->render_target_get_override_depth_slice(render_target, p_layer) : RID();
+ 	if (depth_slice.is_valid()) {
+ 		return depth_slice;
+ 	} else {
+diff --git a/godot/servers/rendering/renderer_rd/storage_rd/render_scene_buffers_rd.h b/godot/servers/rendering/renderer_rd/storage_rd/render_scene_buffers_rd.h
+index d8b0764a..82074090 100644
+--- a/godot/servers/rendering/renderer_rd/storage_rd/render_scene_buffers_rd.h
++++ b/godot/servers/rendering/renderer_rd/storage_rd/render_scene_buffers_rd.h
+@@ -220,6 +220,9 @@ public:
+ 	// (an XR runtime's swapchain, usually), they write into a texture of ours at the target size,
+ 	// which is then drawn into the render target.
+ 	bool upscales_into_own_texture();
++	// The depth texture an XR runtime gave for the render target, if we draw into it: only at the
++	// target size. When upscaling, we draw into our own depth and copy it there afterwards.
++	RID get_override_depth();
+ 	RID get_upscale_texture();
+ 
+ 	RID create_texture(const StringName &p_context, const StringName &p_texture_name, const RD::DataFormat p_data_format, const uint32_t p_usage_bits, const RD::TextureSamples p_texture_samples = RD::TEXTURE_SAMPLES_1, const Size2i p_size = Size2i(0, 0), const uint32_t p_layers = 0, const uint32_t p_mipmaps = 1, bool p_unique = true, bool p_discardable = false);
+-- 
+2.54.0 (Apple Git-157)
+

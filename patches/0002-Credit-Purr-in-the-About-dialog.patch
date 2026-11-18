@@ -1,7 +1,7 @@
-From b036c4c8ccb54e8628773d0d51bca77a5b0f5efb Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ivo Nunes <ivo@nunes.uk>
 Date: Sun, 15 Nov 2026 11:49:39 +0000
-Subject: [PATCH 02/13] Credit Purr in the About dialog
+Subject: [PATCH] Credit Purr in the About dialog
 
 The About dialog now opens with "Purr by NekoLab, based on Godot
 Engine." above Godot's own copyright lines, which stay as they are.
@@ -17,7 +17,7 @@ Not for upstream. Policy: https://godotengine.org/trademark/
  1 file changed, 1 insertion(+)
 
 diff --git a/godot/editor/gui/editor_about.cpp b/godot/editor/gui/editor_about.cpp
-index 708bf0f..7c32637 100644
+index 708bf0f0..7c32637d 100644
 --- a/godot/editor/gui/editor_about.cpp
 +++ b/godot/editor/gui/editor_about.cpp
 @@ -57,6 +57,7 @@ void EditorAbout::_notification(int p_what) {

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Console" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		An in-game console that runs commands the game adds.
+	</brief_description>
+	<description>
+		The console opens with the key set in [code]console/open_key[/code] (backquote, under Escape, by default) and closes with it or Escape. It shows what the game prints, its warnings and errors, and runs commands added with [method add_command]:
+		[codeblock]
+		func _ready():
+		    Console.add_command("teleport", teleport, "Moves the player to a point.")
+
+		func teleport(where: Vector3, height := 0.0):
+		    player.global_position = where + Vector3.UP * height
+		[/codeblock]
+		Typed in, [code]teleport 10,0,-4[/code] calls [code]teleport(Vector3(10, 0, -4))[/code]. Arguments are converted to the types the method declares: numbers, [code]true[/code] or [code]false[/code] (or [code]on[/code] and [code]off[/code]), text (in quotes when it has spaces), vectors as [code]x,y[/code] or [code]x,y,z[/code], and other types written as in GDScript, such as [code]Color(1, 0, 0)[/code]. Arguments with defaults can be left out. A lambda's argument types can't be seen, so a lambda gets numbers, [code]true[/code] and [code]false[/code], or text. What a command returns is shown.
+		[code]help[/code] lists the commands, [code]clear[/code] empties the console, and [code]perf[/code] shows or hides [member DebugDraw.performance_overlay], and [code]profile[/code] records 10 seconds (or as many as given) and saves a report of where the time went to [code]user://profiles[/code]. Up and Down go through earlier commands, and Tab completes a command's name. While it's open, a captured or hidden mouse pointer is shown, and [Input] reports no keys or actions held, so typing doesn't move the game.
+		The console is on in debug builds. In release exports it's off unless [code]console/enabled_in_release_builds[/code] is set, or the game sets [member enabled].
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="add_command">
+			<return type="void" />
+			<param index="0" name="name" type="String" />
+			<param index="1" name="callable" type="Callable" />
+			<param index="2" name="description" type="String" default="&quot;&quot;" />
+			<description>
+				Adds a command, which runs [param callable] when [param name] is typed. [param description] says what it does in [code]help[/code]. A name can't have spaces. Adding a command with a name already used replaces it.
+			</description>
+		</method>
+		<method name="clear">
+			<return type="void" />
+			<description>
+				Empties the console.
+			</description>
+		</method>
+		<method name="get_commands" qualifiers="const">
+			<return type="PackedStringArray" />
+			<description>
+				Every command's name, sorted, including the built-in [code]clear[/code], [code]help[/code] and [code]perf[/code].
+			</description>
+		</method>
+		<method name="get_text" qualifiers="const">
+			<return type="String" />
+			<description>
+				Everything in the console, a line each.
+			</description>
+		</method>
+		<method name="has_command" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="name" type="String" />
+			<description>
+				Whether there's a command called [param name].
+			</description>
+		</method>
+		<method name="remove_command">
+			<return type="void" />
+			<param index="0" name="name" type="String" />
+			<description>
+				Removes the command called [param name].
+			</description>
+		</method>
+		<method name="run">
+			<return type="Variant" />
+			<param index="0" name="line" type="String" />
+			<description>
+				Runs [param line] as if it were typed in, and returns what the command returned. Mistakes (an unknown command, missing arguments, a value of the wrong type) are written to the console, and return [code]null[/code].
+			</description>
+		</method>
+		<method name="write">
+			<return type="void" />
+			<param index="0" name="text" type="String" />
+			<description>
+				Adds [param text] to the console without printing it to the log.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="enabled" type="bool" setter="set_enabled" getter="is_enabled" default="true">
+			Whether the console can open. Commands added and [method run] work either way.
+		</member>
+		<member name="visible" type="bool" setter="set_visible" getter="is_visible" default="false">
+			Whether the console is open.
+		</member>
+	</members>
+</class>

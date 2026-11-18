@@ -17,8 +17,11 @@ Library tab.
 
 Upstream: Purr only.
 ---
+ godot/editor/asset_library/asset_library_editor_plugin.cpp | 7 +------
+ 1 file changed, 1 insertion(+), 6 deletions(-)
+
 diff --git a/godot/editor/asset_library/asset_library_editor_plugin.cpp b/godot/editor/asset_library/asset_library_editor_plugin.cpp
-index 1e8d0db..b0e20fb 100644
+index 1e8d0db3..b0e20fb3 100644
 --- a/godot/editor/asset_library/asset_library_editor_plugin.cpp
 +++ b/godot/editor/asset_library/asset_library_editor_plugin.cpp
 @@ -2405,13 +2405,8 @@ EditorAssetLibrary::EditorAssetLibrary(bool p_templates_only) {
@@ -37,4 +40,5 @@ index 1e8d0db..b0e20fb 100644
  
  void AssetLibraryEditorPlugin::make_visible(bool p_visible) {
 -- 
-2.50.1
+2.54.0 (Apple Git-157)
+

@@ -1,7 +1,7 @@
-From 928595827489a153c517c327a6d0b80d08ec6428 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ivo Nunes <ivo@nunes.uk>
 Date: Sun, 15 Nov 2026 11:49:30 +0000
-Subject: [PATCH 01/13] Name the engine Purr
+Subject: [PATCH] Name the engine Purr
 
 Godot's trademark policy doesn't allow a fork to present itself as
 Godot Engine, so the editor title, version string, startup header and
@@ -27,7 +27,7 @@ Not for upstream. Policy: https://godotengine.org/trademark/
  2 files changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/godot/core/config/project_settings.cpp b/godot/core/config/project_settings.cpp
-index 4cf864f..9d8267c 100644
+index 4cf864f9..9d8267cd 100644
 --- a/godot/core/config/project_settings.cpp
 +++ b/godot/core/config/project_settings.cpp
 @@ -1820,7 +1820,7 @@ ProjectSettings::ProjectSettings() {
@@ -40,7 +40,7 @@ index 4cf864f..9d8267c 100644
  	GLOBAL_DEF_RST("rendering/occlusion_culling/jitter_projection", true);
  
 diff --git a/godot/version.py b/godot/version.py
-index 6569e62..b9f237b 100644
+index 6569e62c..b9f237b9 100644
 --- a/godot/version.py
 +++ b/godot/version.py
 @@ -1,9 +1,9 @@

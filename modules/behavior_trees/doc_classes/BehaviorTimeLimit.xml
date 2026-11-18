@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BehaviorTimeLimit" inherits="BehaviorTask" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Stops its child if it runs too long.
+	</brief_description>
+	<description>
+		Runs its first child, and stops it and fails if it's still running after [member seconds]. In seconds of the tree's time, which passes while its [BehaviorTreePlayer] ticks it.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="seconds" type="float" setter="set_seconds" getter="get_seconds" default="5.0">
+			How long the child may run.
+		</member>
+	</members>
+</class>

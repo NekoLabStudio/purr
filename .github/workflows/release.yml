@@ -355,10 +355,28 @@ jobs:
           scons "${flags[@]}" target=editor
 
       - name: Check the editor starts
+        # PowerShell keeps Windows' whole exit status, which says why a program didn't start: Bash
+        # keeps only its last byte.
+        shell: pwsh
         run: |
           # The engine loads Steam's library from its own folder.
-          if [ "$STEAM" = yes ]; then cp sdk/steamworks/redistributable_bin/win64/steam_api64.dll godot/bin/; fi
-          godot/bin/godot.windows.editor.x86_64.console.exe --headless --version | grep -F "$VERSION (based on Godot"
+          if ($env:STEAM -eq "yes") { Copy-Item sdk/steamworks/redistributable_bin/win64/steam_api64.dll godot/bin/ }
+          $output = & godot/bin/godot.windows.editor.x86_64.console.exe --headless --version 2>&1 | Out-String
+          $status = $LASTEXITCODE
+          Write-Output $output
+          if ($output.Contains("$env:VERSION (based on Godot")) { exit 0 }
+          $reasons = @{ -1073741515 = "a DLL it needs isn't there"; -1073741511 = "a DLL it needs is missing a function"; -1073741819 = "it crashed" }
+          $reason = if ($reasons.ContainsKey($status)) { $reasons[$status] } else { "see above" }
+          # The DLLs the editor loads as it starts, and whether each is next to it or in Windows.
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
+          $dlls = & $dumpbin.FullName /dependents godot/bin/godot.windows.editor.x86_64.exe | Select-String '\.dll$' | ForEach-Object { $_.ToString().Trim() }
+          foreach ($dll in $dlls) {
+            $found = (Test-Path "godot/bin/$dll") -or (Test-Path "$env:SystemRoot\System32\$dll")
+            Write-Output ("{0}  {1}" -f $(if ($found) { "found  " } else { "MISSING" }), $dll)
+          }
+          Write-Output ("::error::The editor didn't start ({0}): exit status 0x{1:X8}." -f $reason, $status)
+          exit 1
 
       - name: Package
         run: |

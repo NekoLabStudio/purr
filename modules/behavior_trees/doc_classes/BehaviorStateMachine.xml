@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BehaviorStateMachine" inherits="BehaviorState" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Keeps one of its BehaviorState children active, and switches between them.
+	</brief_description>
+	<description>
+		Add [BehaviorState] nodes as children: the machine starts in [member initial_state] (or its first state), updates the active one every tick, and switches when a state calls [method BehaviorState.transition_to] or an event has a transition:
+		[codeblock]
+		func _ready():
+		    $StateMachine.add_transition("Patrol", "Chase", "spotted")
+		    $StateMachine.add_transition("", "Flee", "hurt") # From any state.
+
+		func _on_vision_spotted(body):
+		    $StateMachine.blackboard["target"] = body
+		    $StateMachine.send_event("spotted")
+		[/codeblock]
+		A machine is a state too, so one can be a state of another: a "Combat" machine with "Strike" and "Dodge" states, inside one with "Patrol" and "Combat". Its own states run while it's active. Events go to the deepest active machine first, then outwards.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="add_transition">
+			<return type="void" />
+			<param index="0" name="from" type="NodePath" />
+			<param index="1" name="to" type="NodePath" />
+			<param index="2" name="event" type="StringName" />
+			<param index="3" name="guard" type="Callable" default="Callable()" />
+			<description>
+				Switches from [param from] (empty for any state) to [param to] when [param event] is sent. If [param guard] is set, the switch only happens when it returns [code]true[/code]. The first matching transition added wins.
+			</description>
+		</method>
+		<method name="change_state">
+			<return type="void" />
+			<param index="0" name="state" type="NodePath" />
+			<description>
+				Switches to [param state], a state's name or a path to it from the machine. Switching to the active state starts it again.
+			</description>
+		</method>
+		<method name="get_current_state" qualifiers="const">
+			<return type="BehaviorState" />
+			<description>
+				The active state.
+			</description>
+		</method>
+		<method name="tick">
+			<return type="void" />
+			<param index="0" name="delta" type="float" />
+			<description>
+				Updates the active state with [param delta]. Call it yourself with [constant UPDATE_MANUAL].
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="initial_state" type="NodePath" setter="set_initial_state" getter="get_initial_state" default="NodePath(&quot;&quot;)">
+			The state the machine starts in. Its first state if not set.
+		</member>
+		<member name="running" type="bool" setter="set_running" getter="is_running" default="true">
+			Whether the outermost machine ticks. The active state stays active while it's off.
+		</member>
+		<member name="update_mode" type="int" setter="set_update_mode" getter="get_update_mode" enum="BehaviorStateMachine.UpdateMode" default="1">
+			When the outermost machine ticks: see [enum UpdateMode]. Machines inside another tick with it.
+		</member>
+	</members>
+	<signals>
+		<signal name="state_changed">
+			<param index="0" name="from" type="BehaviorState" />
+			<param index="1" name="to" type="BehaviorState" />
+			<description>
+				Emitted when the machine switches state, from [param from] (null when it starts) to [param to].
+			</description>
+		</signal>
+	</signals>
+	<constants>
+		<constant name="UPDATE_PROCESS" value="0" enum="UpdateMode">
+			Every frame.
+		</constant>
+		<constant name="UPDATE_PHYSICS" value="1" enum="UpdateMode">
+			Every physics tick, the default.
+		</constant>
+		<constant name="UPDATE_MANUAL" value="2" enum="UpdateMode">
+			Only when the game calls [method tick].
+		</constant>
+	</constants>
+</class>

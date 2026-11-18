@@ -1,8 +1,7 @@
-From 6010a315969a53276b4057e310d9c0adf3171ac2 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ivo Nunes <ivo@nunes.uk>
 Date: Sun, 15 Nov 2026 11:56:35 +0000
-Subject: [PATCH 03/13] Show Purr's version, and give each version its own
- templates
+Subject: [PATCH] Show Purr's version, and give each version its own templates
 
 Purr has its own version number, passed in as Godot's build name
 (BUILD_NAME, read from VERSION.txt by the build). Where Godot shows a
@@ -34,7 +33,7 @@ Not for upstream. Policy: https://godotengine.org/trademark/
  3 files changed, 25 insertions(+), 16 deletions(-)
 
 diff --git a/godot/core/version.h b/godot/core/version.h
-index e34870d..e53f011 100644
+index e34870d1..e53f011c 100644
 --- a/godot/core/version.h
 +++ b/godot/core/version.h
 @@ -59,24 +59,33 @@
@@ -69,14 +68,14 @@ index e34870d..e53f011 100644
 +// ends with the build name (Purr's version), so the two are the same.
 +// Example: "4.8.beta3.purr-0.1.0"
 +#define GODOT_VERSION_FULL_BUILD GODOT_VERSION_FULL_CONFIG
-+
-+// Purr's own version (passed in as the build name), followed by the Godot version it's based on.
-+// Example: "0.1.0 (based on Godot 4.8.beta3)"
-+#define PURR_VERSION_FULL GODOT_VERSION_BUILD " (based on Godot " PURR_GODOT_VERSION ")"
  
 -// Same as above, but prepended with Godot's name and a cosmetic "v" for "version".
 -// Example: "Godot v3.1.4.stable.official.mono.double"
 -#define GODOT_VERSION_FULL_NAME GODOT_VERSION_NAME " v" GODOT_VERSION_FULL_BUILD
++// Purr's own version (passed in as the build name), followed by the Godot version it's based on.
++// Example: "0.1.0 (based on Godot 4.8.beta3)"
++#define PURR_VERSION_FULL GODOT_VERSION_BUILD " (based on Godot " PURR_GODOT_VERSION ")"
++
 +// Same as above, but prepended with the engine's name and a cosmetic "v" for "version".
 +// Example: "Purr v0.1.0 (based on Godot 4.8.beta3)"
 +#define GODOT_VERSION_FULL_NAME GODOT_VERSION_NAME " v" PURR_VERSION_FULL
@@ -84,7 +83,7 @@ index e34870d..e53f011 100644
  // Git commit hash, generated at build time in `core/version_hash.gen.cpp`.
  extern const char *const GODOT_VERSION_HASH;
 diff --git a/godot/editor/gui/editor_version_button.cpp b/godot/editor/gui/editor_version_button.cpp
-index 1e72106..fcd5b57 100644
+index 1e72106e..fcd5b574 100644
 --- a/godot/editor/gui/editor_version_button.cpp
 +++ b/godot/editor/gui/editor_version_button.cpp
 @@ -39,10 +39,10 @@ String _get_version_string(EditorVersionButton::VersionFormat p_format) {
@@ -101,7 +100,7 @@ index 1e72106..fcd5b57 100644
  		case EditorVersionButton::FORMAT_WITH_NAME_AND_BUILD: {
  			main = GODOT_VERSION_FULL_NAME;
 diff --git a/godot/main/main.cpp b/godot/main/main.cpp
-index 7d0608a..255242e 100644
+index 7d0608a7..255242ef 100644
 --- a/godot/main/main.cpp
 +++ b/godot/main/main.cpp
 @@ -320,9 +320,9 @@ static String unescape_cmdline(const String &p_str) {

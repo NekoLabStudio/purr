@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BehaviorTree" inherits="Resource" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		A tree of behaviour tasks, saved to share between characters.
+	</brief_description>
+	<description>
+		Holds the [member root] task, and the [member blackboard] values a tree starts with. A [BehaviorTreePlayer] runs a copy of it for each character.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="instantiate" qualifiers="const">
+			<return type="BehaviorTask" />
+			<param index="0" name="agent" type="Node" />
+			<param index="1" name="blackboard" type="Dictionary" />
+			<description>
+				A copy of the tree for [param agent], with [param blackboard] for its tasks to share, ready to run. [BehaviorTreePlayer] does this for you.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="blackboard" type="Dictionary" setter="set_blackboard" getter="get_blackboard" default="{}">
+			The values the tasks start with. A player's own [member BehaviorTreePlayer.blackboard] values win over these.
+		</member>
+		<member name="root" type="BehaviorTask" setter="set_root" getter="get_root">
+			The task the tree starts from.
+		</member>
+	</members>
+</class>

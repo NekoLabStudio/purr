@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 19:30:00 +0000
+Subject: [PATCH] Metal: keep slices of multisampled textures multisampled
+
+texture_create_shared_from_slice() always asked Metal for a plain 2D
+(or 2D array) view. Forward+ resolves MSAA in multiview through a view
+of one layer of the multisampled colour array, and Metal refuses a
+non-multisampled view of multisampled memory, so XR with MSAA aborted
+the renderer on Metal. A slice of a multisampled texture is now a
+TextureType2DMultisample (or 2DMultisampleArray) view.
+
+Test: an XR viewport with two views and MSAA 2x or 4x on Metal renders
+instead of aborting.
+
+Upstream: to propose.
+---
+ godot/drivers/metal/rendering_device_driver_metal.cpp | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/godot/drivers/metal/rendering_device_driver_metal.cpp b/godot/drivers/metal/rendering_device_driver_metal.cpp
+index b86e4494..9ebb2cd4 100644
+--- a/godot/drivers/metal/rendering_device_driver_metal.cpp
++++ b/godot/drivers/metal/rendering_device_driver_metal.cpp
+@@ -536,9 +536,11 @@ RDD::TextureID RenderingDeviceDriverMetal::texture_create_shared_from_slice(Text
+ 	};
+ 
+ 	MTL::TextureType textureType = VIEW_TYPES[src_texture->textureType()];
++	// A view of multisampled layers must stay multisampled: Metal refuses a plain 2D view of them.
++	const bool multisampled = src_texture->textureType() == MTL::TextureType2DMultisample || src_texture->textureType() == MTL::TextureType2DMultisampleArray;
+ 	switch (p_slice_type) {
+ 		case TEXTURE_SLICE_2D: {
+-			textureType = MTL::TextureType2D;
++			textureType = multisampled ? MTL::TextureType2DMultisample : MTL::TextureType2D;
+ 		} break;
+ 		case TEXTURE_SLICE_3D: {
+ 			textureType = MTL::TextureType3D;
+@@ -547,7 +549,7 @@ RDD::TextureID RenderingDeviceDriverMetal::texture_create_shared_from_slice(Text
+ 			textureType = MTL::TextureTypeCube;
+ 		} break;
+ 		case TEXTURE_SLICE_2D_ARRAY: {
+-			textureType = MTL::TextureType2DArray;
++			textureType = multisampled ? MTL::TextureType2DMultisampleArray : MTL::TextureType2DArray;
+ 		} break;
+ 		case TEXTURE_SLICE_MAX: {
+ 			ERR_FAIL_V_MSG(TextureID(), "Invalid texture slice type");
+-- 
+2.54.0 (Apple Git-157)
+

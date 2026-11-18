@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BehaviorInverter" inherits="BehaviorTask" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Swaps its child's success and failure.
+	</brief_description>
+	<description>
+		Runs its first child, and succeeds when it fails and fails when it succeeds: [i]not[/i]. With no child, it fails.
+	</description>
+	<tutorials>
+	</tutorials>
+</class>

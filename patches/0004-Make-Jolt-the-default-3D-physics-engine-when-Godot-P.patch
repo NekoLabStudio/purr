@@ -1,8 +1,8 @@
-From 174ff387f769640d44ed8ed5ae188557de03ede1 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ivo Nunes <ivo@nunes.uk>
 Date: Sun, 15 Nov 2026 12:06:31 +0000
-Subject: [PATCH 04/13] Make Jolt the default 3D physics engine when Godot
- Physics is left out
+Subject: [PATCH] Make Jolt the default 3D physics engine when Godot Physics is
+ left out
 
 Only Godot Physics 3D registers itself as the default 3D physics
 server. In a build with module_godot_physics_3d_enabled=no, a project
@@ -24,7 +24,7 @@ Upstream: no existing issue or pull request; to be proposed.
  1 file changed, 6 insertions(+)
 
 diff --git a/godot/modules/jolt_physics/register_types.cpp b/godot/modules/jolt_physics/register_types.cpp
-index 1374303..1223c95 100644
+index 13743033..1223c95f 100644
 --- a/godot/modules/jolt_physics/register_types.cpp
 +++ b/godot/modules/jolt_physics/register_types.cpp
 @@ -36,6 +36,7 @@

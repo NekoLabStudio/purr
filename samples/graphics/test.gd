@@ -53,6 +53,8 @@ func _run() -> void:
 	await frames(2)
 	var long: Dictionary = long_frames.back() if not long_frames.is_empty() else {}
 	check("a long frame is reported with its measured work", long.get("ms", 0.0) >= 25.0 and long.get("work", {}).get("pathfinding", 0.0) >= 24.0, long)
+	# Far above the odd stall a busy machine (a CI runner) has with nothing running.
+	FrameBudget.long_frame_ms = 250.0
 	long_frames.clear()
 	await frames(3)
 	check("short frames aren't", long_frames.is_empty(), long_frames)

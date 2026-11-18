@@ -1,0 +1,14 @@
+config_version=5
+
+[application]
+
+config/name="Testing fixture"
+run/main_scene="res://missing.tscn"
+
+[autoload]
+
+Ghost="*res://ghost.gd"
+
+[testing]
+
+timeout_seconds=1.0

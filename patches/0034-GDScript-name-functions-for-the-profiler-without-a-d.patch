@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Wed, 18 Nov 2026 17:28:10 +0000
+Subject: [PATCH] GDScript: name functions for the profiler without a debugger
+
+A debug build counts the time spent in each GDScript function whenever
+a script language's profiling is on, but only names the functions
+(profile.signature, "res://player.gd::42::jump") when the engine was
+started with a debugger attached. Profiling started from the game
+itself, without the editor, then gets the times of nameless functions.
+
+Debug builds now always name them. It costs one string per compiled
+function, in debug builds only.
+---
+ godot/modules/gdscript/gdscript_compiler.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/godot/modules/gdscript/gdscript_compiler.cpp b/godot/modules/gdscript/gdscript_compiler.cpp
+index 4fd867f9..4a66d7ee 100644
+--- a/godot/modules/gdscript/gdscript_compiler.cpp
++++ b/godot/modules/gdscript/gdscript_compiler.cpp
+@@ -2485,7 +2485,7 @@ GDScriptFunction *GDScriptCompiler::_parse_function(Error &r_error, GDScript *p_
+ 	}
+ 
+ #ifdef DEBUG_ENABLED
+-	if (EngineDebugger::is_active()) {
++	{
+ 		String signature;
+ 		// Path.
+ 		if (!p_script->get_script_path().is_empty()) {
+@@ -2649,7 +2649,7 @@ GDScriptFunction *GDScriptCompiler::_make_static_initializer(Error &r_error, GDS
+ 	}
+ 
+ #ifdef DEBUG_ENABLED
+-	if (EngineDebugger::is_active()) {
++	{
+ 		String signature;
+ 		// Path.
+ 		if (!p_script->get_script_path().is_empty()) {
+-- 
+2.54.0 (Apple Git-157)
+

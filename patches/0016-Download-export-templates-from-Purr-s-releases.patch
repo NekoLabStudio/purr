@@ -22,8 +22,11 @@ templates for that version.
 
 Upstream: Purr only (Godot's own mirror list is right for Godot).
 ---
+ .../editor/export/export_template_manager.cpp | 35 ++++++++++---------
+ 1 file changed, 18 insertions(+), 17 deletions(-)
+
 diff --git a/godot/editor/export/export_template_manager.cpp b/godot/editor/export/export_template_manager.cpp
-index 0243f08..58b6d98 100644
+index 0243f089..58b6d980 100644
 --- a/godot/editor/export/export_template_manager.cpp
 +++ b/godot/editor/export/export_template_manager.cpp
 @@ -69,28 +69,29 @@ void ExportTemplateManager::_request_mirrors() {
@@ -74,4 +77,5 @@ index 0243f08..58b6d98 100644
  
  void ExportTemplateManager::_mirrors_request_completed(int p_result, int p_response_code, const PackedStringArray &p_headers, const PackedByteArray &p_body) {
 -- 
-2.50.1
+2.54.0 (Apple Git-157)
+

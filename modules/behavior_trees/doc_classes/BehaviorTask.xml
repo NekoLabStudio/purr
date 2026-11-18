@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BehaviorTask" inherits="Resource" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		One step of a behaviour tree: an action, a condition, or a task that runs others.
+	</brief_description>
+	<description>
+		Each tick, a running task returns [constant RUNNING], [constant SUCCESS] or [constant FAILURE]. Write actions and conditions by extending it and overriding [method _tick]:
+		[codeblock]
+		class_name Chase
+		extends BehaviorTask
+
+		@export var speed := 4.0
+
+		func _tick(delta: float) -&gt; Status:
+		    var target: Node3D = blackboard.get("target")
+		    if target == null:
+		        return FAILURE
+		    var offset: Vector3 = target.global_position - agent.global_position
+		    if offset.length() &lt; 1.5:
+		        return SUCCESS
+		    agent.velocity = offset.normalized() * speed
+		    agent.move_and_slide()
+		    return RUNNING
+		[/codeblock]
+		Tasks with [member children] (such as [BehaviorSequence] and [BehaviorSelector]) decide which child runs. A running task carries on from where it was on the next tick.
+		A [BehaviorTreePlayer] runs a copy of its tree, so a task's variables belong to one agent. Exported properties are copied from the tree; other variables start fresh.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="_enter" qualifiers="virtual">
+			<return type="void" />
+			<description>
+				Called when the task starts running, before its first [method _tick].
+			</description>
+		</method>
+		<method name="_exit" qualifiers="virtual">
+			<return type="void" />
+			<description>
+				Called when the task stops running: when it finishes, or when its parent stops it (a [BehaviorTimeLimit] running out, a [BehaviorParallel] finishing, the player turned off).
+			</description>
+		</method>
+		<method name="_setup" qualifiers="virtual">
+			<return type="void" />
+			<description>
+				Called once, when the player starts the tree, with [member agent] and [member blackboard] set.
+			</description>
+		</method>
+		<method name="_tick" qualifiers="virtual">
+			<return type="int" />
+			<param index="0" name="delta" type="float" />
+			<description>
+				Does the task's work for a tick, and returns [constant RUNNING] to carry on next tick, or [constant SUCCESS] or [constant FAILURE] when it's done. [param delta] is the time since the last tick.
+			</description>
+		</method>
+		<method name="get_child" qualifiers="const">
+			<return type="BehaviorTask" />
+			<param index="0" name="index" type="int" />
+			<description>
+				The child at [param index].
+			</description>
+		</method>
+		<method name="get_child_count" qualifiers="const">
+			<return type="int" />
+			<description>
+				How many children the task has.
+			</description>
+		</method>
+		<method name="get_elapsed_time" qualifiers="const">
+			<return type="float" />
+			<description>
+				How long the task has been running, in seconds of the tree's time.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="agent" type="Node" setter="" getter="get_agent">
+			The node the tree controls.
+		</member>
+		<member name="blackboard" type="Dictionary" setter="" getter="get_blackboard">
+			The dictionary every task in the tree shares, which the game reads and writes too (see [member BehaviorTreePlayer.blackboard]).
+		</member>
+		<member name="children" type="BehaviorTask[]" setter="set_children" getter="get_children" default="[]">
+			The tasks this one runs, for tasks that run others.
+		</member>
+		<member name="status" type="int" setter="" getter="get_status" enum="BehaviorTask.Status">
+			What the task returned last, or [constant IDLE] if it hasn't run since it last stopped.
+		</member>
+	</members>
+	<constants>
+		<constant name="IDLE" value="0" enum="Status">
+			Not running: it hasn't started, or it was stopped. Only the tree sets this.
+		</constant>
+		<constant name="RUNNING" value="1" enum="Status">
+			Still going: tick it again.
+		</constant>
+		<constant name="SUCCESS" value="2" enum="Status">
+			Done, and it worked.
+		</constant>
+		<constant name="FAILURE" value="3" enum="Status">
+			Done, and it didn't work.
+		</constant>
+	</constants>
+</class>

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BehaviorState" inherits="Node" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		One state of a BehaviorStateMachine.
+	</brief_description>
+	<description>
+		Add states as children of a [BehaviorStateMachine], one node a state, named for what the agent is doing ("Patrol", "Chase"). Write what a state does in a script extending it:
+		[codeblock]
+		extends BehaviorState
+
+		func _enter():
+		    agent.play("run")
+
+		func _update(delta):
+		    var target: Node3D = blackboard.get("target")
+		    if target == null:
+		        transition_to("Search")
+		        return
+		    agent.chase(target, delta)
+		[/codeblock]
+		[member agent] and [member blackboard] are the outermost machine's: its parent, and its dictionary of shared values.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="_enter" qualifiers="virtual">
+			<return type="void" />
+			<description>
+				Called when the machine switches to this state.
+			</description>
+		</method>
+		<method name="_exit" qualifiers="virtual">
+			<return type="void" />
+			<description>
+				Called when the machine switches away from this state, or stops.
+			</description>
+		</method>
+		<method name="_setup" qualifiers="virtual">
+			<return type="void" />
+			<description>
+				Called once, when the outermost machine starts, before any state is entered.
+			</description>
+		</method>
+		<method name="_update" qualifiers="virtual">
+			<return type="void" />
+			<param index="0" name="delta" type="float" />
+			<description>
+				Called every tick while this is the active state, with the time since the last tick.
+			</description>
+		</method>
+		<method name="get_machine" qualifiers="const">
+			<return type="BehaviorStateMachine" />
+			<description>
+				The machine this state belongs to.
+			</description>
+		</method>
+		<method name="is_active" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Whether this is its machine's active state.
+			</description>
+		</method>
+		<method name="send_event">
+			<return type="void" />
+			<param index="0" name="event" type="StringName" />
+			<description>
+				Sends [param event] to this state's machine, which switches state if it has a transition for it (see [method BehaviorStateMachine.add_transition]). If it doesn't, the machine round it gets the chance, and so on outwards.
+			</description>
+		</method>
+		<method name="transition_to">
+			<return type="void" />
+			<param index="0" name="state" type="NodePath" />
+			<description>
+				Switches the machine to [param state]: another state's name, or a path to it from the machine.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="agent" type="Node" setter="" getter="get_agent">
+			The node the states control: the outermost machine's parent.
+		</member>
+		<member name="blackboard" type="Dictionary" setter="set_blackboard" getter="get_blackboard">
+			The values every state shares, which the game can read and write too. Set on the outermost machine; every state inside it uses that one.
+		</member>
+	</members>
+	<signals>
+		<signal name="entered">
+			<description>
+				Emitted when the machine switches to this state.
+			</description>
+		</signal>
+		<signal name="exited">
+			<description>
+				Emitted when the machine switches away from this state.
+			</description>
+		</signal>
+	</signals>
+</class>

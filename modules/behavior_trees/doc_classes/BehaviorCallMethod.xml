@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BehaviorCallMethod" inherits="BehaviorTask" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Calls a method on the agent.
+	</brief_description>
+	<description>
+		Calls [member method] on the agent, or on the node at [member node] from it, with [member arguments]. It fails if the method returns [code]false[/code], and succeeds otherwise: a way to use the agent's own code as an action or a condition without writing a task.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="arguments" type="Array" setter="set_arguments" getter="get_arguments" default="[]">
+			What the method is called with.
+		</member>
+		<member name="method" type="StringName" setter="set_method" getter="get_method" default="&amp;&quot;&quot;">
+			The method to call.
+		</member>
+		<member name="node" type="NodePath" setter="set_node" getter="get_node" default="NodePath(&quot;&quot;)">
+			A node relative to the agent to call it on, or empty for the agent itself.
+		</member>
+	</members>
+</class>

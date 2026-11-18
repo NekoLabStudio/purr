@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BehaviorRepeat" inherits="BehaviorTask" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Runs its child again each time it finishes.
+	</brief_description>
+	<description>
+		Runs its first child again each time it finishes, once a tick at most, [member times] times or for ever.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="ignore_failure" type="bool" setter="set_ignore_failure" getter="is_ignoring_failure" default="false">
+			If on, a child that fails is run again like one that succeeded. If off, the repeat fails with it.
+		</member>
+		<member name="times" type="int" setter="set_times" getter="get_times" default="0">
+			How many times to run the child before succeeding. [code]0[/code] repeats for ever.
+		</member>
+	</members>
+</class>
