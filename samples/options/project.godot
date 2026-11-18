@@ -1,0 +1,11 @@
+config_version=5
+
+[application]
+
+config/name="Options sample"
+run/max_fps=0
+
+[options]
+
+game/show_hints=true
+game/text_size=16

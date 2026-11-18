@@ -5,19 +5,23 @@
 	</brief_description>
 	<description>
 		Recommends graphics settings in tiers, from [constant TIER_ULTRA] down to [constant TIER_LOW]. [method get_tier] picks a starting tier from the graphics adapter, [method get_settings] gives a tier's engine settings for the screen or a headset and [method apply] sets them on a viewport. [method benchmark] measures the tiers in the game itself and keeps the best one that holds a frame rate.
-		A game usually adds its own settings to each tier (draw distance, crowd density) and applies both together:
+		The player's tier is the option [code]display/graphics_tier[/code] in [Options], which starts as [method get_tier] recommends and is applied as the game starts and whenever it changes. A game adds its own settings to each tier (draw distance, crowd density) as the option changes:
 		[codeblock]
-		func apply_tier(tier: RecommendedGraphics.Tier) -&gt; void:
-		    RecommendedGraphics.apply(get_viewport(), RecommendedGraphics.get_settings(tier))
-		    crowd_density = [1.0, 1.0, 0.6, 0.3][tier]
+		const TIERS := ["ultra", "high", "medium", "low"]
 
 		func _ready() -&gt; void:
-		    apply_tier(RecommendedGraphics.get_tier())
+		    _apply_tier(Options.get_value("display/graphics_tier"))
+		    Options.changed.connect(func(key, value):
+		        if key == "display/graphics_tier":
+		            _apply_tier(value))
+
+		func _apply_tier(tier: String) -&gt; void:
+		    crowd_density = [1.0, 1.0, 0.6, 0.3][TIERS.find(tier)]
 
 		func _on_use_recommended_pressed() -&gt; void:
-		    var tier: RecommendedGraphics.Tier = await RecommendedGraphics.benchmark(apply_tier, 60.0)
-		    print("Recommended: ", tier)
+		    await RecommendedGraphics.benchmark(func(tier): Options.set_value("display/graphics_tier", TIERS[tier]), 60.0)
 		[/codeblock]
+		With [code]rendering/graphics_tier/apply[/code] off in Project Settings, the game applies the engine's settings itself with [method get_settings] and [method apply].
 	</description>
 	<tutorials>
 		<link title="Graphics settings">https://oss.nekolab.studio/purr/modules/graphics/</link>

@@ -1,7 +1,7 @@
-From d0919412f1decd4a46d9ea2e2a851ee221ccc517 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ivo Nunes <ivo@nunes.uk>
 Date: Sun, 15 Nov 2026 12:22:48 +0000
-Subject: [PATCH 05/13] Use Purr's colours for the editor accent
+Subject: [PATCH] Use Purr's colours for the editor accent
 
 The editor's accent colour (selected tabs, focus outlines, toggles,
 links and highlights) was Godot's blue. The neutral presets now use
@@ -24,7 +24,7 @@ Not for upstream. Policy: https://godotengine.org/trademark/
  2 files changed, 5 insertions(+), 5 deletions(-)
 
 diff --git a/godot/editor/settings/editor_settings.cpp b/godot/editor/settings/editor_settings.cpp
-index cc97008..efeda1f 100644
+index cc970083..efeda1f1 100644
 --- a/godot/editor/settings/editor_settings.cpp
 +++ b/godot/editor/settings/editor_settings.cpp
 @@ -624,7 +624,7 @@ void EditorSettings::_load_defaults(Ref<ConfigFile> p_extra_config) {
@@ -37,7 +37,7 @@ index cc97008..efeda1f 100644
  	EDITOR_SETTING_BASIC(Variant::FLOAT, PROPERTY_HINT_RANGE, "interface/theme/contrast", 0.3, "-1,1,0.01")
  	EDITOR_SETTING(Variant::BOOL, PROPERTY_HINT_NONE, "interface/theme/draw_extra_borders", false, "")
 diff --git a/godot/editor/themes/editor_theme_manager.cpp b/godot/editor/themes/editor_theme_manager.cpp
-index 2145e5b..85d3c41 100644
+index 2145e5b3..85d3c41d 100644
 --- a/godot/editor/themes/editor_theme_manager.cpp
 +++ b/godot/editor/themes/editor_theme_manager.cpp
 @@ -325,7 +325,7 @@ EditorThemeManager::ThemeConfiguration EditorThemeManager::_create_theme_config(

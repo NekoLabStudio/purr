@@ -2,16 +2,24 @@
 
 `RecommendedGraphics` picks graphics settings for the computer the game runs on, in four tiers: `TIER_ULTRA`, `TIER_HIGH`, `TIER_MEDIUM` and `TIER_LOW`.
 
+The player's tier is the option `display/graphics_tier` ([Options](/modules/options/)): `"ultra"`, `"high"`, `"medium"` or `"low"`, starting as the tier recommended for their computer. Purr applies it as the game starts and whenever it changes, so a graphics menu only needs to set it. When the game runs in a headset, it applies the tier's headset settings. Add the game's own settings for each tier as it changes:
+
 ```gdscript
-func apply_tier(tier: RecommendedGraphics.Tier) -> void:
-	RecommendedGraphics.apply(get_viewport(), RecommendedGraphics.get_settings(tier))
-	# The game's own settings for the tier go here too.
-	crowd_density = [1.0, 1.0, 0.6, 0.3][tier]
-
-
 func _ready() -> void:
-	if first_run:
-		apply_tier(RecommendedGraphics.get_tier())
+	_apply_tier(Options.get_value("display/graphics_tier"))
+	Options.changed.connect(func(key, value):
+		if key == "display/graphics_tier":
+			_apply_tier(value))
+
+
+func _apply_tier(tier: String) -> void:
+	crowd_density = { "ultra": 1.0, "high": 1.0, "medium": 0.6, "low": 0.3 }[tier]
+```
+
+To set the engine's settings yourself instead, turn off `rendering/graphics_tier/apply` in Project Settings. The option is still there for your menu, and `get_settings()` and `apply()` do the work:
+
+```gdscript
+RecommendedGraphics.apply(get_viewport(), RecommendedGraphics.get_settings(RecommendedGraphics.TIER_HIGH))
 ```
 
 `get_tier()` is a first guess from the graphics card. It reads the card's generation and class from its name (an RTX 4070 is generation 40, class 70; an M4 Max is generation 4, Max), so cards that come out later get a sensible tier without an update. Laptop graphics sit a step below the desktop card of the same name, and integrated graphics (including phones, tablets and Apple TV) start low. Cards from families it doesn't know go by whether they're discrete.
@@ -25,8 +33,11 @@ In a headset, use `get_settings(tier, true)`. It never uses TAA, which smears as
 A first guess can't know how heavy the game is. `benchmark()` measures each tier in the game itself, best first, and keeps the first one that holds a frame rate:
 
 ```gdscript
+const TIERS := ["ultra", "high", "medium", "low"]
+
+
 func _on_use_recommended_pressed() -> void:
-	var tier: RecommendedGraphics.Tier = await RecommendedGraphics.benchmark(apply_tier, 60.0)
+	await RecommendedGraphics.benchmark(func(tier): Options.set_value("display/graphics_tier", TIERS[tier]), 60.0)
 ```
 
 Each tier is applied with your function, left to settle for a moment, then every frame is timed for a few seconds. A tier holds the frame rate when nine frames in ten are on time, so a tier that averages 60 but stutters doesn't pass. The whole run takes up to about 20 seconds. Run it somewhere representative of the game, such as behind the settings menu over a busy scene. It runs while the game is paused. The tier chosen stays applied.
@@ -38,11 +49,9 @@ Vertical sync and `Engine.max_fps` are switched off while it measures and put ba
 `DynamicResolution` changes the 3D resolution as the game runs to hold the frame rate. A heavy scene draws at a lower resolution and a light one at full size, and the upscaler makes up the difference. It's off until the game turns it on, so offer it as a setting:
 
 ```gdscript
-func apply_tier(tier: RecommendedGraphics.Tier) -> void:
-	var settings := RecommendedGraphics.get_settings(tier)
-	RecommendedGraphics.apply(get_viewport(), settings)
-	DynamicResolution.max_scale = settings["scaling_3d_scale"]
-	DynamicResolution.enabled = player_settings.dynamic_resolution
+func _apply_tier(tier: String) -> void:
+	DynamicResolution.max_scale = get_viewport().scaling_3d_scale
+	DynamicResolution.enabled = Options.get_value("game/dynamic_resolution")
 ```
 
 It holds 60 frames a second on a screen (less on a slower display, or with `Engine.max_fps` lower), the headset's refresh rate in VR, or `target_fps` if you set one. On a 120 Hz display it stays at 60, as most players would rather have a sharp picture than a soft one at 120; set `target_fps` to aim higher (from a "prefer frame rate" option, say), or turn vertical sync off, which aims for the display's full rate. It draws between `min_scale` (half size by default; below that, upscaling looks soft) and `max_scale`. It lowers the resolution as soon as frames would be late and raises it a step at a time once there's room, so a moment's lull doesn't cause a stutter.

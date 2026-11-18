@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="TimeOfDay" inherits="Node3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Moves a sun and a moon across the sky as the hours pass, and dims the sky at night.
+	</brief_description>
+	<description>
+		Add a [TimeOfDay] with two [DirectionalLight3D] children: the first is the sun and the second the moon (or set [member sun] and [member moon]). As [member time] passes, it points them from where they are in the sky, sets their energy and colour (warm and low at dawn and dusk, white at noon, a dim blue moon at night) and turns off whichever is below the horizon. In a running game it also dims the sky and ambient light of the world's [Environment] at night, down to [member night_sky_energy] of their own values.
+		The sun rises in the node's +X direction and is due +Z at noon, so turn the node to set where north is. In the editor, changing [member time] shows that hour, but the clock only runs in a game.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_daylight" qualifiers="const">
+			<return type="float" />
+			<description>
+				How much daylight there is: [code]1.0[/code] by day, [code]0.0[/code] at night, and in between round sunrise and sunset.
+			</description>
+		</method>
+		<method name="get_sun_direction" qualifiers="const">
+			<return type="Vector3" />
+			<description>
+				The direction towards the sun, in global space.
+			</description>
+		</method>
+		<method name="is_day" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] while the sun is above the horizon.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="day_length" type="float" setter="set_day_length" getter="get_day_length" default="1200.0">
+			How many real seconds a day takes. [code]0[/code] stops the clock.
+		</member>
+		<member name="latitude" type="float" setter="set_latitude" getter="get_latitude" default="45.0">
+			How far north (or south, below [code]0[/code]) the place is, in degrees: the further from the equator, the lower the sun stays.
+		</member>
+		<member name="moon" type="NodePath" setter="set_moon" getter="get_moon" default="NodePath(&quot;&quot;)">
+			The light for the moon. When it's empty, the first [DirectionalLight3D] child that isn't the sun is used.
+		</member>
+		<member name="moon_energy" type="float" setter="set_moon_energy" getter="get_moon_energy" default="0.15">
+			The moon's energy when it's high in the sky.
+		</member>
+		<member name="night_sky_energy" type="float" setter="set_night_sky_energy" getter="get_night_sky_energy" default="0.1">
+			How bright the sky and ambient light are at night, as a part of their own energies.
+		</member>
+		<member name="sun" type="NodePath" setter="set_sun" getter="get_sun" default="NodePath(&quot;&quot;)">
+			The light for the sun. When it's empty, the first [DirectionalLight3D] child is used.
+		</member>
+		<member name="sun_energy" type="float" setter="set_sun_energy" getter="get_sun_energy" default="1.0">
+			The sun's energy when it's high in the sky.
+		</member>
+		<member name="time" type="float" setter="set_time" getter="get_time" default="12.0">
+			The time of day in hours, from [code]0.0[/code] (midnight) to [code]24.0[/code]: [code]13.5[/code] is half past one in the afternoon.
+		</member>
+	</members>
+	<signals>
+		<signal name="hour_changed">
+			<param index="0" name="hour" type="int" />
+			<description>
+				Emitted as each hour begins, with the hour from [code]0[/code] to [code]23[/code]: for every hour in turn, even when a frame spans several.
+			</description>
+		</signal>
+	</signals>
+</class>

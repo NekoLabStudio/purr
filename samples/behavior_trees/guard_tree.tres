@@ -1,0 +1,33 @@
+[gd_resource type="BehaviorTree" load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://player_near.gd" id="1"]
+[ext_resource type="Script" path="res://chase.gd" id="2"]
+[ext_resource type="Script" path="res://patrol.gd" id="3"]
+
+[sub_resource type="BehaviorTask" id="near"]
+script = ExtResource("1")
+
+[sub_resource type="BehaviorTask" id="chase"]
+script = ExtResource("2")
+
+[sub_resource type="BehaviorSequence" id="chase_when_near"]
+children = Array[BehaviorTask]([SubResource("near"), SubResource("chase")])
+
+[sub_resource type="BehaviorTask" id="patrol"]
+script = ExtResource("3")
+
+[sub_resource type="BehaviorWait" id="pause"]
+seconds = 0.6
+
+[sub_resource type="BehaviorSequence" id="patrol_and_pause"]
+children = Array[BehaviorTask]([SubResource("patrol"), SubResource("pause")])
+
+[sub_resource type="BehaviorSelector" id="root"]
+children = Array[BehaviorTask]([SubResource("chase_when_near"), SubResource("patrol_and_pause")])
+
+[resource]
+root = SubResource("root")
+blackboard = {
+"patrol_points": [Vector2(200, 150), Vector2(600, 150), Vector2(600, 400), Vector2(200, 400)],
+"state": ""
+}

@@ -1,0 +1,46 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Mon, 16 Nov 2026 18:00:00 +0000
+Subject: [PATCH] macOS export: sign helper executables with the game's
+ entitlements
+
+Outside the App Sandbox, the exporter signed every extra Mach-O in the
+bundle (libraries and helper executables an export plugin adds) with no
+entitlements, but with the hardened runtime. A helper executable then
+couldn't do what the game's entitlements allow: a helper recording the
+game's sound got silence without com.apple.security.device.audio-input.
+Helper executables now get the game's own entitlements, as sandboxed
+ones get the helper entitlements; libraries still get none.
+---
+ godot/platform/macos/export/export_plugin.cpp | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/godot/platform/macos/export/export_plugin.cpp b/godot/platform/macos/export/export_plugin.cpp
+index 705ce7e0..4a908ef2 100644
+--- a/godot/platform/macos/export/export_plugin.cpp
++++ b/godot/platform/macos/export/export_plugin.cpp
+@@ -1396,6 +1396,10 @@ void EditorExportPlatformMacOS::_code_sign_directory(const Ref<EditorExportPrese
+ 					ent_path = p_helper_ent_path;
+ 					set_bundle_id = true;
+ 				}
++			} else if (!sandbox && FileAccess::exists(current_file_path) && MachO::get_filetype(current_file_path) == 2) {
++				// A helper executable runs with the hardened runtime as the game does, so it needs
++				// the game's entitlements to do what the game may (record audio, for example).
++				ent_path = p_ent_path;
+ 			}
+ 			_code_sign(p_preset, current_file_path, ent_path, false, set_bundle_id);
+ 			if (is_executable(current_file_path)) {
+@@ -1664,6 +1668,10 @@ Error EditorExportPlatformMacOS::_copy_and_sign_files(Ref<DirAccess> &dir_access
+ 						ent_path = p_helper_ent_path;
+ 						set_bundle_id = true;
+ 					}
++				} else if (!p_sandbox && FileAccess::exists(p_in_app_path) && MachO::get_filetype(p_in_app_path) == 2) {
++					// A helper executable runs with the hardened runtime as the game does, so it
++					// needs the game's entitlements to do what the game may (record audio, for example).
++					ent_path = p_ent_path;
+ 				}
+ 				_code_sign(p_preset, p_in_app_path, ent_path, false, set_bundle_id);
+ 			}
+-- 
+2.54.0 (Apple Git-157)
+

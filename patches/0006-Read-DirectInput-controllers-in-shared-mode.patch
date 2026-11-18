@@ -1,7 +1,7 @@
-From 9a9fc84fe3394dde8b488f7458f2780d9239922a Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ivo Nunes <ivo@nunes.uk>
 Date: Sun, 15 Nov 2026 14:14:53 +0000
-Subject: [PATCH 06/13] Read DirectInput controllers in shared mode
+Subject: [PATCH] Read DirectInput controllers in shared mode
 
 Godot reads joypads through SDL, whose DirectInput backend opens each
 controller in exclusive mode so it can play SDL's own rumble effects.
@@ -25,7 +25,7 @@ Not for upstream: Godot has no force feedback of its own that needs it.
  1 file changed, 3 insertions(+), 2 deletions(-)
 
 diff --git a/godot/thirdparty/sdl/joystick/windows/SDL_dinputjoystick.c b/godot/thirdparty/sdl/joystick/windows/SDL_dinputjoystick.c
-index c671260..c68b198 100644
+index c6712600..c68b1986 100644
 --- a/godot/thirdparty/sdl/joystick/windows/SDL_dinputjoystick.c
 +++ b/godot/thirdparty/sdl/joystick/windows/SDL_dinputjoystick.c
 @@ -789,10 +789,11 @@ bool SDL_DINPUT_JoystickOpen(SDL_Joystick *joystick, JoyStick_DeviceData *joysti

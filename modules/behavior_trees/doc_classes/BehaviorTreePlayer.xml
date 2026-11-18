@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BehaviorTreePlayer" inherits="Node" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Runs a behaviour tree for a character.
+	</brief_description>
+	<description>
+		Add it as a child of the character and set [member behavior_tree]. It ticks the tree every physics tick (see [member update_mode]), and starts it again whenever it finishes, so it keeps deciding what the character does.
+		The game shares values with the tree through [member blackboard]:
+		[codeblock]
+		func _on_vision_spotted(body):
+		    $BehaviorTreePlayer.blackboard["target"] = body
+		[/codeblock]
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_agent_node" qualifiers="const">
+			<return type="Node" />
+			<description>
+				The node the tree controls.
+			</description>
+		</method>
+		<method name="get_last_status" qualifiers="const">
+			<return type="int" enum="BehaviorTask.Status" />
+			<description>
+				What the tree returned on its last tick.
+			</description>
+		</method>
+		<method name="get_running_tree" qualifiers="const">
+			<return type="BehaviorTask" />
+			<description>
+				The running copy of the tree's root task, to look at its tasks' state.
+			</description>
+		</method>
+		<method name="restart">
+			<return type="void" />
+			<description>
+				Stops the tree, telling running tasks they're leaving, and starts it again from the beginning.
+			</description>
+		</method>
+		<method name="update">
+			<return type="int" enum="BehaviorTask.Status" />
+			<param index="0" name="delta" type="float" />
+			<description>
+				Ticks the tree once with [param delta] and returns its status. Call it yourself with [constant UPDATE_MANUAL].
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="active" type="bool" setter="set_active" getter="is_active" default="true">
+			Whether the tree runs. Turning it off stops the running tasks.
+		</member>
+		<member name="agent" type="NodePath" setter="set_agent" getter="get_agent" default="NodePath(&quot;..&quot;)">
+			The node the tree controls. Its parent by default.
+		</member>
+		<member name="behavior_tree" type="BehaviorTree" setter="set_behavior_tree" getter="get_behavior_tree">
+			The tree to run.
+		</member>
+		<member name="blackboard" type="Dictionary" setter="set_blackboard" getter="get_blackboard" default="{}">
+			The values the tree's tasks share. When the tree starts, the tree's own values that this doesn't have are added to it, and the tasks then use this same dictionary, so the game can read and write it as they run. Setting a new dictionary restarts the tree.
+		</member>
+		<member name="update_mode" type="int" setter="set_update_mode" getter="get_update_mode" enum="BehaviorTreePlayer.UpdateMode" default="1">
+			When the tree ticks: see [enum UpdateMode].
+		</member>
+	</members>
+	<signals>
+		<signal name="finished">
+			<param index="0" name="status" type="int" enum="BehaviorTask.Status" />
+			<description>
+				Emitted each time the tree finishes, with [constant BehaviorTask.SUCCESS] or [constant BehaviorTask.FAILURE]. It starts again on the next tick.
+			</description>
+		</signal>
+	</signals>
+	<constants>
+		<constant name="UPDATE_PROCESS" value="0" enum="UpdateMode">
+			Every frame.
+		</constant>
+		<constant name="UPDATE_PHYSICS" value="1" enum="UpdateMode">
+			Every physics tick, the default, as most tasks move bodies.
+		</constant>
+		<constant name="UPDATE_MANUAL" value="2" enum="UpdateMode">
+			Only when the game calls [method update].
+		</constant>
+	</constants>
+</class>

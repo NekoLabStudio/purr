@@ -115,6 +115,26 @@ jobs:
       - name: World
         run: godot/bin/godot.macos.editor.arm64 --headless --path samples/world -s test.gd
 
+      - name: Debug tools
+        run: godot/bin/godot.macos.editor.arm64 --headless --path samples/debug_tools -s test.gd
+
+      - name: Testing
+        run: godot/bin/godot.macos.editor.arm64 --headless --path samples/testing -s test.gd
+
+      - name: Cameras
+        run: godot/bin/godot.macos.editor.arm64 --headless --path samples/cameras -s test.gd
+
+      - name: Behavior trees
+        run: godot/bin/godot.macos.editor.arm64 --headless --path samples/behavior_trees -s test.gd
+
+      - name: Terrain
+        run: godot/bin/godot.macos.editor.arm64 --headless --path samples/terrain -s test.gd
+
+      - name: Crash reports
+        run: godot/bin/godot.macos.editor.arm64 --headless --path samples/crash_reports -s test.gd
+      - name: Options
+        run: godot/bin/godot.macos.editor.arm64 --headless --path samples/options -s test.gd
+
       - name: VR streamer
         run: cargo test --release --manifest-path modules/vr_streamer/streamer/Cargo.toml
 
@@ -160,6 +180,26 @@ jobs:
 
       - name: World
         run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/world -s test.gd
+
+      - name: Debug tools
+        run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/debug_tools -s test.gd
+
+      - name: Testing
+        run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/testing -s test.gd
+
+      - name: Cameras
+        run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/cameras -s test.gd
+
+      - name: Behavior trees
+        run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/behavior_trees -s test.gd
+
+      - name: Terrain
+        run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/terrain -s test.gd
+
+      - name: Crash reports
+        run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/crash_reports -s test.gd
+      - name: Options
+        run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/options -s test.gd
 
   windows:
     name: Windows
@@ -208,6 +248,26 @@ jobs:
 
       - name: World
         run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/world -s test.gd
+
+      - name: Debug tools
+        run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/debug_tools -s test.gd
+
+      - name: Testing
+        run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/testing -s test.gd
+
+      - name: Cameras
+        run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/cameras -s test.gd
+
+      - name: Behavior trees
+        run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/behavior_trees -s test.gd
+
+      - name: Terrain
+        run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/terrain -s test.gd
+
+      - name: Crash reports
+        run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/crash_reports -s test.gd
+      - name: Options
+        run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/options -s test.gd
 
   play-games:
     name: Play Games plugin

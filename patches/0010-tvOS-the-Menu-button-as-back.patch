@@ -1,7 +1,7 @@
-From a1f30b20aeae71760d6e9a9ff53aaaf805e58659 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ivo Nunes <ivo@nunes.uk>
 Date: Sun, 15 Nov 2026 14:40:36 +0000
-Subject: [PATCH 10/13] tvOS: the Menu button as back
+Subject: [PATCH] tvOS: the Menu button as back
 
 With quit_on_go_back on (the default), Menu goes back to the system
 and returns to the Home screen. That needs UIKit to see the press
@@ -28,7 +28,7 @@ Upstream: https://github.com/godotengine/godot/pull/123885
  1 file changed, 41 insertions(+), 3 deletions(-)
 
 diff --git a/godot/drivers/apple_embedded/godot_view_controller.mm b/godot/drivers/apple_embedded/godot_view_controller.mm
-index bf83fb2..228c8bb 100644
+index bf83fb23..228c8bb0 100644
 --- a/godot/drivers/apple_embedded/godot_view_controller.mm
 +++ b/godot/drivers/apple_embedded/godot_view_controller.mm
 @@ -100,6 +100,28 @@ - (GDTView *)godotView {

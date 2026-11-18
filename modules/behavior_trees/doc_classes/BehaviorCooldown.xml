@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BehaviorCooldown" inherits="BehaviorTask" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Stops its child running too often.
+	</brief_description>
+	<description>
+		Runs its first child, then fails without running it until [member seconds] have passed since it last finished. In seconds of the tree's time, which passes while its [BehaviorTreePlayer] ticks it.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="seconds" type="float" setter="set_seconds" getter="get_seconds" default="1.0">
+			How long after the child finishes before it can run again.
+		</member>
+	</members>
+</class>

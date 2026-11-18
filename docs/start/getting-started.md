@@ -1,10 +1,32 @@
 # Getting started
 
-Purr is NekoLab's game engine: Godot with what most games end up needing built in. Godot's own [documentation](https://docs.godotengine.org/en/latest/) covers the editor, scenes, scripting and everything else Purr doesn't change. These pages cover what Purr adds:
+Purr is NekoLab's game engine: Godot with what most games end up needing built in. Godot's own [documentation](https://docs.godotengine.org/en/latest/) covers the editor, scenes, scripting and everything else Purr doesn't change. These pages cover what Purr adds.
 
-- Accounts, saves, achievements, leaderboards, lobbies, friends and local players, through one API that works the same on Steam, Game Center, Google Play Games and a device without a platform.
+For every game:
+
+- Accounts, saves, achievements, leaderboards, lobbies, friends and [local players](../api/local-players.md), through [one API](../api/index.md) that works the same on Steam, Game Center, Google Play Games and a device without a platform.
 - Purr's own [online services](../online/index.md), which you run yourself, for crossplay, progress across platforms and ranked play.
-- WebRTC, steering wheel force feedback, VR on a Mac, recommended graphics settings and Apple TV exports.
+- [Options](../modules/options.md): the player's settings, saved and put into effect, from the window, graphics tier and audio volumes to the game's own.
+- [Controls](../modules/controls.md) players can change and keep, with button prompts for whatever controller they're holding.
+- [Crash reports](../modules/crash-reports.md) for runs that crashed or were closed by force, sent to your online services if the player agrees.
+
+For how it looks and runs:
+
+- [Recommended graphics settings](../modules/graphics.md) for the player's computer, with a benchmark and dynamic resolution.
+- Parametric, a film-like tonemapper that keeps mid grey and rolls highlights off into white, and the default for new environments.
+- [Large worlds](../modules/world.md): a floating origin, streaming, thousands of moving copies drawn in chunks, and pools of lights and reflection probes round the player.
+- [Terrain](../modules/terrain.md) you sculpt and paint in the editor, [scattering](../modules/scattering.md) for rocks and grass, and a [time of day](../modules/time-of-day.md) that moves the sun and moon.
+
+For building the game:
+
+- [Virtual cameras](../modules/cameras.md) that follow, orbit, ride a rail or frame a group.
+- [Behaviour trees and state machines](../modules/behavior-trees.md) for characters' decisions.
+- [Debug tools](../modules/debug-tools.md): drawing from anywhere, an in-game console, a performance overlay and profiling outside the editor.
+- [Tests and project checks](../modules/testing.md) that run in CI, with timings of heavy work.
+
+For particular games and devices:
+
+- [WebRTC](../modules/webrtc.md), [steering wheels](../modules/force-feedback.md) with force feedback, [VR on a Mac](../modules/vr.md) and [Apple TV](../platforms/apple-tv.md) exports.
 
 ## Installing Purr
 
@@ -51,4 +73,4 @@ GDExtensions need to be built against Purr's API. Run the editor with `--headles
 - The platform you're shipping on: [Steam](../platforms/steam.md), [Apple platforms](../platforms/apple.md), [Apple TV](../platforms/apple-tv.md) or [Android](../platforms/android.md).
 - [Exporting](exporting.md) when you're ready to ship.
 
-Every class Purr adds is in the class reference, here and in the editor (press F1 and search). The repository's `samples/` folder has a small project for each part of Purr, such as `samples/purr` for accounts, saves and lobbies, and `samples/force_feedback` for steering wheels.
+Every class Purr adds is in the class reference, here and in the editor (press F1 and search). The repository's `samples/` folder has a small project for each part of Purr, such as `samples/purr` for accounts, saves and lobbies, `samples/terrain` for terrain and `samples/options` for the player's settings.

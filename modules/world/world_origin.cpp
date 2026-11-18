@@ -1,6 +1,7 @@
 #include "world_origin.h"
 
 #include "../graphics/frame_budget.h"
+#include "multimesh_body_3d.h"
 
 #include "core/config/engine.h"
 #include "core/config/project_settings.h"
@@ -9,12 +10,11 @@
 #include "core/os/os.h"
 #include "scene/3d/cpu_particles_3d.h"
 #include "scene/3d/gpu_particles_3d.h"
-#include "multimesh_body_3d.h"
 #include "scene/3d/node_3d.h"
 #include "scene/3d/physics/collision_object_3d.h"
 #include "scene/3d/visual_instance_3d.h"
-#include "scene/main/window.h"
 #include "scene/main/scene_tree.h"
+#include "scene/main/window.h"
 #include "servers/rendering/rendering_server.h"
 
 WorldOrigin *WorldOrigin::singleton = nullptr;
@@ -222,7 +222,7 @@ void WorldOrigin::shift(const Vector3 &p_by) {
 	if (by == Vector3()) {
 		return;
 	}
-	const uint64_t started = OS::get_singleton()->get_ticks_usec();
+	const uint64_t began_usec = OS::get_singleton()->get_ticks_usec();
 	Node3D *world = _world();
 	if (world != nullptr) {
 		_move_world(world, by);
@@ -237,7 +237,7 @@ void WorldOrigin::shift(const Vector3 &p_by) {
 	_restart_world_space_particles();
 	emit_signal(SNAME("shifted"), by);
 	if (FrameBudget::get_singleton() != nullptr) {
-		FrameBudget::get_singleton()->measure("world origin shift", started);
+		FrameBudget::get_singleton()->measure("world origin shift", began_usec);
 	}
 }
 

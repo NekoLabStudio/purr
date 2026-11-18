@@ -1,7 +1,7 @@
-From 2fbdda7b341b4f2488a9542eddc30c88adbbbea5 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ivo Nunes <ivo@nunes.uk>
 Date: Sun, 15 Nov 2026 14:40:36 +0000
-Subject: [PATCH 12/13] tvOS: each Apple TV user's own data
+Subject: [PATCH] tvOS: each Apple TV user's own data
 
 Apple TV can have several users. Without the user-management
 entitlement, a game shares one set of data and one keychain between
@@ -24,7 +24,7 @@ Not upstream yet; worth proposing with #118332.
  2 files changed, 7 insertions(+)
 
 diff --git a/godot/editor/export/editor_export_platform_apple_embedded.cpp b/godot/editor/export/editor_export_platform_apple_embedded.cpp
-index 0010245..2133823 100644
+index 00102452..2133823f 100644
 --- a/godot/editor/export/editor_export_platform_apple_embedded.cpp
 +++ b/godot/editor/export/editor_export_platform_apple_embedded.cpp
 @@ -525,6 +525,11 @@ String EditorExportPlatformAppleEmbedded::_process_config_file_line(const Ref<Ed
@@ -40,7 +40,7 @@ index 0010245..2133823 100644
  
  		strnew += p_line.replace("$entitlements_full", entitlements);
 diff --git a/godot/platform/tvos/export/export_plugin.cpp b/godot/platform/tvos/export/export_plugin.cpp
-index 5a3de81..a141d1a 100644
+index 5a3de81e..a141d1a9 100644
 --- a/godot/platform/tvos/export/export_plugin.cpp
 +++ b/godot/platform/tvos/export/export_plugin.cpp
 @@ -57,6 +57,8 @@ void EditorExportPlatformTVOS::get_export_options(List<ExportOption> *r_options)

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BehaviorSelector" inherits="BehaviorTask" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Tries its children in order until one succeeds.
+	</brief_description>
+	<description>
+		Runs each child in turn until one succeeds, and succeeds with it. It fails if they all fail. Put the most important behaviour first: a guard's selector might try attacking, then chasing, then patrolling.
+	</description>
+	<tutorials>
+	</tutorials>
+</class>

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="InstanceGroup3D" inherits="Node3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Many copies of a mesh that move, drawn in chunks of the world.
+	</brief_description>
+	<description>
+		Draws thousands of copies of [member mesh] that move every frame (a crowd, units, bullets, a flock). The game gives every copy's transform in one call a frame with [member transforms]; the copies are sorted into a grid of [member chunk_size] cells, each drawn as its own MultiMesh. Chunks off screen, out of the sun's shadow range or past [member visibility_range_end] cost nothing, and an imported mesh's simpler levels of detail are drawn for chunks far away. A single [MultiMeshInstance3D] is drawn whole whenever any copy is in view.
+		Changes made in a frame are drawn once, at the end of it. The chunks are this node's: they follow its transform and visibility, and [WorldOrigin] shifts.
+		[codeblock]
+		var floats := PackedFloat32Array()
+		for fish in shoal:
+		    var t: Transform3D = fish.transform
+		    floats.append_array([t.basis.x.x, t.basis.y.x, t.basis.z.x, t.origin.x,
+		            t.basis.x.y, t.basis.y.y, t.basis.z.y, t.origin.y,
+		            t.basis.x.z, t.basis.y.z, t.basis.z.z, t.origin.z])
+		$Shoal.transforms = floats
+		[/codeblock]
+	</description>
+	<tutorials>
+		<link title="Many moving copies">https://oss.nekolab.studio/purr/modules/world/#many-moving-copies</link>
+	</tutorials>
+	<methods>
+		<method name="get_chunk_count" qualifiers="const">
+			<return type="int" />
+			<description>
+				Returns how many chunks the copies are drawn in: one for each [member chunk_size] cell with a copy in it, and a draw call each (and more for shadows).
+			</description>
+		</method>
+		<method name="get_count" qualifiers="const">
+			<return type="int" />
+			<description>
+				Returns how many copies there are: the size of [member transforms] divided by 12.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="cast_shadow" type="int" setter="set_cast_shadows_setting" getter="get_cast_shadows_setting" enum="GeometryInstance3D.ShadowCastingSetting" default="1">
+			Whether the copies cast shadows, as [member GeometryInstance3D.cast_shadow].
+		</member>
+		<member name="chunk_size" type="float" setter="set_chunk_size" getter="get_chunk_size" default="64.0">
+			The size of the cells the copies are drawn in, in metres. Larger chunks draw fewer, bigger batches; smaller ones are culled more closely. Changing it sorts the copies again.
+		</member>
+		<member name="colors" type="PackedColorArray" setter="set_colors" getter="get_colors" default="PackedColorArray()">
+			Each copy's colour, in order, when [member use_colors] is on, for the material to read (with [member BaseMaterial3D.vertex_color_use_as_albedo], or [code]COLOR[/code] in a shader). Copies without one are white.
+		</member>
+		<member name="custom_data" type="PackedColorArray" setter="set_custom_data" getter="get_custom_data" default="PackedColorArray()">
+			Four numbers for each copy, in order, when [member use_custom_data] is on, for a shader to read as [code]INSTANCE_CUSTOM[/code]. Copies without any have zeros.
+		</member>
+		<member name="layers" type="int" setter="set_layer_mask" getter="get_layer_mask" default="1">
+			The render layers the copies are drawn on, as [member VisualInstance3D.layers]: a camera or a reflection probe whose [code]cull_mask[/code] leaves them out doesn't draw them.
+		</member>
+		<member name="material_override" type="Material" setter="set_material_override" getter="get_material_override">
+			A material to draw every copy with instead of the mesh's own.
+		</member>
+		<member name="mesh" type="Mesh" setter="set_mesh" getter="get_mesh">
+			The mesh each copy draws.
+		</member>
+		<member name="transforms" type="PackedFloat32Array" setter="set_transforms" getter="get_transforms" default="PackedFloat32Array()">
+			Every copy's transform in the node's own space, 12 floats each, in the order a [MultiMesh] buffer has them: the basis's rows, each followed by one coordinate of the origin ([code]basis.x.x, basis.y.x, basis.z.x, origin.x, basis.x.y, ...[/code]). The number of copies follows from its size; one whose size isn't a multiple of 12 is refused.
+		</member>
+		<member name="use_colors" type="bool" setter="set_use_colors" getter="is_using_colors" default="false">
+			If [code]true[/code], each copy has a colour from [member colors].
+		</member>
+		<member name="use_custom_data" type="bool" setter="set_use_custom_data" getter="is_using_custom_data" default="false">
+			If [code]true[/code], each copy has four numbers from [member custom_data].
+		</member>
+		<member name="visibility_range_end" type="float" setter="set_visibility_range_end" getter="get_visibility_range_end" default="0.0">
+			Chunks further than this from the camera aren't drawn, in metres. [code]0[/code] draws them at any distance.
+		</member>
+	</members>
+</class>

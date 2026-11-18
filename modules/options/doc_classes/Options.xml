@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Options" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		The player's settings, saved and put into effect.
+	</brief_description>
+	<description>
+		Keeps the player's settings: what an options menu changes. Each option has a key with a section and a name ([code]"audio/music_volume"[/code], [code]"game/show_hints"[/code]), a default and a current value. Changes are saved to [code]user://options.cfg[/code] within a second and as the game quits. Only options that differ from their default are saved, so a game update's new default reaches every player who never changed it.
+		Built in are [code]display/window_mode[/code] ([code]"windowed"[/code], [code]"fullscreen"[/code] or [code]"exclusive_fullscreen"[/code]), [code]display/vsync[/code], [code]display/max_fps[/code], [code]privacy/send_crash_reports[/code] (whether the player agreed to send [CrashReports] to the game's online service, [code]false[/code] until they do), [code]display/graphics_tier[/code] ([code]"ultra"[/code], [code]"high"[/code], [code]"medium"[/code] or [code]"low"[/code], starting as [method RecommendedGraphics.get_tier] has it; its settings are applied unless [code]rendering/graphics_tier/apply[/code] is off) and, for each audio bus, its volume from 0 to 1 as [code]audio/&lt;bus&gt;_volume[/code] ([code]audio/master_volume[/code]). They take effect as they're set, and the window opens with the player's choices. [code]display/window_mode[/code] also follows the window when it goes fullscreen or back another way. Their defaults come from Project Settings, the default bus layout and the computer.
+		Settings under [code]options/[/code] in Project Settings are the game's own options: [code]options/game/show_hints[/code] is the option [code]game/show_hints[/code]. More can be added with [method define]. The game puts its own options into effect, as the game starts and on [signal changed].
+		In the editor, options can be read but aren't saved or put into effect.
+		[codeblock]
+		$MusicSlider.value = Options.get_value("audio/music_volume")
+		$MusicSlider.value_changed.connect(func(value): Options.set_value("audio/music_volume", value))
+		[/codeblock]
+	</description>
+	<tutorials>
+		<link title="Options">https://oss.nekolab.studio/purr/modules/options/</link>
+	</tutorials>
+	<methods>
+		<method name="define">
+			<return type="void" />
+			<param index="0" name="key" type="String" />
+			<param index="1" name="default" type="Variant" />
+			<param index="2" name="info" type="Dictionary" default="{}" />
+			<description>
+				Adds an option, or changes one's default and [param info]. The key has a section and a name, as in [code]"game/difficulty"[/code]. [param info] may have [code]min[/code] and [code]max[/code] for a number, or [code]choices[/code], an [Array] of the values allowed. A value the player saved earlier is kept if it still suits the option.
+				[codeblock]
+				Options.define("game/difficulty", "normal", { "choices": ["easy", "normal", "hard"] })
+				[/codeblock]
+			</description>
+		</method>
+		<method name="get_default">
+			<return type="Variant" />
+			<param index="0" name="key" type="String" />
+			<description>
+				Returns the option's default.
+			</description>
+		</method>
+		<method name="get_info">
+			<return type="Dictionary" />
+			<param index="0" name="key" type="String" />
+			<description>
+				Returns the option's range ([code]min[/code] and [code]max[/code]) or [code]choices[/code], for a menu to build its controls from. Empty if it has neither.
+			</description>
+		</method>
+		<method name="get_options">
+			<return type="PackedStringArray" />
+			<description>
+				Returns the keys of all the options, in the order they were defined.
+			</description>
+		</method>
+		<method name="get_value">
+			<return type="Variant" />
+			<param index="0" name="key" type="String" />
+			<description>
+				Returns the option's value: the player's choice, or its default.
+			</description>
+		</method>
+		<method name="has_option">
+			<return type="bool" />
+			<param index="0" name="key" type="String" />
+			<description>
+				Returns [code]true[/code] if there's an option with this key.
+			</description>
+		</method>
+		<method name="reset">
+			<return type="void" />
+			<param index="0" name="key" type="String" />
+			<description>
+				Gives the option back its default.
+			</description>
+		</method>
+		<method name="reset_all">
+			<return type="void" />
+			<description>
+				Gives every option back its default.
+			</description>
+		</method>
+		<method name="set_value">
+			<return type="void" />
+			<param index="0" name="key" type="String" />
+			<param index="1" name="value" type="Variant" />
+			<description>
+				Sets the option, saves it and, for a built-in option, puts it into effect. A number is kept within the option's range; a value of another type, or that isn't one of its choices, is refused.
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="changed">
+			<param index="0" name="key" type="String" />
+			<param index="1" name="value" type="Variant" />
+			<description>
+				Emitted when an option's value changes.
+			</description>
+		</signal>
+	</signals>
+</class>

@@ -145,3 +145,28 @@ for junction in junctions:
 Capturing a probe draws the scene round it, so new ones are placed one a frame. Leave what moves out of the template's `cull_mask`: captured once, a passing car would stay in every puddle. When the light changes enough to show (dusk, rain), call `recapture()` and they're captured again, one a frame. In a world with levels, `height_reach` leaves out sites too far above or below the player: on a viaduct, the junctions of the street beneath aren't its own.
 
 Sites needn't all be added at the start. A game whose sites come from data round the player (a road network's junctions, the water in the tiles loaded) can add them as the player nears them and remove them as they're left behind: the pool still picks the nearest and places them one a frame.
+
+## Many moving copies
+
+A crowd, an army, a shoal or a storm of bullets is thousands of copies of one mesh that move every frame. As nodes they'd be slow, and as one `MultiMeshInstance3D` every copy is drawn whenever any is in view, with its shadows, at the detail the nearest one needs. `InstanceGroup3D` draws them in chunks of the world (`chunk_size`, 64 m by default), so chunks behind the camera or past `visibility_range_end` cost nothing, and an imported mesh's simpler levels of detail are drawn for the chunks far away.
+
+Give it every copy's transform once a frame, as 12 floats each in the order a `MultiMesh` buffer has them (the basis's rows, each followed by one coordinate of the origin):
+
+```gdscript
+var floats := PackedFloat32Array()
+
+
+func _process(delta: float) -> void:
+	floats.resize(fish.size() * 12)
+	for i in fish.size():
+		var t: Transform3D = fish[i].transform
+		var o := i * 12
+		floats[o] = t.basis.x.x; floats[o + 1] = t.basis.y.x; floats[o + 2] = t.basis.z.x; floats[o + 3] = t.origin.x
+		floats[o + 4] = t.basis.x.y; floats[o + 5] = t.basis.y.y; floats[o + 6] = t.basis.z.y; floats[o + 7] = t.origin.y
+		floats[o + 8] = t.basis.x.z; floats[o + 9] = t.basis.y.z; floats[o + 10] = t.basis.z.z; floats[o + 11] = t.origin.z
+	$Shoal.set_transforms(floats)
+```
+
+The transforms are the node's own space, and the count is however many the array holds. Turn on `use_colors` or `use_custom_data` to give each copy a colour or four numbers for its shader, with `set_colors()` and `set_custom_data()`. Whatever changes in a frame is drawn once, at the end of it.
+
+Over a 1 km field of 20,000 moving spheres with the sun's shadows, the GPU took 20 ms a frame with one `MultiMeshInstance3D` and 2.5 ms with an `InstanceGroup3D`. Larger chunks draw fewer, bigger batches; smaller ones cull more closely. 64 m suits most scenes, and `get_chunk_count()` says how many there are. It follows `WorldOrigin` like any node, and its `layers` work as on any visual node: leave a crowd out of a reflection probe's `cull_mask` so it isn't captured into every puddle.

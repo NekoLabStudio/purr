@@ -1,7 +1,7 @@
-From e244803a0d5752396411729c5435e91b96b70bfb Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ivo Nunes <ivo@nunes.uk>
 Date: Sun, 15 Nov 2026 14:40:36 +0000
-Subject: [PATCH 11/13] tvOS: the system keyboard for text entry
+Subject: [PATCH] tvOS: the system keyboard for text entry
 
 #118332 leaves text entry as a TODO: tvOS won't bring up its keyboard
 for UIKeyInput views or an uneditable UITextView. A hidden UITextField
@@ -32,7 +32,7 @@ Upstream: https://github.com/godotengine/godot/pull/123885
  create mode 100644 godot/drivers/apple_embedded/godot_keyboard_input_field.mm
 
 diff --git a/godot/drivers/apple_embedded/display_server_apple_embedded.mm b/godot/drivers/apple_embedded/display_server_apple_embedded.mm
-index 3f360a0..b00cbe4 100644
+index 3f360a02..b00cbe4d 100644
 --- a/godot/drivers/apple_embedded/display_server_apple_embedded.mm
 +++ b/godot/drivers/apple_embedded/display_server_apple_embedded.mm
 @@ -36,7 +36,11 @@
@@ -71,7 +71,7 @@ index 3f360a0..b00cbe4 100644
  void DisplayServerAppleEmbedded::virtual_keyboard_set_height(int height) {
 diff --git a/godot/drivers/apple_embedded/godot_keyboard_input_field.h b/godot/drivers/apple_embedded/godot_keyboard_input_field.h
 new file mode 100644
-index 0000000..2034a8e
+index 00000000..2034a8e8
 --- /dev/null
 +++ b/godot/drivers/apple_embedded/godot_keyboard_input_field.h
 @@ -0,0 +1,48 @@
@@ -125,7 +125,7 @@ index 0000000..2034a8e
 +@end
 diff --git a/godot/drivers/apple_embedded/godot_keyboard_input_field.mm b/godot/drivers/apple_embedded/godot_keyboard_input_field.mm
 new file mode 100644
-index 0000000..c209ca7
+index 00000000..c209ca7b
 --- /dev/null
 +++ b/godot/drivers/apple_embedded/godot_keyboard_input_field.mm
 @@ -0,0 +1,211 @@
@@ -341,7 +341,7 @@ index 0000000..c209ca7
 +
 +@end
 diff --git a/godot/drivers/apple_embedded/godot_view_controller.h b/godot/drivers/apple_embedded/godot_view_controller.h
-index bb7e81d..bb7c55e 100644
+index bb7e81d3..bb7c55e1 100644
 --- a/godot/drivers/apple_embedded/godot_view_controller.h
 +++ b/godot/drivers/apple_embedded/godot_view_controller.h
 @@ -36,7 +36,11 @@
@@ -369,7 +369,7 @@ index bb7e81d..bb7c55e 100644
  #ifdef IOS_ENABLED
  - (void)propagateUIPreferencesToRootViewController;
 diff --git a/godot/drivers/apple_embedded/godot_view_controller.mm b/godot/drivers/apple_embedded/godot_view_controller.mm
-index 228c8bb..02fc154 100644
+index 228c8bb0..02fc154f 100644
 --- a/godot/drivers/apple_embedded/godot_view_controller.mm
 +++ b/godot/drivers/apple_embedded/godot_view_controller.mm
 @@ -34,7 +34,11 @@
@@ -434,7 +434,7 @@ index 228c8bb..02fc154 100644
  - (void)displayLoadingOverlay {
  #if !defined(VISIONOS_ENABLED)
 diff --git a/godot/platform/tvos/display_server_tvos.mm b/godot/platform/tvos/display_server_tvos.mm
-index efa14dd..d4904e3 100644
+index efa14dda..d4904e34 100644
 --- a/godot/platform/tvos/display_server_tvos.mm
 +++ b/godot/platform/tvos/display_server_tvos.mm
 @@ -93,11 +93,11 @@

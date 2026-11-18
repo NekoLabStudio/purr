@@ -1,0 +1,144 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 15 Nov 2026 23:45:00 +0000
+Subject: [PATCH] macOS export: let export plugins add to Info.plist
+
+Export plugins can add Info.plist entries for Apple's embedded platforms
+(add_apple_embedded_platform_plist_content) but not for macOS, so a
+plugin that ships something needing a permission (the VR streamer's tap
+of the game's sound needs NSAudioCaptureUsageDescription, or macOS never
+asks and records silence) had to ask every game to edit its preset.
+
+EditorExportPlugin.add_macos_plist_content() adds entries. The macOS
+exporter fills in Info.plist from the template before plugins run (they
+run as the pack is saved), so their entries go in after the pack is
+saved and before the app is signed.
+
+Test: an export plugin calling add_macos_plist_content() in
+_export_begin: the exported app's Info.plist has the entry, passes
+plutil -lint and the app's signature verifies.
+
+Upstream: to propose.
+---
+ godot/doc/classes/EditorExportPlugin.xml      |  8 +++++++
+ godot/editor/export/editor_export_plugin.cpp  |  9 ++++++++
+ godot/editor/export/editor_export_plugin.h    |  4 ++++
+ godot/platform/macos/export/export_plugin.cpp | 21 +++++++++++++++++++
+ 4 files changed, 42 insertions(+)
+
+diff --git a/godot/doc/classes/EditorExportPlugin.xml b/godot/doc/classes/EditorExportPlugin.xml
+index f17efc0d..6b658e66 100644
+--- a/godot/doc/classes/EditorExportPlugin.xml
++++ b/godot/doc/classes/EditorExportPlugin.xml
+@@ -384,6 +384,14 @@
+ 				Adds a static library from the given [param path] to the iOS project.
+ 			</description>
+ 		</method>
++		<method name="add_macos_plist_content">
++			<return type="void" />
++			<param index="0" name="plist_content" type="String" />
++			<description>
++				Adds additional fields to the exported macOS app's Info.plist file, for example the descriptions macOS shows when the app asks for a permission.
++				[b]Note:[/b] Only works when called from [method _export_begin] or [method _export_file] while exporting for macOS.
++			</description>
++		</method>
+ 		<method name="add_macos_plugin_file">
+ 			<return type="void" />
+ 			<param index="0" name="path" type="String" />
+diff --git a/godot/editor/export/editor_export_plugin.cpp b/godot/editor/export/editor_export_plugin.cpp
+index ffcdb981..ea2736e6 100644
+--- a/godot/editor/export/editor_export_plugin.cpp
++++ b/godot/editor/export/editor_export_plugin.cpp
+@@ -149,6 +149,14 @@ const Vector<String> &EditorExportPlugin::get_macos_plugin_files() const {
+ 	return macos_plugin_files;
+ }
+ 
++void EditorExportPlugin::add_macos_plist_content(const String &p_plist_content) {
++	macos_plist_content += p_plist_content + "\n";
++}
++
++String EditorExportPlugin::get_macos_plist_content() const {
++	return macos_plist_content;
++}
++
+ void EditorExportPlugin::add_apple_embedded_platform_project_static_lib(const String &p_path) {
+ 	apple_embedded_platform_project_static_libs.push_back(p_path);
+ }
+@@ -383,6 +391,7 @@ void EditorExportPlugin::_bind_methods() {
+ #endif
+ 
+ 	ClassDB::bind_method(D_METHOD("add_macos_plugin_file", "path"), &EditorExportPlugin::add_macos_plugin_file);
++	ClassDB::bind_method(D_METHOD("add_macos_plist_content", "plist_content"), &EditorExportPlugin::add_macos_plist_content);
+ 	ClassDB::bind_method(D_METHOD("skip"), &EditorExportPlugin::skip);
+ 	ClassDB::bind_method(D_METHOD("get_option", "name"), &EditorExportPlugin::get_option);
+ 
+diff --git a/godot/editor/export/editor_export_plugin.h b/godot/editor/export/editor_export_plugin.h
+index 96bfbc7a..d9a7bb45 100644
+--- a/godot/editor/export/editor_export_plugin.h
++++ b/godot/editor/export/editor_export_plugin.h
+@@ -74,6 +74,7 @@ private:
+ 	Vector<AppleEmbeddedSPMPackage> apple_embedded_platform_spm_packages;
+ 
+ 	Vector<String> macos_plugin_files;
++	String macos_plist_content;
+ 
+ 	_FORCE_INLINE_ void _clear() {
+ 		shared_objects.clear();
+@@ -90,6 +91,7 @@ private:
+ 		apple_embedded_platform_cpp_code = "";
+ 		apple_embedded_platform_spm_packages.clear();
+ 		macos_plugin_files.clear();
++		macos_plist_content = "";
+ 	}
+ 
+ 	// Export
+@@ -119,6 +121,7 @@ protected:
+ 	void add_apple_embedded_platform_cpp_code(const String &p_code);
+ 	void add_apple_embedded_platform_spm_package(const String &p_url, const String &p_version, const PackedStringArray &p_products);
+ 	void add_macos_plugin_file(const String &p_path);
++	void add_macos_plist_content(const String &p_plist_content);
+ 
+ 	void skip();
+ 
+@@ -206,5 +209,6 @@ public:
+ 	String get_apple_embedded_platform_cpp_code() const;
+ 	Vector<AppleEmbeddedSPMPackage> get_apple_embedded_platform_spm_packages() const;
+ 	const Vector<String> &get_macos_plugin_files() const;
++	String get_macos_plist_content() const;
+ 	Variant get_option(const StringName &p_name) const;
+ };
+diff --git a/godot/platform/macos/export/export_plugin.cpp b/godot/platform/macos/export/export_plugin.cpp
+index ecadaff5..705ce7e0 100644
+--- a/godot/platform/macos/export/export_plugin.cpp
++++ b/godot/platform/macos/export/export_plugin.cpp
+@@ -2498,6 +2498,27 @@ Error EditorExportPlatformMacOS::export_project(const Ref<EditorExportPreset> &p
+ 		Vector<SharedObject> shared_objects;
+ 		err = save_pack(p_preset, p_debug, pack_path, &shared_objects);
+ 
++		// Export plugins add to Info.plist as they run (while the pack is saved), after the
++		// template's plist was filled in, so their keys go in now, before signing.
++		if (err == OK) {
++			String plugins_plist_content;
++			for (const Ref<EditorExportPlugin> &plugin : EditorExport::get_singleton()->get_export_plugins()) {
++				plugins_plist_content += plugin->get_macos_plist_content();
++			}
++			if (!plugins_plist_content.is_empty()) {
++				const String plist_path = tmp_app_path_name.path_join("Contents/Info.plist");
++				String plist = FileAccess::get_file_as_string(plist_path);
++				int end = plist.rfind("</dict>");
++				if (end < 0) {
++					add_message(EXPORT_MESSAGE_ERROR, TTR("Export"), TTR("Could not add export plugins' entries to Info.plist."));
++					err = ERR_FILE_CORRUPT;
++				} else {
++					Ref<FileAccess> f = FileAccess::open(plist_path, FileAccess::WRITE);
++					f->store_string(plist.substr(0, end) + plugins_plist_content + plist.substr(end));
++				}
++			}
++		}
++
+ 		bool lib_validation = p_preset->get("codesign/entitlements/disable_library_validation");
+ 		if (!shared_objects.is_empty() && sign_enabled && ad_hoc && !lib_validation) {
+ 			add_message(EXPORT_MESSAGE_INFO, TTR("Entitlements Modified"), TTR("Ad-hoc signed applications require the 'Disable Library Validation' entitlement to load dynamic libraries."));
+-- 
+2.54.0 (Apple Git-157)
+

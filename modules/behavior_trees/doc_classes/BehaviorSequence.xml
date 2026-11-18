@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BehaviorSequence" inherits="BehaviorTask" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Runs its children in order while they succeed.
+	</brief_description>
+	<description>
+		Runs each child in turn. It fails as soon as one fails, and succeeds once they all have. A child that's still running keeps the sequence running, and the sequence carries on from it on the next tick. Use it for steps that must happen in order, or for conditions before an action.
+	</description>
+	<tutorials>
+	</tutorials>
+</class>

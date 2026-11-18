@@ -86,3 +86,7 @@ The lobby clears itself when the last player leaves, or after 10 minutes if nobo
 - `GET /ratings/<game>/<mode>` returns the player's `{"rating", "matches"}` in that mode. Ratings start at 1000 and change by Elo with each recorded result.
 
 `GET /turn` returns `{"ice_servers": [...]}` for `WebRTCPeerConnection.initialize()`: Cloudflare's TURN service, your own servers, or only Cloudflare's STUN server if neither is set up.
+
+## Crash reports
+
+- `POST /crash-reports` with `{"game", "report"}` and any token (the game's version comes from `X-Game-Version`) returns `{"received": true}`. The report is text, 64 KB at most (413 `too_large`). A game whose `crash_reports` is `false` gets 403 `crash_reports_off`. Each account sends at most 5 a minute (429 `rate_limited`); who sent a report isn't kept.

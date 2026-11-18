@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BehaviorWait" inherits="BehaviorTask" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Waits, then succeeds.
+	</brief_description>
+	<description>
+		Keeps running for [member seconds], then succeeds. In seconds of the tree's time, which passes while its [BehaviorTreePlayer] ticks it.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="seconds" type="float" setter="set_seconds" getter="get_seconds" default="1.0">
+			How long to wait.
+		</member>
+	</members>
+</class>

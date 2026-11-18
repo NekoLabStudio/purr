@@ -1,4 +1,4 @@
-From c4a7061863bd7d581617836a3c164fde6405ec40 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ivo Nunes <ivo@nunes.uk>
 Date: Sun, 15 Nov 2026 15:00:07 +0000
 Subject: [PATCH] libdatachannel: include <algorithm> for std::transform
@@ -15,11 +15,11 @@ libcxx 20.1.8"),
 https://github.com/paullouisageneau/libdatachannel/commit/69bee9a719bccd151a67d2582f7be4abc0c29612
 Drop this patch once a libdatachannel release includes it.
 ---
- libdatachannel/src/configuration.cpp | 1 +
+ .../thirdparty/libdatachannel/src/configuration.cpp              | 1 +
  1 file changed, 1 insertion(+)
 
 diff --git a/modules/webrtc_native/thirdparty/libdatachannel/src/configuration.cpp b/modules/webrtc_native/thirdparty/libdatachannel/src/configuration.cpp
-index fe28aef..897be5e 100644
+index fe28aef7..897be5ea 100644
 --- a/modules/webrtc_native/thirdparty/libdatachannel/src/configuration.cpp
 +++ b/modules/webrtc_native/thirdparty/libdatachannel/src/configuration.cpp
 @@ -10,6 +10,7 @@

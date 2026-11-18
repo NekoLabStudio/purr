@@ -7,10 +7,11 @@
 // "version_conflict" or "" , "message": why}. The service's URL is the online/url project
 // setting, and the game's ID online/game. Most games use Purr instead, which uses this.
 
+#include "core/io/http_client.h"
 #include "core/object/object.h"
 #include "core/object/ref_counted.h"
-#include "core/io/http_client.h"
 #include "core/templates/hash_set.h"
+
 #include "modules/websocket/websocket_peer.h"
 
 // One call in flight: its completed signal is what PurrOnline's methods return.
@@ -73,6 +74,8 @@ public:
 	Signal sign_in_steam(const String &p_ticket_hex, const String &p_display_name = String());
 	Signal sign_in_game_center(const Dictionary &p_proof, const String &p_display_name = String());
 	Signal sign_in_play_games(const String &p_server_auth_code, const String &p_display_name = String());
+
+	Signal send_crash_report(const String &p_report);
 
 	Signal get_account(const String &p_token = String());
 	Signal set_display_name(const String &p_name);

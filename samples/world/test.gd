@@ -82,6 +82,9 @@ func _run() -> void:
 	await _multimesh_collision()
 	await _light_pool()
 	await _probe_pool()
+	await _scatter()
+	await _time_of_day()
+	await _instance_group()
 
 	print("world test: %s" % ("all checks passed" if failures == 0 else "%d failed" % failures))
 	quit(failures)
@@ -379,6 +382,134 @@ func lit(pool: LightPool3D) -> Array:
 	return points
 
 
+func _scatter() -> void:
+	var ground := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	shape.shape = BoxShape3D.new()
+	shape.shape.size = Vector3(40, 1, 40)
+	ground.add_child(shape)
+	ground.position = Vector3(0, -0.5, 0)
+	ground.collision_layer = 2
+	root.add_child(ground)
+	var ramp := StaticBody3D.new()
+	var ramp_shape := CollisionShape3D.new()
+	ramp_shape.shape = BoxShape3D.new()
+	ramp_shape.shape.size = Vector3(10, 1, 10)
+	ramp.add_child(ramp_shape)
+	ramp.position = Vector3(5, 2, 5)
+	ramp.rotation_degrees = Vector3(0, 0, 60) # Too steep to land on.
+	ramp.collision_layer = 2
+	root.add_child(ramp)
+	await frames(2)
+
+	var scatter := Scatter3D.new()
+	scatter.mesh = BoxMesh.new()
+	scatter.size = Vector3(20, 10, 20)
+	scatter.density = 0.5
+	scatter.surface_mask = 2
+	root.add_child(scatter)
+	await frames(1)
+	var count := scatter.get_count()
+	check("Scatter3D made in code scatters when ready", count > 0 and count <= 200, count)
+	var on_ground := true
+	var upright := true
+	for i in count:
+		var placed := copy(scatter, i)
+		on_ground = on_ground and is_zero_approx(placed.origin.y)
+		upright = upright and placed.basis.y.normalized().is_equal_approx(Vector3.UP)
+	check("its copies stand on the ground, not the steep ramp", on_ground)
+	check("and upright", upright)
+	var first := copy(scatter, 0)
+	scatter.scatter()
+	check("the same seed scatters the same way", copy(scatter, 0).is_equal_approx(first))
+	scatter.seed = 1
+	scatter.scatter()
+	check("another seed scatters another way", not copy(scatter, 0).is_equal_approx(first))
+	scatter.max_slope = 90.0
+	scatter.scatter()
+	check("a steeper limit lets copies onto the ramp", scatter.get_count() > count, [scatter.get_count(), count])
+	scatter.surface_mask = 4
+	scatter.scatter()
+	check("with nothing below on its mask, nothing's placed", scatter.get_count() == 0, scatter.get_count())
+
+	scatter.surface_mask = 2
+	scatter.max_slope = 45.0
+	scatter.collision_shape = BoxShape3D.new()
+	scatter.collision_layer = 8
+	scatter.scatter()
+	await frames(5)
+	var spot := scatter.global_transform * copy(scatter, 0).origin
+	var space := root.get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(spot + Vector3.UP * 5.0, spot - Vector3.UP)
+	query.collision_mask = 8
+	check("a collision shape makes the copies solid", not space.intersect_ray(query).is_empty())
+	scatter.queue_free()
+	ground.queue_free()
+	ramp.queue_free()
+	await frames(1)
+
+
+func _time_of_day() -> void:
+	var environment := WorldEnvironment.new()
+	environment.environment = Environment.new()
+	environment.environment.background_energy_multiplier = 1.0
+	root.add_child(environment)
+	var day := TimeOfDay.new()
+	var sun := DirectionalLight3D.new()
+	var moon := DirectionalLight3D.new()
+	day.add_child(sun)
+	day.add_child(moon)
+	day.day_length = 0.0
+	root.add_child(day)
+	await frames(1)
+
+	day.time = 12.0
+	check("at noon the sun is high and to the south", day.get_sun_direction().y > 0.6 and day.get_sun_direction().z > 0.3, day.get_sun_direction())
+	check("and shines down", (-sun.global_basis.z).dot(Vector3.DOWN) > 0.6, -sun.global_basis.z)
+	check("the moon is down and off", not moon.visible)
+	day.time = 6.5
+	check("in the morning the sun is low in the east", day.get_sun_direction().x > 0.9 and day.get_sun_direction().y > 0.0, day.get_sun_direction())
+	check("and warmer", sun.light_color.b < 0.6, sun.light_color)
+	day.time = 0.0
+	check("at midnight it's night", not day.is_day() and not sun.visible and moon.visible)
+	check("and the sky dims", environment.environment.background_energy_multiplier < 0.2, environment.environment.background_energy_multiplier)
+	day.time = 12.0
+	check("and comes back by day", is_equal_approx(environment.environment.background_energy_multiplier, 1.0))
+
+	day.rotation_degrees.y = 90.0
+	check("turning it turns the compass", day.get_sun_direction().x > 0.3, day.get_sun_direction())
+	day.rotation_degrees.y = 0.0
+
+	var hours: Array[int] = []
+	day.hour_changed.connect(func(hour: int) -> void: hours.append(hour))
+	day.time = 12.99
+	day.day_length = 1.0  # A day a second: an hour in 0.04 s.
+	await create_timer(0.2).timeout
+	check("the clock runs and says when an hour passes", day.time > 13.0 and hours.size() > 0 and hours[0] == 13, [day.time, hours])
+	hours.clear()
+	day.day_length = 0.1  # Several hours a frame.
+	await frames(3)
+	day.day_length = 0.0
+	var in_order := hours.size() > 3
+	for i in range(1, hours.size()):
+		in_order = in_order and hours[i] == (hours[i - 1] + 1) % 24
+	check("an hour isn't skipped when a frame spans several", in_order, hours)
+	day.day_length = 0.0
+	day.time = 0.0
+	root.remove_child(day)
+	check("taken away at night, it leaves the sky as bright as it was", is_equal_approx(environment.environment.background_energy_multiplier, 1.0), environment.environment.background_energy_multiplier)
+	root.add_child(day)
+	day.queue_free()
+	environment.queue_free()
+	await frames(1)
+
+
+## A scattered copy's transform, read from the buffer (headless, Godot's stand-in renderer only keeps it whole).
+func copy(scatter: Scatter3D, index: int) -> Transform3D:
+	var b := scatter.multimesh.buffer.slice(index * 12, index * 12 + 12)
+	return Transform3D(Vector3(b[0], b[4], b[8]), Vector3(b[1], b[5], b[9]), Vector3(b[2], b[6], b[10]), Vector3(b[3], b[7], b[11]))
+
+
 func ray_down(at: Vector3) -> Dictionary:
 	var space := root.get_world_3d().direct_space_state
 	return space.intersect_ray(PhysicsRayQueryParameters3D.create(at + Vector3.UP * 10.0, at - Vector3.UP * 10.0))
@@ -396,3 +527,89 @@ func settled(streamer: WorldStreamer) -> void:
 	while streamer.is_busy() and Time.get_ticks_msec() - started < 10000:
 		await process_frame
 	await frames(30)
+
+
+# InstanceGroup3D: copies in chunks, as many as the cells they're in, made and freed as they move.
+func copies_at(positions: Array) -> PackedFloat32Array:
+	var floats := PackedFloat32Array()
+	for at: Vector3 in positions:
+		floats.append_array([1, 0, 0, at.x, 0, 1, 0, at.y, 0, 0, 1, at.z])
+	return floats
+
+
+func _instance_group() -> void:
+	var group := InstanceGroup3D.new()
+	group.mesh = BoxMesh.new()
+	group.chunk_size = 10.0
+	root.add_child(group)
+	var spread := []
+	for i in 100:
+		spread.append(Vector3(i % 2 * 10 + 1, 0, i / 50 * 10 + 1))
+	group.set_transforms(copies_at(spread))
+	check("a copy's transform is 12 floats", group.get_count() == 100, group.get_count())
+	await process_frame
+	check("copies are drawn in a chunk for each cell they're in", group.get_chunk_count() == 4, group.get_chunk_count())
+	check("and drawn where they are", drawn_at(Vector3(11, 0, 11)))
+	var together := []
+	for i in 100:
+		together.append(Vector3(1 + i * 0.05, 0, 1))
+	group.set_transforms(copies_at(together))
+	group.set_transforms(copies_at(together))
+	await process_frame
+	check("chunks nothing is in go", group.get_chunk_count() == 1, group.get_chunk_count())
+	group.set_transforms(copies_at([Vector3(101, 0, 101), Vector3(102, 0, 101)]))
+	await process_frame
+	check("a chunk's box is round its copies, however much room it has", drawn_at(Vector3(101, 0, 101)) and not drawn_at(Vector3(50, 0, 50), false))
+	group.set_transforms(copies_at(together))
+	group.set_transforms(PackedFloat32Array([1, 2, 3]))
+	check("a buffer that isn't whole copies is refused", group.get_count() == 100, group.get_count())
+	group.use_colors = true
+	group.set_colors(PackedColorArray([Color.RED]))
+	await process_frame
+	check("colours can be added, and copies without one are white", group.get_chunk_count() == 1)
+	root.remove_child(group)
+	check("leaving the scene frees the chunks", group.get_chunk_count() == 0)
+	root.add_child(group)
+	await process_frame
+	check("and coming back makes them again", group.get_chunk_count() == 1, group.get_chunk_count())
+	group.set_transforms(PackedFloat32Array())
+	await process_frame
+	check("no copies, no chunks", group.get_chunk_count() == 0 and group.get_count() == 0)
+	group.queue_free()
+
+	var late := InstanceGroup3D.new()
+	root.add_child(late)
+	late.set_transforms(copies_at([Vector3(201, 0, 201)]))
+	await process_frame
+	late.mesh = BoxMesh.new()
+	await process_frame
+	check("a mesh given after the copies is drawn where they are", drawn_at(Vector3(201, 0, 201)))
+	late.queue_free()
+
+	if DisplayServer.get_name() != "headless":
+		check("a camera that doesn't see the copies' layer doesn't draw them", not await _layer_drawn(1))
+		check("one that does, does", await _layer_drawn(2))
+
+
+# Draws an InstanceGroup3D on layer 2 with a camera seeing only cull_mask; whether anything shows.
+func _layer_drawn(cull_mask: int) -> bool:
+	var view := SubViewport.new()
+	view.size = Vector2i(32, 32)
+	view.own_world_3d = true
+	view.transparent_bg = true
+	view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	root.add_child(view)
+	var camera := Camera3D.new()
+	camera.position = Vector3(0, 0, 5)
+	camera.cull_mask = cull_mask
+	view.add_child(camera)
+	var group := InstanceGroup3D.new()
+	group.mesh = BoxMesh.new()
+	group.layers = 2
+	view.add_child(group)
+	group.set_transforms(copies_at([Vector3.ZERO]))
+	for i in 4:
+		await process_frame
+	var shown := view.get_texture().get_image().get_pixel(16, 16).a > 0.5
+	view.queue_free()
+	return shown

@@ -129,8 +129,9 @@ All in `vars` in `wrangler.jsonc`, and all changeable with `npm run configure`:
 | `SESSION_DAYS` | 30 | How long a sign-in lasts before the game signs in again |
 | `MAX_SAVE_BYTES` | 1048576 | The largest save (1 MB); a game can set its own `max_save_bytes` in `GAMES` |
 | `MAX_SAVE_SLOTS` | 8 | Saves per player in each game; a game can set its own `max_save_slots` |
+| `MAX_CRASH_REPORT_BYTES_PER_DAY` | 2000000 | Crash reports kept in full for each game a day, in bytes (2 MB; see [Crash reports](crash-reports.md)) |
 
-Each game in `GAMES` can also have a `name`, used in the emails; `min_version` and `max_version`, the game versions that may play online (from each game's `application/config/version`; without them, every version can); `ranked_agreement`, how many players must report the same result before ratings change (`"majority"`, `"all"` or `"host"`); `report_failed_checks`, `false` to stop reporting players who fail a [check or a flag](../api/checks.md); `kick_cheaters`, `true` to remove them from the lobby too; `turn_needs_platform`, `false` to give TURN to every signed-in player rather than only those a platform signed in (see TURN above); and `device_accounts`, `false` for a game that only ships where Steam, Game Center or Play Games signs players in, so nobody can make accounts for it without one. Accounts work across an instance's games, so this only keeps anonymous accounts out of the instance when every game it serves turns them off.
+Each game in `GAMES` can also have a `name`, used in the emails; `min_version` and `max_version`, the game versions that may play online (from each game's `application/config/version`; without them, every version can); `ranked_agreement`, how many players must report the same result before ratings change (`"majority"`, `"all"` or `"host"`); `report_failed_checks`, `false` to stop reporting players who fail a [check or a flag](../api/checks.md); `kick_cheaters`, `true` to remove them from the lobby too; `turn_needs_platform`, `false` to give TURN to every signed-in player rather than only those a platform signed in (see TURN above); `crash_reports`, `false` to turn [crash reports](crash-reports.md) away; and `device_accounts`, `false` for a game that only ships where Steam, Game Center or Play Games signs players in, so nobody can make accounts for it without one. Accounts work across an instance's games, so this only keeps anonymous accounts out of the instance when every game it serves turns them off.
 
 ## Retention
 
@@ -143,8 +144,9 @@ Each game in `GAMES` can also have a `name`, used in the emails; `min_version` a
 | Email codes | 10 minutes or 5 wrong tries; the row counting an address's codes for the day, a day |
 | Lobbies | Until the last player leaves |
 | Reports | 90 days |
+| Crash reports | 90 days; a crash nobody has had for 90 days goes with them |
 | Removals for cheating | `AUTO_BAN`'s window (30 days) |
 | A deleted account's ban | Until the ban ends: its identities' keyed hashes and the ban's end, so signing in again doesn't start clean |
 | Ratings and blocks | As long as the account |
 
-A daily Cron Trigger deletes unused accounts (with their saves), lapsed grants, spent codes and old reports, then sends the moderation email if `MODERATION_EMAIL` is set.
+A daily Cron Trigger deletes unused accounts (with their saves), lapsed grants, spent codes and old reports and crash reports, then sends the moderation email if `MODERATION_EMAIL` is set.

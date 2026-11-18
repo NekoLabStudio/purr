@@ -1,7 +1,7 @@
-From deba7f9b24aba3a9fb6b3bbb3873505dc7f071f0 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Ivo Nunes <ivo@nunes.uk>
 Date: Sun, 15 Nov 2026 14:40:36 +0000
-Subject: [PATCH 13/13] tvOS: an Apple TV launch screen
+Subject: [PATCH] tvOS: an Apple TV launch screen
 
 The Xcode project's launch screen is the iOS storyboard the Apple
 embedded platforms share, and Xcode refuses to build an iOS storyboard
@@ -24,7 +24,7 @@ the tvOS backport.
  1 file changed, 8 insertions(+)
 
 diff --git a/godot/platform/tvos/export/export_plugin.cpp b/godot/platform/tvos/export/export_plugin.cpp
-index a141d1a..097cd2c 100644
+index a141d1a9..097cd2c9 100644
 --- a/godot/platform/tvos/export/export_plugin.cpp
 +++ b/godot/platform/tvos/export/export_plugin.cpp
 @@ -506,6 +506,14 @@ String EditorExportPlatformTVOS::_process_config_file_line(const Ref<EditorExpor

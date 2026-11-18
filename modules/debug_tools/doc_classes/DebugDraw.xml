@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="DebugDraw" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Draws shapes, text and values for a frame or a few seconds, to see what code is doing.
+	</brief_description>
+	<description>
+		Call [DebugDraw] from anywhere and the shape shows for that frame. Call it every frame for as long as you want the shape, or give it a [code]duration[/code] in seconds to leave it behind:
+		[codeblock]
+		func _physics_process(delta):
+		    DebugDraw.arrow(global_position, global_position + velocity, Color.YELLOW)
+		    DebugDraw.show_value("speed", velocity.length())
+
+		func _on_hit(at: Vector3):
+		    DebugDraw.point(at, 0.3, Color.ORANGE, 2.0)
+		[/codeblock]
+		3D lines draw through what's in front of them faintly, so a shape behind a wall still shows where it is. 2D shapes are in the world's coordinates and move with the camera. Positions are global; with [WorldOrigin], shapes with a duration move with the world when it shifts.
+		Shapes drawn during a physics tick stay until the next tick, so they don't flicker when frames and ticks don't line up. Everything drawn in a frame goes to the GPU as one mesh, so thousands of lines cost little.
+		[DebugDraw] draws in debug builds. In release exports it draws nothing unless [code]debug_draw/enabled_in_release_builds[/code] is set, or the game sets [member enabled].
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="aabb">
+			<return type="void" />
+			<param index="0" name="aabb" type="AABB" />
+			<param index="1" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<param index="2" name="duration" type="float" default="0.0" />
+			<description>
+				Draws [param aabb]'s edges.
+			</description>
+		</method>
+		<method name="arrow">
+			<return type="void" />
+			<param index="0" name="from" type="Vector3" />
+			<param index="1" name="to" type="Vector3" />
+			<param index="2" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<param index="3" name="duration" type="float" default="0.0" />
+			<description>
+				Draws a line from [param from] to [param to] with a head at [param to].
+			</description>
+		</method>
+		<method name="arrow_2d">
+			<return type="void" />
+			<param index="0" name="from" type="Vector2" />
+			<param index="1" name="to" type="Vector2" />
+			<param index="2" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<param index="3" name="duration" type="float" default="0.0" />
+			<description>
+				Draws a 2D line from [param from] to [param to] with a head at [param to].
+			</description>
+		</method>
+		<method name="axes">
+			<return type="void" />
+			<param index="0" name="transform" type="Transform3D" />
+			<param index="1" name="size" type="float" default="1.0" />
+			<param index="2" name="duration" type="float" default="0.0" />
+			<description>
+				Draws [param transform]'s axes as arrows [param size] long from its origin: X red, Y green, Z blue.
+			</description>
+		</method>
+		<method name="box">
+			<return type="void" />
+			<param index="0" name="transform" type="Transform3D" />
+			<param index="1" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<param index="2" name="duration" type="float" default="0.0" />
+			<description>
+				Draws the edges of a 1×1×1 cube transformed by [param transform], so it can be moved, rotated and stretched: [code]Transform3D(Basis.from_scale(size), center)[/code] is a box [code]size[/code] big around [code]center[/code].
+			</description>
+		</method>
+		<method name="circle_2d">
+			<return type="void" />
+			<param index="0" name="center" type="Vector2" />
+			<param index="1" name="radius" type="float" />
+			<param index="2" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<param index="3" name="duration" type="float" default="0.0" />
+			<description>
+				Draws a circle of [param radius] around [param center].
+			</description>
+		</method>
+		<method name="clear">
+			<return type="void" />
+			<description>
+				Removes everything drawn, including shapes with a duration and values.
+			</description>
+		</method>
+		<method name="get_line_count" qualifiers="const">
+			<return type="int" />
+			<description>
+				How many lines are waiting to be drawn (a 2D line counts as one too). Mostly for tests.
+			</description>
+		</method>
+		<method name="line">
+			<return type="void" />
+			<param index="0" name="from" type="Vector3" />
+			<param index="1" name="to" type="Vector3" />
+			<param index="2" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<param index="3" name="duration" type="float" default="0.0" />
+			<description>
+				Draws a line from [param from] to [param to].
+			</description>
+		</method>
+		<method name="line_2d">
+			<return type="void" />
+			<param index="0" name="from" type="Vector2" />
+			<param index="1" name="to" type="Vector2" />
+			<param index="2" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<param index="3" name="duration" type="float" default="0.0" />
+			<description>
+				Draws a 2D line from [param from] to [param to].
+			</description>
+		</method>
+		<method name="path">
+			<return type="void" />
+			<param index="0" name="points" type="PackedVector3Array" />
+			<param index="1" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<param index="2" name="duration" type="float" default="0.0" />
+			<param index="3" name="closed" type="bool" default="false" />
+			<description>
+				Draws lines joining [param points] in order, and the last back to the first if [param closed].
+			</description>
+		</method>
+		<method name="path_2d">
+			<return type="void" />
+			<param index="0" name="points" type="PackedVector2Array" />
+			<param index="1" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<param index="2" name="duration" type="float" default="0.0" />
+			<param index="3" name="closed" type="bool" default="false" />
+			<description>
+				Draws 2D lines joining [param points] in order, and the last back to the first if [param closed].
+			</description>
+		</method>
+		<method name="point">
+			<return type="void" />
+			<param index="0" name="position" type="Vector3" />
+			<param index="1" name="size" type="float" default="0.25" />
+			<param index="2" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<param index="3" name="duration" type="float" default="0.0" />
+			<description>
+				Draws a cross of three lines [param size] long, along the axes, at [param position].
+			</description>
+		</method>
+		<method name="rect_2d">
+			<return type="void" />
+			<param index="0" name="rect" type="Rect2" />
+			<param index="1" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<param index="2" name="duration" type="float" default="0.0" />
+			<description>
+				Draws [param rect]'s edges.
+			</description>
+		</method>
+		<method name="show_value">
+			<return type="void" />
+			<param index="0" name="name" type="String" />
+			<param index="1" name="value" type="Variant" />
+			<param index="2" name="duration" type="float" default="0.0" />
+			<description>
+				Lists [param name] and [param value] in the top-left corner of the screen, for a frame or [param duration] seconds. Showing a name again replaces its value. Floats show three decimals.
+			</description>
+		</method>
+		<method name="sphere">
+			<return type="void" />
+			<param index="0" name="center" type="Vector3" />
+			<param index="1" name="radius" type="float" default="0.5" />
+			<param index="2" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<param index="3" name="duration" type="float" default="0.0" />
+			<description>
+				Draws a sphere of [param radius] around [param center], as three circles.
+			</description>
+		</method>
+		<method name="text">
+			<return type="void" />
+			<param index="0" name="position" type="Vector3" />
+			<param index="1" name="text" type="String" />
+			<param index="2" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<param index="3" name="duration" type="float" default="0.0" />
+			<description>
+				Draws [param text] on screen, centred over [param position] in the world. Nothing shows when [param position] is behind the camera.
+			</description>
+		</method>
+		<method name="text_2d">
+			<return type="void" />
+			<param index="0" name="position" type="Vector2" />
+			<param index="1" name="text" type="String" />
+			<param index="2" name="color" type="Color" default="Color(1, 1, 1, 1)" />
+			<param index="3" name="duration" type="float" default="0.0" />
+			<description>
+				Draws [param text] at [param position] in the world's 2D coordinates.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="enabled" type="bool" setter="set_enabled" getter="is_enabled" default="true">
+			Whether shapes are drawn. Turning it off removes what's drawn, and calls draw nothing until it's turned back on.
+		</member>
+		<member name="performance_overlay" type="bool" setter="set_performance_overlay" getter="is_performance_overlay" default="false">
+			If [code]true[/code], a panel in the top-right corner of the screen shows a graph of recent frame times, the frame rate, the CPU's process and physics times, the GPU's time and its five costliest render passes, and the draw calls, objects, primitives and video memory. The console's [code]perf[/code] command toggles it. Measuring the GPU's passes costs a little, so it only happens while this is on.
+		</member>
+	</members>
+</class>

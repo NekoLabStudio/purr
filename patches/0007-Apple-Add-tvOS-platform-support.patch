@@ -1,7 +1,7 @@
-From bb3bd3cb07c9bf6ba1bd6f9d127745d332ba4c78 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Stuart Carnie <stuart.carnie@gmail.com>
 Date: Sun, 15 Nov 2026 14:40:36 +0000
-Subject: [PATCH 07/13] Apple: Add tvOS platform support
+Subject: [PATCH] Apple: Add tvOS platform support
 
 Backport of upstream pull request #118332 ("Apple: Add tvOS platform
 support"), not yet merged, onto Godot 4.8 beta 3: a tvOS platform on
@@ -127,7 +127,7 @@ Drop this patch when Purr moves to a Godot release that includes it.
  create mode 100644 godot/platform/tvos/tvos.h
 
 diff --git a/godot/.github/CODEOWNERS b/godot/.github/CODEOWNERS
-index 4edb39e..9ab0a62 100644
+index 4edb39e4..9ab0a629 100644
 --- a/godot/.github/CODEOWNERS
 +++ b/godot/.github/CODEOWNERS
 @@ -414,6 +414,8 @@
@@ -140,7 +140,7 @@ index 4edb39e..9ab0a62 100644
  /platform/visionos/**/*.py                    @godotengine/xr @godotengine/buildsystem
  /platform/visionos/**/SCsub                   @godotengine/xr @godotengine/buildsystem
 diff --git a/godot/.github/changed_files.yml b/godot/.github/changed_files.yml
-index 329b4c3..ce5d7cd 100644
+index 329b4c30..ce5d7cd9 100644
 --- a/godot/.github/changed_files.yml
 +++ b/godot/.github/changed_files.yml
 @@ -23,5 +23,5 @@ clangd:
@@ -152,7 +152,7 @@ index 329b4c3..ce5d7cd 100644
 +  - "!platform/{android,ios,macos,tvos,visionos,web,windows}/**"
 +  - "platform/{android,ios,macos,tvos,visionos,web,windows}/{api,export}/*.{h,hpp,hxx,hh,c,cpp,cxx,cc}"
 diff --git a/godot/core/os/os.cpp b/godot/core/os/os.cpp
-index c722e0f..7899903 100644
+index c722e0fa..78999034 100644
 --- a/godot/core/os/os.cpp
 +++ b/godot/core/os/os.cpp
 @@ -607,7 +607,7 @@ bool OS::has_feature(const String &p_feature) {
@@ -165,7 +165,7 @@ index c722e0f..7899903 100644
  		return true;
  	}
 diff --git a/godot/doc/classes/EditorExportPlatformAppleEmbedded.xml b/godot/doc/classes/EditorExportPlatformAppleEmbedded.xml
-index 507302d..4e7a1e6 100644
+index 507302d2..4e7a1e64 100644
 --- a/godot/doc/classes/EditorExportPlatformAppleEmbedded.xml
 +++ b/godot/doc/classes/EditorExportPlatformAppleEmbedded.xml
 @@ -1,10 +1,10 @@
@@ -182,7 +182,7 @@ index 507302d..4e7a1e6 100644
  	<tutorials>
  		<link title="Exporting for iOS">$DOCS_URL/tutorials/export/exporting_for_ios.html</link>
 diff --git a/godot/doc/classes/ProjectSettings.xml b/godot/doc/classes/ProjectSettings.xml
-index 6975d25..d99a5d9 100644
+index 6975d25b..d99a5d94 100644
 --- a/godot/doc/classes/ProjectSettings.xml
 +++ b/godot/doc/classes/ProjectSettings.xml
 @@ -959,6 +959,8 @@
@@ -204,7 +204,7 @@ index 6975d25..d99a5d9 100644
  			visionOS override for [member rendering/rendering_device/driver].
  			Only one option is supported:
 diff --git a/godot/drivers/SCsub b/godot/drivers/SCsub
-index dc50ff0..e41921f 100644
+index dc50ff06..e41921f9 100644
 --- a/godot/drivers/SCsub
 +++ b/godot/drivers/SCsub
 @@ -26,10 +26,10 @@ if env["xaudio2"]:
@@ -230,7 +230,7 @@ index dc50ff0..e41921f 100644
      SConscript("sdl/SCsub")
  
 diff --git a/godot/drivers/apple_embedded/display_layer_apple_embedded.h b/godot/drivers/apple_embedded/display_layer_apple_embedded.h
-index 552b115..d07c128 100644
+index 552b115a..d07c1283 100644
 --- a/godot/drivers/apple_embedded/display_layer_apple_embedded.h
 +++ b/godot/drivers/apple_embedded/display_layer_apple_embedded.h
 @@ -30,7 +30,10 @@
@@ -274,7 +274,7 @@ diff --git a/godot/platform/ios/display_layer_ios.mm b/godot/drivers/apple_embed
 similarity index 93%
 rename from godot/platform/ios/display_layer_ios.mm
 rename to godot/drivers/apple_embedded/display_layer_apple_embedded.mm
-index 554c159..41206d4 100644
+index 554c159d..41206d40 100644
 --- a/godot/platform/ios/display_layer_ios.mm
 +++ b/godot/drivers/apple_embedded/display_layer_apple_embedded.mm
 @@ -1,5 +1,5 @@
@@ -323,7 +323,7 @@ index 554c159..41206d4 100644
  		NSLog(@"iOS Simulator prior to iOS 13 does not support Metal rendering.");
  	}
 diff --git a/godot/drivers/apple_embedded/display_server_apple_embedded.mm b/godot/drivers/apple_embedded/display_server_apple_embedded.mm
-index ed3f5aa..3f360a0 100644
+index ed3f5aa0..3f360a02 100644
 --- a/godot/drivers/apple_embedded/display_server_apple_embedded.mm
 +++ b/godot/drivers/apple_embedded/display_server_apple_embedded.mm
 @@ -67,6 +67,15 @@
@@ -363,7 +363,7 @@ index ed3f5aa..3f360a0 100644
  
  void DisplayServerAppleEmbedded::screen_set_keep_on(bool p_enable) {
 diff --git a/godot/drivers/apple_embedded/godot_app_delegate_apple_embedded.mm b/godot/drivers/apple_embedded/godot_app_delegate_apple_embedded.mm
-index 8124eb3..d057ddf 100644
+index 8124eb3d..d057ddf3 100644
 --- a/godot/drivers/apple_embedded/godot_app_delegate_apple_embedded.mm
 +++ b/godot/drivers/apple_embedded/godot_app_delegate_apple_embedded.mm
 @@ -439,6 +439,8 @@ - (void)application:(UIApplication *)application didFailToContinueUserActivityWi
@@ -385,7 +385,7 @@ index 8124eb3..d057ddf 100644
  
  - (void)application:(UIApplication *)application handleWatchKitExtensionRequest:(NSDictionary *)userInfo reply:(void (^)(NSDictionary *replyInfo))reply {
 diff --git a/godot/drivers/apple_embedded/godot_app_delegate_service_apple_embedded.mm b/godot/drivers/apple_embedded/godot_app_delegate_service_apple_embedded.mm
-index c326680..897ee60 100644
+index c326680c..897ee60e 100644
 --- a/godot/drivers/apple_embedded/godot_app_delegate_service_apple_embedded.mm
 +++ b/godot/drivers/apple_embedded/godot_app_delegate_service_apple_embedded.mm
 @@ -111,7 +111,9 @@ - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(
@@ -399,7 +399,7 @@ index c326680..897ee60 100644
  		options |= AVAudioSessionCategoryOptionAllowAirPlay;
  	} else if (sessionCategorySetting == SESSION_CATEGORY_PLAYBACK) {
 diff --git a/godot/drivers/apple_embedded/godot_view_apple_embedded.h b/godot/drivers/apple_embedded/godot_view_apple_embedded.h
-index bad7853..ed7e196 100644
+index bad78532..ed7e1965 100644
 --- a/godot/drivers/apple_embedded/godot_view_apple_embedded.h
 +++ b/godot/drivers/apple_embedded/godot_view_apple_embedded.h
 @@ -61,7 +61,7 @@ class String;
@@ -412,7 +412,7 @@ index bad7853..ed7e196 100644
  
  - (void)startRendering;
 diff --git a/godot/drivers/apple_embedded/godot_view_apple_embedded.mm b/godot/drivers/apple_embedded/godot_view_apple_embedded.mm
-index aaf3c16..cf02685 100644
+index aaf3c160..cf02685b 100644
 --- a/godot/drivers/apple_embedded/godot_view_apple_embedded.mm
 +++ b/godot/drivers/apple_embedded/godot_view_apple_embedded.mm
 @@ -37,17 +37,23 @@
@@ -622,7 +622,7 @@ index aaf3c16..cf02685 100644
 +
  @end
 diff --git a/godot/drivers/apple_embedded/godot_view_controller.h b/godot/drivers/apple_embedded/godot_view_controller.h
-index 1cdd6b4..bb7e81d 100644
+index 1cdd6b42..bb7e81d3 100644
 --- a/godot/drivers/apple_embedded/godot_view_controller.h
 +++ b/godot/drivers/apple_embedded/godot_view_controller.h
 @@ -30,12 +30,19 @@
@@ -646,7 +646,7 @@ index 1cdd6b4..bb7e81d 100644
  @property(nonatomic, readonly, strong) GDTView *godotView;
  @property(nonatomic, readonly, strong) GDTKeyboardInputView *keyboardView;
 diff --git a/godot/drivers/apple_embedded/godot_view_controller.mm b/godot/drivers/apple_embedded/godot_view_controller.mm
-index 1c7dd1f..5b1dc32 100644
+index 1c7dd1fd..5b1dc32c 100644
 --- a/godot/drivers/apple_embedded/godot_view_controller.mm
 +++ b/godot/drivers/apple_embedded/godot_view_controller.mm
 @@ -37,6 +37,7 @@
@@ -760,7 +760,7 @@ index 1c7dd1f..5b1dc32 100644
  
  @end
 diff --git a/godot/drivers/apple_embedded/godot_view_renderer.mm b/godot/drivers/apple_embedded/godot_view_renderer.mm
-index 7f36ad9..832eff7 100644
+index 7f36ad92..832eff74 100644
 --- a/godot/drivers/apple_embedded/godot_view_renderer.mm
 +++ b/godot/drivers/apple_embedded/godot_view_renderer.mm
 @@ -38,10 +38,6 @@
@@ -775,7 +775,7 @@ index 7f36ad9..832eff7 100644
  
  @implementation GDTViewRenderer
 diff --git a/godot/drivers/gles3/shader_gles3.cpp b/godot/drivers/gles3/shader_gles3.cpp
-index 968cd15..b31c06e 100644
+index 968cd15d..b31c06e0 100644
 --- a/godot/drivers/gles3/shader_gles3.cpp
 +++ b/godot/drivers/gles3/shader_gles3.cpp
 @@ -561,7 +561,7 @@ bool ShaderGLES3::_load_from_cache(Version *p_version) {
@@ -797,7 +797,7 @@ index 968cd15..b31c06e 100644
  		return;
  	}
 diff --git a/godot/drivers/gles3/storage/config.cpp b/godot/drivers/gles3/storage/config.cpp
-index 57fec3e..dfb4256 100644
+index 57fec3ec..dfb42564 100644
 --- a/godot/drivers/gles3/storage/config.cpp
 +++ b/godot/drivers/gles3/storage/config.cpp
 @@ -106,7 +106,7 @@ Config::Config() {
@@ -819,7 +819,7 @@ index 57fec3e..dfb4256 100644
  	msaa_multiview_supported = extensions.has("OCULUS_multiview");
  	rt_msaa_multiview_supported = msaa_multiview_supported;
 diff --git a/godot/drivers/gles3/storage/render_scene_buffers_gles3.cpp b/godot/drivers/gles3/storage/render_scene_buffers_gles3.cpp
-index 4be73c5..491594f 100644
+index 4be73c53..491594ff 100644
 --- a/godot/drivers/gles3/storage/render_scene_buffers_gles3.cpp
 +++ b/godot/drivers/gles3/storage/render_scene_buffers_gles3.cpp
 @@ -62,7 +62,7 @@ void RenderSceneBuffersGLES3::_rt_attach_textures(GLuint p_color, GLuint p_depth
@@ -868,7 +868,7 @@ index 4be73c5..491594f 100644
  			glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, backbuffer3d.depth, 0, 0);
  		} else if (use_array) {
 diff --git a/godot/drivers/gles3/storage/texture_storage.cpp b/godot/drivers/gles3/storage/texture_storage.cpp
-index 3cda29d..6adba81 100644
+index 3cda29da..6adba812 100644
 --- a/godot/drivers/gles3/storage/texture_storage.cpp
 +++ b/godot/drivers/gles3/storage/texture_storage.cpp
 @@ -3271,7 +3271,7 @@ void TextureStorage::_update_render_target_color(RenderTarget *rt) {
@@ -917,7 +917,7 @@ index 3cda29d..6adba81 100644
  		glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, velocity_depth_texture_id, 0, 0);
  	} else if (view_count > 1) {
 diff --git a/godot/drivers/metal/metal_device_profile.cpp b/godot/drivers/metal/metal_device_profile.cpp
-index d7eb025..7c5cf77 100644
+index d7eb025d..7c5cf77f 100644
 --- a/godot/drivers/metal/metal_device_profile.cpp
 +++ b/godot/drivers/metal/metal_device_profile.cpp
 @@ -36,7 +36,7 @@ Mutex MetalDeviceProfile::profiles_lock;
@@ -971,7 +971,7 @@ index d7eb025..7c5cf77 100644
  
  	return &profiles.insert(key, res)->value;
 diff --git a/godot/drivers/metal/metal_device_profile.h b/godot/drivers/metal/metal_device_profile.h
-index 3ba4168..1ab3279 100644
+index 3ba4168e..1ab3279d 100644
 --- a/godot/drivers/metal/metal_device_profile.h
 +++ b/godot/drivers/metal/metal_device_profile.h
 @@ -75,6 +75,12 @@ constexpr MinOsVersion IOS_15_0(15'00'00);
@@ -996,7 +996,7 @@ index 3ba4168..1ab3279 100644
  
  	/*! @brief The GPU family.
 diff --git a/godot/drivers/metal/rendering_device_driver_metal.cpp b/godot/drivers/metal/rendering_device_driver_metal.cpp
-index 1d5efcb..b86e449 100644
+index 1d5efcb4..b86e4494 100644
 --- a/godot/drivers/metal/rendering_device_driver_metal.cpp
 +++ b/godot/drivers/metal/rendering_device_driver_metal.cpp
 @@ -2956,6 +2956,8 @@ static MetalDeviceProfile device_profile_from_properties(MetalDeviceProperties *
@@ -1009,7 +1009,7 @@ index 1d5efcb..b86e449 100644
  	res.platform = DP::Platform::iOS;
  #elif TARGET_OS_VISION
 diff --git a/godot/drivers/metal/rendering_shader_container_metal.cpp b/godot/drivers/metal/rendering_shader_container_metal.cpp
-index 5d5dc13..d2d9724 100644
+index 5d5dc131..d2d97244 100644
 --- a/godot/drivers/metal/rendering_shader_container_metal.cpp
 +++ b/godot/drivers/metal/rendering_shader_container_metal.cpp
 @@ -59,6 +59,9 @@ void RenderingShaderContainerMetal::_initialize_toolchain_properties() {
@@ -1064,7 +1064,7 @@ index 5d5dc13..d2d9724 100644
  		msl_options.ios_support_base_vertex_instance = true;
  	}
 diff --git a/godot/drivers/sdl/SCsub b/godot/drivers/sdl/SCsub
-index 921615a..d967290 100644
+index 921615ac..d9672904 100644
 --- a/godot/drivers/sdl/SCsub
 +++ b/godot/drivers/sdl/SCsub
 @@ -200,7 +200,7 @@ if env["builtin_sdl"]:
@@ -1077,7 +1077,7 @@ index 921615a..d967290 100644
              "core/unix/SDL_appid.c",
              "core/unix/SDL_poll.c",
 diff --git a/godot/drivers/sdl/SDL_build_config_private.h b/godot/drivers/sdl/SDL_build_config_private.h
-index 8bfed71..87a0f25 100644
+index 8bfed71b..87a0f250 100644
 --- a/godot/drivers/sdl/SDL_build_config_private.h
 +++ b/godot/drivers/sdl/SDL_build_config_private.h
 @@ -160,15 +160,19 @@
@@ -1103,7 +1103,7 @@ index 8bfed71..87a0f25 100644
  #define SDL_HAPTIC_DUMMY 1
  #define SDL_TIMER_UNIX 1
 diff --git a/godot/drivers/sdl/joypad_sdl.cpp b/godot/drivers/sdl/joypad_sdl.cpp
-index 44dfc8f..96b4cbe 100644
+index 44dfc8f5..96b4cbec 100644
 --- a/godot/drivers/sdl/joypad_sdl.cpp
 +++ b/godot/drivers/sdl/joypad_sdl.cpp
 @@ -63,6 +63,9 @@ JoypadSDL::~JoypadSDL() {
@@ -1117,7 +1117,7 @@ index 44dfc8f..96b4cbe 100644
  
  	// Add Godot's mapping database from memory
 diff --git a/godot/drivers/unix/os_unix.cpp b/godot/drivers/unix/os_unix.cpp
-index 86af7ba..cdf8f68 100644
+index 86af7ba6..cdf8f687 100644
 --- a/godot/drivers/unix/os_unix.cpp
 +++ b/godot/drivers/unix/os_unix.cpp
 @@ -554,7 +554,7 @@ Dictionary OS_Unix::get_memory_info() const {
@@ -1163,7 +1163,7 @@ index 86af7ba..cdf8f68 100644
  	// Actual virtual call goes to OS_Web.
  	ERR_FAIL_V(ERR_BUG);
 diff --git a/godot/editor/export/editor_export_platform_apple_embedded.cpp b/godot/editor/export/editor_export_platform_apple_embedded.cpp
-index 07ecccf..0010245 100644
+index 07ecccf2..00102452 100644
 --- a/godot/editor/export/editor_export_platform_apple_embedded.cpp
 +++ b/godot/editor/export/editor_export_platform_apple_embedded.cpp
 @@ -330,7 +330,9 @@ void EditorExportPlatformAppleEmbedded::get_export_options(List<ExportOption> *r
@@ -1200,7 +1200,7 @@ index 07ecccf..0010245 100644
  	}
  }
 diff --git a/godot/editor/export/editor_export_platform_apple_embedded.h b/godot/editor/export/editor_export_platform_apple_embedded.h
-index 7ab5e24..a417ad3 100644
+index 7ab5e24b..a417ad33 100644
 --- a/godot/editor/export/editor_export_platform_apple_embedded.h
 +++ b/godot/editor/export/editor_export_platform_apple_embedded.h
 @@ -224,6 +224,13 @@ protected:
@@ -1218,7 +1218,7 @@ index 7ab5e24..a417ad3 100644
  	virtual String _get_iconset_dir_name() const { return "AppIcon.appiconset"; }
  
 diff --git a/godot/editor/export/export_template_manager.cpp b/godot/editor/export/export_template_manager.cpp
-index 0b9f676..0243f08 100644
+index 0b9f6764..0243f089 100644
 --- a/godot/editor/export/export_template_manager.cpp
 +++ b/godot/editor/export/export_template_manager.cpp
 @@ -502,6 +502,11 @@ void ExportTemplateManager::_initialize_template_data() {
@@ -1257,7 +1257,7 @@ index 0b9f676..0243f08 100644
  			template_data[TemplateID::WEB_EXTENSIONS].name = TTR("Web with Extensions");
  			template_data[TemplateID::WEB_NOTHREADS].name = TTR("Web Single-Threaded");
 diff --git a/godot/editor/export/export_template_manager.h b/godot/editor/export/export_template_manager.h
-index db3da29..38cecb7 100644
+index db3da29c..38cecb79 100644
 --- a/godot/editor/export/export_template_manager.h
 +++ b/godot/editor/export/export_template_manager.h
 @@ -135,6 +135,7 @@ class ExportTemplateManager : public AcceptDialog {
@@ -1277,7 +1277,7 @@ index db3da29..38cecb7 100644
  	};
  
 diff --git a/godot/editor/shader/shader_baker/shader_baker_export_plugin_platform_metal.cpp b/godot/editor/shader/shader_baker/shader_baker_export_plugin_platform_metal.cpp
-index 8570b5f..a200d43 100644
+index 8570b5f1..a200d433 100644
 --- a/godot/editor/shader/shader_baker/shader_baker_export_plugin_platform_metal.cpp
 +++ b/godot/editor/shader/shader_baker/shader_baker_export_plugin_platform_metal.cpp
 @@ -47,6 +47,9 @@ RenderingShaderContainerFormat *ShaderBakerExportPluginPlatformMetal::create_sha
@@ -1291,7 +1291,7 @@ index 8570b5f..a200d43 100644
  		ERR_FAIL_V_MSG(nullptr, vformat("Unsupported platform: %s", os_name));
  	}
 diff --git a/godot/main/main.cpp b/godot/main/main.cpp
-index 255242e..f959b42 100644
+index 255242ef..f959b42d 100644
 --- a/godot/main/main.cpp
 +++ b/godot/main/main.cpp
 @@ -2392,6 +2392,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
@@ -1311,7 +1311,7 @@ index 255242e..f959b42 100644
  	GLOBAL_DEF_NOVAL(PropertyInfo(Variant::STRING, "display/display_server/driver.macos", PROPERTY_HINT_ENUM, "default,macos,headless"), "default");
  
 diff --git a/godot/methods.py b/godot/methods.py
-index 3dca5ad..6e86810 100644
+index 3dca5ad6..6e86810e 100644
 --- a/godot/methods.py
 +++ b/godot/methods.py
 @@ -644,6 +644,14 @@ def detect_darwin_sdk_path(platform, env):
@@ -1339,7 +1339,7 @@ index 3dca5ad..6e86810 100644
      if not using_clang(env):
          return False
 diff --git a/godot/modules/text_server_adv/text_server_adv.cpp b/godot/modules/text_server_adv/text_server_adv.cpp
-index 06910ad..7f5984b 100644
+index 06910ad2..7f5984b2 100644
 --- a/godot/modules/text_server_adv/text_server_adv.cpp
 +++ b/godot/modules/text_server_adv/text_server_adv.cpp
 @@ -2105,7 +2105,7 @@ bool TextServerAdvanced::_ensure_cache_for_size(FontAdvanced *p_font_data, const
@@ -1352,7 +1352,7 @@ index 06910ad..7f5984b 100644
  			// The baseline offset is missing from the Apple Color Emoji UI font data, so add it manually.
  			// This issue doesn't occur with other system emoji fonts.
 diff --git a/godot/modules/text_server_fb/text_server_fb.cpp b/godot/modules/text_server_fb/text_server_fb.cpp
-index 361183b..dfde619 100644
+index 361183bb..dfde6196 100644
 --- a/godot/modules/text_server_fb/text_server_fb.cpp
 +++ b/godot/modules/text_server_fb/text_server_fb.cpp
 @@ -1007,7 +1007,7 @@ bool TextServerFallback::_ensure_cache_for_size(FontFallback *p_font_data, const
@@ -1365,7 +1365,7 @@ index 361183b..dfde619 100644
  			// The baseline offset is missing from the Apple Color Emoji UI font data, so add it manually.
  			// This issue doesn't occur with other system emoji fonts.
 diff --git a/godot/platform/ios/godot_view_ios.mm b/godot/platform/ios/godot_view_ios.mm
-index 2de4ec3..426edf5 100644
+index 2de4ec34..426edf52 100644
 --- a/godot/platform/ios/godot_view_ios.mm
 +++ b/godot/platform/ios/godot_view_ios.mm
 @@ -30,59 +30,11 @@
@@ -1430,7 +1430,7 @@ index 2de4ec3..426edf5 100644
  GDTView *GDTViewCreate() {
 diff --git a/godot/platform/tvos/SCsub b/godot/platform/tvos/SCsub
 new file mode 100644
-index 0000000..6acf30d
+index 00000000..6acf30d2
 --- /dev/null
 +++ b/godot/platform/tvos/SCsub
 @@ -0,0 +1,50 @@
@@ -1486,7 +1486,7 @@ index 0000000..6acf30d
 +    env.AlwaysBuild(env.CommandNoCache("generate_bundle", combine_command, env.Run(generate_bundle)))
 diff --git a/godot/platform/tvos/api/api.cpp b/godot/platform/tvos/api/api.cpp
 new file mode 100644
-index 0000000..d476e79
+index 00000000..d476e791
 --- /dev/null
 +++ b/godot/platform/tvos/api/api.cpp
 @@ -0,0 +1,48 @@
@@ -1540,7 +1540,7 @@ index 0000000..d476e79
 +#endif // TVOS_ENABLED
 diff --git a/godot/platform/tvos/api/api.h b/godot/platform/tvos/api/api.h
 new file mode 100644
-index 0000000..e69bd1d
+index 00000000..e69bd1d4
 --- /dev/null
 +++ b/godot/platform/tvos/api/api.h
 @@ -0,0 +1,39 @@
@@ -1585,7 +1585,7 @@ index 0000000..e69bd1d
 +void unregister_tvos_api();
 diff --git a/godot/platform/tvos/app_tvos.swift b/godot/platform/tvos/app_tvos.swift
 new file mode 100644
-index 0000000..86dfcbf
+index 00000000..86dfcbfd
 --- /dev/null
 +++ b/godot/platform/tvos/app_tvos.swift
 @@ -0,0 +1,41 @@
@@ -1634,7 +1634,7 @@ diff --git a/godot/platform/visionos/display_layer_visionos.mm b/godot/platform/
 similarity index 88%
 rename from godot/platform/visionos/display_layer_visionos.mm
 rename to godot/platform/tvos/bridging_header_tvos.h
-index e8f5b8b..c73f196 100644
+index e8f5b8b9..c73f1965 100644
 --- a/godot/platform/visionos/display_layer_visionos.mm
 +++ b/godot/platform/tvos/bridging_header_tvos.h
 @@ -1,5 +1,5 @@
@@ -1670,7 +1670,7 @@ index e8f5b8b..c73f196 100644
 +#import "drivers/apple_embedded/bridging_header_apple_embedded.h"
 diff --git a/godot/platform/tvos/detect.py b/godot/platform/tvos/detect.py
 new file mode 100644
-index 0000000..e3b92da
+index 00000000..e3b92daf
 --- /dev/null
 +++ b/godot/platform/tvos/detect.py
 @@ -0,0 +1,176 @@
@@ -1852,7 +1852,7 @@ index 0000000..e3b92da
 +            env["sdl"] = False
 diff --git a/godot/platform/tvos/display_server_tvos.h b/godot/platform/tvos/display_server_tvos.h
 new file mode 100644
-index 0000000..95245a1
+index 00000000..95245a17
 --- /dev/null
 +++ b/godot/platform/tvos/display_server_tvos.h
 @@ -0,0 +1,63 @@
@@ -1921,7 +1921,7 @@ index 0000000..95245a1
 +};
 diff --git a/godot/platform/tvos/display_server_tvos.mm b/godot/platform/tvos/display_server_tvos.mm
 new file mode 100644
-index 0000000..efa14dd
+index 00000000..efa14dda
 --- /dev/null
 +++ b/godot/platform/tvos/display_server_tvos.mm
 @@ -0,0 +1,120 @@
@@ -2047,7 +2047,7 @@ index 0000000..efa14dd
 +}
 diff --git a/godot/platform/tvos/doc_classes/EditorExportPlatformTVOS.xml b/godot/platform/tvos/doc_classes/EditorExportPlatformTVOS.xml
 new file mode 100644
-index 0000000..1a528cf
+index 00000000..1a528cf9
 --- /dev/null
 +++ b/godot/platform/tvos/doc_classes/EditorExportPlatformTVOS.xml
 @@ -0,0 +1,627 @@
@@ -2680,7 +2680,7 @@ index 0000000..1a528cf
 +</class>
 diff --git a/godot/platform/tvos/export/export.cpp b/godot/platform/tvos/export/export.cpp
 new file mode 100644
-index 0000000..1a0a62c
+index 00000000..1a0a62cf
 --- /dev/null
 +++ b/godot/platform/tvos/export/export.cpp
 @@ -0,0 +1,57 @@
@@ -2743,7 +2743,7 @@ index 0000000..1a0a62c
 +}
 diff --git a/godot/platform/tvos/export/export.h b/godot/platform/tvos/export/export.h
 new file mode 100644
-index 0000000..2ac4eea
+index 00000000..2ac4eea2
 --- /dev/null
 +++ b/godot/platform/tvos/export/export.h
 @@ -0,0 +1,34 @@
@@ -2783,7 +2783,7 @@ index 0000000..2ac4eea
 +void register_tvos_exporter();
 diff --git a/godot/platform/tvos/export/export_plugin.cpp b/godot/platform/tvos/export/export_plugin.cpp
 new file mode 100644
-index 0000000..5a3de81
+index 00000000..5a3de81e
 --- /dev/null
 +++ b/godot/platform/tvos/export/export_plugin.cpp
 @@ -0,0 +1,581 @@
@@ -3370,7 +3370,7 @@ index 0000000..5a3de81
 +}
 diff --git a/godot/platform/tvos/export/export_plugin.h b/godot/platform/tvos/export/export_plugin.h
 new file mode 100644
-index 0000000..c3fde88
+index 00000000..c3fde880
 --- /dev/null
 +++ b/godot/platform/tvos/export/export_plugin.h
 @@ -0,0 +1,74 @@
@@ -3450,21 +3450,21 @@ index 0000000..c3fde88
 +};
 diff --git a/godot/platform/tvos/export/logo.svg b/godot/platform/tvos/export/logo.svg
 new file mode 100644
-index 0000000..193ddd1
+index 00000000..193ddd1e
 --- /dev/null
 +++ b/godot/platform/tvos/export/logo.svg
 @@ -0,0 +1 @@
 +<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25.205 24.795"><g fill="#fff" fill-opacity=".85"><path d="M6.572 24.795h11.7c2.236 0 3.935-.235 5.136-1.445 1.211-1.211 1.436-2.881 1.436-5.127V6.602c0-2.247-.225-3.926-1.436-5.127-1.21-1.211-2.9-1.446-5.137-1.446H6.505c-2.158 0-3.858.244-5.068 1.455C.225 2.695 0 4.375 0 6.534v11.689c0 2.246.215 3.925 1.426 5.127 1.22 1.21 2.91 1.445 5.146 1.445m-.342-1.729c-1.416 0-2.763-.214-3.535-.986-.761-.771-.966-2.09-.966-3.515V6.317c0-1.464.205-2.812.966-3.584.762-.771 2.13-.976 3.594-.976h12.324c1.416 0 2.764.215 3.526.986.771.772.976 2.09.976 3.516v12.305c0 1.425-.205 2.744-.976 3.515-.762.772-2.11.986-3.526.986Z"/><path d="M6.738 9.658c1.026.117 1.826-1.015 1.758-1.914-1.025.049-1.777.957-1.758 1.914m3.496 4.375c-.488-.205-.8-.527-.976-.976-.205-.498-.156-1.006 0-1.436.088-.283.283-.635.762-.928-.362-.546-.938-.83-1.622-.83-.771 0-1.22.4-1.61.4-.323 0-.694-.38-1.31-.38-.673 0-1.22.273-1.582.732-.43.518-.605 1.182-.605 1.846 0 1.104.498 2.383 1.211 3.193.371.43.674.635 1.025.635.518 0 .801-.371 1.416-.371.274 0 .498.117.664.166.254.088.43.195.723.195.313 0 .566-.127.723-.283a4.7 4.7 0 0 0 1.181-1.963m3.457-5.664h-1.308v1.494h-.908v1.016h.908v3.662c0 1.28.498 1.738 1.797 1.738.283 0 .595-.039.703-.049v-1.074c-.059.04-.293.04-.42.04-.518 0-.772-.225-.772-.801v-3.516h1.211V9.863h-1.21Zm5.518 7.861 2.305-6.367h-1.426l-1.563 5.108-1.64-5.108h-1.387l2.344 6.368Z"/></g></svg>
 diff --git a/godot/platform/tvos/export/run_icon.svg b/godot/platform/tvos/export/run_icon.svg
 new file mode 100644
-index 0000000..193ddd1
+index 00000000..193ddd1e
 --- /dev/null
 +++ b/godot/platform/tvos/export/run_icon.svg
 @@ -0,0 +1 @@
 +<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25.205 24.795"><g fill="#fff" fill-opacity=".85"><path d="M6.572 24.795h11.7c2.236 0 3.935-.235 5.136-1.445 1.211-1.211 1.436-2.881 1.436-5.127V6.602c0-2.247-.225-3.926-1.436-5.127-1.21-1.211-2.9-1.446-5.137-1.446H6.505c-2.158 0-3.858.244-5.068 1.455C.225 2.695 0 4.375 0 6.534v11.689c0 2.246.215 3.925 1.426 5.127 1.22 1.21 2.91 1.445 5.146 1.445m-.342-1.729c-1.416 0-2.763-.214-3.535-.986-.761-.771-.966-2.09-.966-3.515V6.317c0-1.464.205-2.812.966-3.584.762-.771 2.13-.976 3.594-.976h12.324c1.416 0 2.764.215 3.526.986.771.772.976 2.09.976 3.516v12.305c0 1.425-.205 2.744-.976 3.515-.762.772-2.11.986-3.526.986Z"/><path d="M6.738 9.658c1.026.117 1.826-1.015 1.758-1.914-1.025.049-1.777.957-1.758 1.914m3.496 4.375c-.488-.205-.8-.527-.976-.976-.205-.498-.156-1.006 0-1.436.088-.283.283-.635.762-.928-.362-.546-.938-.83-1.622-.83-.771 0-1.22.4-1.61.4-.323 0-.694-.38-1.31-.38-.673 0-1.22.273-1.582.732-.43.518-.605 1.182-.605 1.846 0 1.104.498 2.383 1.211 3.193.371.43.674.635 1.025.635.518 0 .801-.371 1.416-.371.274 0 .498.117.664.166.254.088.43.195.723.195.313 0 .566-.127.723-.283a4.7 4.7 0 0 0 1.181-1.963m3.457-5.664h-1.308v1.494h-.908v1.016h.908v3.662c0 1.28.498 1.738 1.797 1.738.283 0 .595-.039.703-.049v-1.074c-.059.04-.293.04-.42.04-.518 0-.772-.225-.772-.801v-3.516h1.211V9.863h-1.21Zm5.518 7.861 2.305-6.367h-1.426l-1.563 5.108-1.64-5.108h-1.387l2.344 6.368Z"/></g></svg>
 diff --git a/godot/platform/tvos/godot_app_delegate_tvos.h b/godot/platform/tvos/godot_app_delegate_tvos.h
 new file mode 100644
-index 0000000..29e85f3
+index 00000000..29e85f3d
 --- /dev/null
 +++ b/godot/platform/tvos/godot_app_delegate_tvos.h
 @@ -0,0 +1,37 @@
@@ -3507,7 +3507,7 @@ index 0000000..29e85f3
 +@end
 diff --git a/godot/platform/tvos/godot_app_delegate_tvos.mm b/godot/platform/tvos/godot_app_delegate_tvos.mm
 new file mode 100644
-index 0000000..b76c3df
+index 00000000..b76c3dfa
 --- /dev/null
 +++ b/godot/platform/tvos/godot_app_delegate_tvos.mm
 @@ -0,0 +1,41 @@
@@ -3556,7 +3556,7 @@ diff --git a/godot/platform/visionos/display_layer_visionos.h b/godot/platform/t
 similarity index 92%
 rename from godot/platform/visionos/display_layer_visionos.h
 rename to godot/platform/tvos/godot_view_tvos.h
-index 44ae5d7..ef41bb2 100644
+index 44ae5d7c..ef41bb26 100644
 --- a/godot/platform/visionos/display_layer_visionos.h
 +++ b/godot/platform/tvos/godot_view_tvos.h
 @@ -1,5 +1,5 @@
@@ -3579,7 +3579,7 @@ index 44ae5d7..ef41bb2 100644
  @end
 diff --git a/godot/platform/tvos/godot_view_tvos.mm b/godot/platform/tvos/godot_view_tvos.mm
 new file mode 100644
-index 0000000..6e22b6d
+index 00000000..6e22b6d4
 --- /dev/null
 +++ b/godot/platform/tvos/godot_view_tvos.mm
 @@ -0,0 +1,51 @@
@@ -3636,7 +3636,7 @@ index 0000000..6e22b6d
 +}
 diff --git a/godot/platform/tvos/main_tvos.mm b/godot/platform/tvos/main_tvos.mm
 new file mode 100644
-index 0000000..3fd7d17
+index 00000000..3fd7d177
 --- /dev/null
 +++ b/godot/platform/tvos/main_tvos.mm
 @@ -0,0 +1,75 @@
@@ -3717,7 +3717,7 @@ index 0000000..3fd7d17
 +}
 diff --git a/godot/platform/tvos/os_tvos.h b/godot/platform/tvos/os_tvos.h
 new file mode 100644
-index 0000000..f821c29
+index 00000000..f821c291
 --- /dev/null
 +++ b/godot/platform/tvos/os_tvos.h
 @@ -0,0 +1,47 @@
@@ -3770,7 +3770,7 @@ index 0000000..f821c29
 +#endif // TVOS_ENABLED
 diff --git a/godot/platform/tvos/os_tvos.mm b/godot/platform/tvos/os_tvos.mm
 new file mode 100644
-index 0000000..09b27c3
+index 00000000..09b27c3c
 --- /dev/null
 +++ b/godot/platform/tvos/os_tvos.mm
 @@ -0,0 +1,52 @@
@@ -3828,7 +3828,7 @@ index 0000000..09b27c3
 +#endif // TVOS_ENABLED
 diff --git a/godot/platform/tvos/platform_config.h b/godot/platform/tvos/platform_config.h
 new file mode 100644
-index 0000000..52dac8b
+index 00000000..52dac8b4
 --- /dev/null
 +++ b/godot/platform/tvos/platform_config.h
 @@ -0,0 +1,33 @@
@@ -3869,7 +3869,7 @@ diff --git a/godot/platform/ios/display_layer_ios.h b/godot/platform/tvos/platfo
 similarity index 75%
 rename from godot/platform/ios/display_layer_ios.h
 rename to godot/platform/tvos/platform_gl.h
-index f32c450..a3f97cf 100644
+index f32c450a..a3f97cf6 100644
 --- a/godot/platform/ios/display_layer_ios.h
 +++ b/godot/platform/tvos/platform_gl.h
 @@ -1,5 +1,5 @@
@@ -3887,9 +3887,12 @@ index f32c450..a3f97cf 100644
 -
 -#if defined(GLES3_ENABLED)
 -#import <OpenGLES/EAGLDrawable.h>
--#endif
++#ifdef GLES3_ENABLED
++#ifndef GLES_API_ENABLED
++#define GLES_API_ENABLED // Allow using GLES.
+ #endif
 -#import <QuartzCore/QuartzCore.h>
--
+ 
 -// An ugly workaround for iOS simulator
 -#if defined(TARGET_OS_SIMULATOR) && TARGET_OS_SIMULATOR
 -#if defined(__IPHONE_13_0)
@@ -3897,10 +3900,7 @@ index f32c450..a3f97cf 100644
 -@interface GDTMetalLayer : CAMetalLayer <GDTDisplayLayer>
 -#else
 -@interface GDTMetalLayer : CALayer <GDTDisplayLayer>
-+#ifdef GLES3_ENABLED
-+#ifndef GLES_API_ENABLED
-+#define GLES_API_ENABLED // Allow using GLES.
- #endif
+-#endif
 -#else
 -@interface GDTMetalLayer : CAMetalLayer <GDTDisplayLayer>
 -#endif
@@ -3909,13 +3909,13 @@ index f32c450..a3f97cf 100644
 -#if defined(GLES3_ENABLED)
 -API_DEPRECATED("OpenGLES is deprecated", ios(2.0, 12.0))
 -@interface GDTOpenGLLayer : CAEAGLLayer <GDTDisplayLayer>
- 
+-
 -@end
 +#include <ES3/gl.h> // IWYU pragma: export.
  #endif
 diff --git a/godot/platform/tvos/platform_thread.h b/godot/platform/tvos/platform_thread.h
 new file mode 100644
-index 0000000..42827e5
+index 00000000..42827e53
 --- /dev/null
 +++ b/godot/platform/tvos/platform_thread.h
 @@ -0,0 +1,33 @@
@@ -3954,7 +3954,7 @@ index 0000000..42827e5
 +#include "drivers/apple/thread_apple.h"
 diff --git a/godot/platform/tvos/platform_tvos_builders.py b/godot/platform/tvos/platform_tvos_builders.py
 new file mode 100644
-index 0000000..39e5cca
+index 00000000..39e5cca6
 --- /dev/null
 +++ b/godot/platform/tvos/platform_tvos_builders.py
 @@ -0,0 +1,7 @@
@@ -3967,7 +3967,7 @@ index 0000000..39e5cca
 +    generate_bundle_apple_embedded("tvos", "tvos-arm64", "tvos-arm64_x86_64-simulator", False, target, source, env)
 diff --git a/godot/platform/tvos/tvos.h b/godot/platform/tvos/tvos.h
 new file mode 100644
-index 0000000..ffda228
+index 00000000..ffda2282
 --- /dev/null
 +++ b/godot/platform/tvos/tvos.h
 @@ -0,0 +1,37 @@
@@ -4009,7 +4009,7 @@ index 0000000..ffda228
 +	GDCLASS(tvOS, AppleEmbedded);
 +};
 diff --git a/godot/platform/visionos/godot_view_visionos.mm b/godot/platform/visionos/godot_view_visionos.mm
-index bda7399..5785a46 100644
+index bda73995..5785a468 100644
 --- a/godot/platform/visionos/godot_view_visionos.mm
 +++ b/godot/platform/visionos/godot_view_visionos.mm
 @@ -30,20 +30,10 @@
@@ -4059,7 +4059,7 @@ index bda7399..5785a46 100644
  
  GDTView *GDTViewCreate() {
 diff --git a/godot/platform_methods.py b/godot/platform_methods.py
-index 4211fe1..863a1bc 100644
+index 4211fe18..863a1bc0 100644
 --- a/godot/platform_methods.py
 +++ b/godot/platform_methods.py
 @@ -402,6 +402,12 @@ def setup_swift_builder(

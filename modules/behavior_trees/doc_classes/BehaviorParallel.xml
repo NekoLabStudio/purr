@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BehaviorParallel" inherits="BehaviorTask" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Runs all its children at once.
+	</brief_description>
+	<description>
+		Ticks every child each tick, such as moving while playing a sound. See [member finish_when] for when it finishes.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="finish_when" type="int" setter="set_finish_when" getter="get_finish_when" enum="BehaviorParallel.FinishWhen" default="0">
+			When it finishes: see [enum FinishWhen].
+		</member>
+	</members>
+	<constants>
+		<constant name="FINISH_WHEN_ANY" value="0" enum="FinishWhen">
+			When the first child finishes, with that child's result. The others are stopped.
+		</constant>
+		<constant name="FINISH_WHEN_ALL" value="1" enum="FinishWhen">
+			When every child has finished. It succeeds if none failed.
+		</constant>
+	</constants>
+</class>
