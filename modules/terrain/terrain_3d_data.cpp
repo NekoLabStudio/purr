@@ -5,8 +5,10 @@
 #include "core/io/file_access.h"
 #include "core/io/resource_saver.h"
 #include "core/object/class_db.h"
+#ifdef TOOLS_ENABLED
 #include "editor/editor_interface.h"
 #include "editor/file_system/editor_file_system.h"
+#endif
 
 #include "logger.h"
 #include "terrain_3d.h"
@@ -380,9 +382,11 @@ void Terrain3DData::save_directory(const String &p_dir) {
 	for (const Vector2i &region_loc : locations) {
 		save_region(region_loc, p_dir, _terrain->get_save_16_bit(), _terrain->get_color_compress_mode());
 	}
+#ifdef TOOLS_ENABLED
 	if (IS_EDITOR && !EditorInterface::get_singleton()->get_resource_filesystem()->is_scanning()) {
 		EditorInterface::get_singleton()->get_resource_filesystem()->scan();
 	}
+#endif
 }
 
 // You may need to do a file system scan to update FileSystem panel

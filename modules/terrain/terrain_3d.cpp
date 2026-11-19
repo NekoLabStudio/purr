@@ -19,7 +19,6 @@
 #endif
 #include "modules/noise/fastnoise_lite.h"
 #include "modules/noise/noise_texture_2d.h"
-#include "editor/editor_interface.h"
 #include "scene/3d/label_3d.h"
 #include "scene/3d/light_3d.h"
 #include "scene/main/viewport.h"
@@ -28,6 +27,9 @@
 #include "scene/resources/compositor.h"
 #include "scene/resources/environment.h"
 #include "scene/resources/material.h"
+#ifdef TOOLS_ENABLED
+#include "editor/editor_interface.h"
+#endif
 #include "scene/resources/surface_tool.h"
 #include "servers/physics_3d/direct_states/physics_direct_space_state_3d.h"
 #include "servers/physics_3d/queries/physics_ray_query_parameters_3d.h"
@@ -177,13 +179,15 @@ void Terrain3D::__physics_process(const double p_delta) {
  * The edited_scene_root is excluded in case the user already has a Camera3D in their scene.
  */
 void Terrain3D::_grab_camera() {
+#ifdef TOOLS_ENABLED
 	if (IS_EDITOR) {
 		_camera.set_target(EditorInterface::get_singleton()->get_editor_viewport_3d(0)->get_camera_3d());
 		LOG(DEBUG, "Grabbing the first editor viewport camera: ", _camera.get_target());
-	} else {
-		_camera.set_target(get_viewport()->get_camera_3d());
-		LOG(DEBUG, "Grabbing the in-game viewport camera: ", _camera.get_target());
+		return;
 	}
+#endif
+	_camera.set_target(get_viewport()->get_camera_3d());
+	LOG(DEBUG, "Grabbing the in-game viewport camera: ", _camera.get_target());
 	// With no camera yet (it may be added later, or there's none on a server), this runs again
 	// next tick.
 }

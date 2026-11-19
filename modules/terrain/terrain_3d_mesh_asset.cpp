@@ -3,8 +3,6 @@
 #include "core/config/project_settings.h"
 #include "core/io/file_access.h"
 #include "core/object/class_db.h"
-#include "editor/editor_interface.h"
-#include "editor/file_system/editor_paths.h"
 #include "scene/resources/3d/primitive_meshes.h"
 #include "scene/resources/image_texture.h"
 #include "scene/resources/material.h"
