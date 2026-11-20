@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BakedAnimationMaterial" inherits="Material" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Plays a BakedAnimations' animations on the GPU.
+	</brief_description>
+	<description>
+		Draws [member BakedAnimations.mesh] moving through its animations, each copy of an [InstanceGroup3D] or [MultiMesh] in the animation its custom data names, at the time it says ([method BakedAnimations.get_custom_data]), blending between recorded frames. Without custom data, it shows the first frame.
+	</description>
+	<tutorials>
+		<link title="Large worlds">https://oss.nekolab.studio/purr/modules/world/#animated-crowds</link>
+	</tutorials>
+	<members>
+		<member name="albedo_color" type="Color" setter="set_albedo_color" getter="get_albedo_color" default="Color(1, 1, 1, 1)">
+			Multiplies [member albedo_texture].
+		</member>
+		<member name="albedo_texture" type="Texture2D" setter="set_albedo_texture" getter="get_albedo_texture">
+			The character's colors.
+		</member>
+		<member name="baked_animations" type="BakedAnimations" setter="set_baked_animations" getter="get_baked_animations">
+			The animations to play.
+		</member>
+		<member name="roughness" type="float" setter="set_roughness" getter="get_roughness" default="0.8">
+			How rough the surface is.
+		</member>
+	</members>
+</class>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Water3D" inherits="Node3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		A lake, a pond or an endless sea.
+	</brief_description>
+	<description>
+		With a [member size], a rectangle of water of that size round the node, with a vertex every [member vertex_spacing]. Without one, an endless sea round the camera, its grid finest close by and reaching four kilometers out, so it meets the horizon. Its surface is at the node's height, drawn with [member material] or, without one, a [WaterMaterial] of its own.
+		[method get_height_at] says where the surface is, waves and all, for a boat to ride on or a swimmer to bob in.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_height_at" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="position" type="Vector3" />
+			<description>
+				The surface's global height under or over [param position], with the waves as they are now. Without a [WaterMaterial], the node's own height.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="material" type="Material" setter="set_material" getter="get_material">
+			What the water's drawn with: a [WaterMaterial], or a material of the game's own. Empty, it has a [WaterMaterial] of its own.
+		</member>
+		<member name="size" type="Vector2" setter="set_size" getter="get_size" default="Vector2(0, 0)">
+			The lake's size across, in meters. [code]Vector2(0, 0)[/code] is an endless sea round the camera.
+		</member>
+		<member name="vertex_spacing" type="float" setter="set_vertex_spacing" getter="get_vertex_spacing" default="1.0">
+			How far apart a lake's vertices are, in meters: smaller waves need them closer.
+		</member>
+	</members>
+</class>

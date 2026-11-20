@@ -36,7 +36,7 @@ func _ready() -> void:
 	terrain.assets = Terrain3DAssets.new()
 	terrain.assets.set_texture_list([_texture("Rock", Color(0.45, 0.42, 0.38), 0), _texture("Grass", Color(0.32, 0.45, 0.2), 1)])
 	add_child(terrain)
-	terrain.ocean_material.set_shader_parameter("visible_depth", 20.0) # Murky enough to hide the sea floor.
+	terrain.ocean_material.clarity = 2.0 # Murky enough to hide the sea floor.
 	terrain.data.import_images([_island(), null, null], Vector3(-SIZE / 2.0, 0, -SIZE / 2.0), 0.0, 1.0)
 
 

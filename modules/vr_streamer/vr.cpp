@@ -160,6 +160,21 @@ void VR::start_up() {
 		const bool chosen = read_choices().get("enabled", false);
 		XRServer::set_xr_mode(chosen ? XRServer::XRMODE_ON : XRServer::XRMODE_OFF);
 	}
+#ifndef MACOS_ENABLED
+	// Foveated rendering in the headset, unless the project chose otherwise: the edges of each eye's
+	// view are shaded more coarsely, where the lenses blur them anyway. Through the runtime's own
+	// foveation where it has it (Meta's), else variable-rate shading where the GPU has it (Vulkan
+	// and Direct3D 12). Set before either is read; a project's own values are in its settings already.
+	if (XRServer::get_xr_mode() == XRServer::XRMODE_ON) {
+		ProjectSettings *settings = ProjectSettings::get_singleton();
+		if (!settings->has_setting("xr/openxr/foveation_level")) {
+			settings->set_setting("xr/openxr/foveation_level", 2); // Medium.
+		}
+		if (!settings->has_setting("rendering/vrs/mode")) {
+			settings->set_setting("rendering/vrs/mode", 2); // XR.
+		}
+	}
+#endif
 }
 
 bool VR::is_available() const {

@@ -28,3 +28,21 @@ A `Scatter3D` made in code places its copies when it's ready. To place them agai
 $Rocks.seed = randi()
 $Rocks.scatter()
 ```
+
+## Far away
+
+Far off, a tree's thousands of leaves cover a few pixels but cost as much as up close. Bake the tree into an `Impostor`, a picture of it from many directions, and give it to the scatter: past `impostor_distance` (60 m by default), each copy is drawn as a single quad turned to the camera, showing the tree as seen from about that direction, fading over from the real ones.
+
+```gdscript
+@tool
+extends EditorScript
+
+func _run() -> void:
+	var impostor := Impostor.new()
+	var result: Dictionary = await impostor.bake(get_scene().get_node("Oak"))
+	if result.ok:
+		ResourceSaver.save(impostor, "res://trees/oak_impostor.res")
+```
+
+The distance is measured to the whole scatter, so give each copse or hillside its own scatter rather than one for the whole map. Impostors are baked by rendering, so in the editor or as the game loads, not headless.
+

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="BakedAnimations" inherits="Resource" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		A character's animations recorded into textures, so crowds of it can be animated on the GPU.
+	</brief_description>
+	<description>
+		A skinned character is slow in large numbers: each copy has a skeleton posed every frame. [BakedAnimations] records the character's animations once, every vertex's place in every frame, into textures; a [BakedAnimationMaterial] then plays them on the GPU, so an [InstanceGroup3D] can draw thousands of copies of the character, each in its own animation, as cheaply as still meshes.
+		Bake it with [method bake], from the character in the scene and its [AnimationPlayer], in a tool script in the editor (then save it) or as the game loads:
+		[codeblock]
+		var baked := BakedAnimations.new()
+		baked.bake($Walker, $Walker/AnimationPlayer, ["walk", "idle"])
+		ResourceSaver.save(baked, "res://crowd/walker_animations.res")
+		[/codeblock]
+		Draw [member mesh] with an [InstanceGroup3D] whose [member InstanceGroup3D.use_custom_data] is on and whose [member InstanceGroup3D.material_override] is a [BakedAnimationMaterial], and give each copy its animation and time with [method get_custom_data].
+		Animations are recorded in the character's own space, from the first [MeshInstance3D] under it with a [Skeleton3D]. Movement the skeleton doesn't make (the character's root moving) isn't recorded: move the copies yourself.
+	</description>
+	<tutorials>
+		<link title="Large worlds">https://oss.nekolab.studio/purr/modules/world/#animated-crowds</link>
+	</tutorials>
+	<methods>
+		<method name="bake">
+			<return type="int" enum="Error" />
+			<param index="0" name="character" type="Node" />
+			<param index="1" name="player" type="AnimationPlayer" />
+			<param index="2" name="animations" type="PackedStringArray" default="PackedStringArray()" />
+			<param index="3" name="frames_per_second" type="float" default="30.0" />
+			<description>
+				Records [param animations] (all of [param player]'s if empty) of [param character], which must be in the scene tree, at [param frames_per_second]. Returns [constant OK], or an error if the character has no skinned mesh or there's nothing to bake. More frames a second play more smoothly; between frames the material blends.
+			</description>
+		</method>
+		<method name="get_animation_names" qualifiers="const">
+			<return type="PackedStringArray" />
+			<description>
+				The names of the baked animations.
+			</description>
+		</method>
+		<method name="get_custom_data" qualifiers="const">
+			<return type="Color" />
+			<param index="0" name="animation" type="StringName" />
+			<param index="1" name="time" type="float" />
+			<description>
+				A copy's custom data for [BakedAnimationMaterial]: [param animation] at [param time] seconds into it, looping if it loops and held at its end if it doesn't. Give it to the copy with [method InstanceGroup3D.set_custom_data].
+			</description>
+		</method>
+		<method name="get_length" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="animation" type="StringName" />
+			<description>
+				How long [param animation] is, in seconds.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="animations" type="Dictionary" setter="set_animations" getter="get_animations" default="{}">
+			Each animation's name, and a [Vector4] of its first frame, how many frames it has, its frames a second, and [code]1[/code] if it loops.
+		</member>
+		<member name="mesh" type="ArrayMesh" setter="set_mesh" getter="get_mesh">
+			The character as one surface without its bones, to draw. Its bounds cover every frame.
+		</member>
+		<member name="normals" type="Texture2D" setter="set_normals" getter="get_normals">
+			Every frame's vertex normals, laid out as [member positions].
+		</member>
+		<member name="positions" type="Texture2D" setter="set_positions" getter="get_positions">
+			Every frame's vertex positions, one row (or [member rows_per_frame] rows) a frame.
+		</member>
+		<member name="rows_per_frame" type="int" setter="set_rows_per_frame" getter="get_rows_per_frame" default="0">
+			How many rows of the textures a frame takes.
+		</member>
+		<member name="texture_width" type="int" setter="set_texture_width" getter="get_texture_width" default="0">
+			How many vertices a row of the textures holds.
+		</member>
+	</members>
+</class>

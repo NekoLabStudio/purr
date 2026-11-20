@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Thu, 19 Nov 2026 12:32:52 +0000
+Subject: [PATCH] Occlusion culling: remove hidden occluders when they're freed
+
+An occluder hidden before it was freed, or moved out of its scenario, was
+never removed from the occlusion scene: its transformed triangles were kept
+for good, and a streamed world that hid and freed its occluders grew without
+end.
+---
+ godot/servers/rendering/renderer_scene_cull.cpp | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/godot/servers/rendering/renderer_scene_cull.cpp b/godot/servers/rendering/renderer_scene_cull.cpp
+index 09015807..bb075239 100644
+--- a/godot/servers/rendering/renderer_scene_cull.cpp
++++ b/godot/servers/rendering/renderer_scene_cull.cpp
+@@ -789,7 +789,8 @@ void RendererSceneCull::instance_set_base(RID p_instance, RID p_base) {
+ 
+ 			} break;
+ 			case RSE::INSTANCE_OCCLUDER: {
+-				if (scenario && instance->visible) {
++				// Hidden ones too: they stay in the occlusion scene, turned off, until removed.
++				if (scenario) {
+ 					RendererSceneOcclusionCull::get_singleton()->scenario_remove_instance(instance->scenario->self, p_instance);
+ 				}
+ 			} break;
+@@ -992,9 +993,8 @@ void RendererSceneCull::instance_set_scenario(RID p_instance, RID p_scenario) {
+ 				}
+ 			} break;
+ 			case RSE::INSTANCE_OCCLUDER: {
+-				if (instance->visible) {
+-					RendererSceneOcclusionCull::get_singleton()->scenario_remove_instance(instance->scenario->self, p_instance);
+-				}
++				// Hidden ones too: they stay in the occlusion scene, turned off, until removed.
++				RendererSceneOcclusionCull::get_singleton()->scenario_remove_instance(instance->scenario->self, p_instance);
+ 			} break;
+ 			default: {
+ 			}
+-- 
+2.54.0 (Apple Git-157)
+

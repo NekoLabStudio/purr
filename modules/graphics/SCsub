@@ -4,4 +4,16 @@ Import("env")
 Import("env_modules")
 
 env_graphics = env_modules.Clone()
+
+# The screen effects need the RenderingDevice renderers (Forward+ and Mobile), whose shaders they
+# share the build of.
+if "RD_GLSL" in env["BUILDERS"]:
+    env_graphics.Append(CPPDEFINES=["SCREEN_EFFECTS_ENABLED"])
+    includes = [str(f) for f in Glob("effects/*_inc.glsl")]
+    for glsl in Glob("effects/*.glsl"):
+        if str(glsl) not in includes:
+            env_graphics.RD_GLSL(str(glsl))
+            env_graphics.Depends(str(glsl) + ".gen.h", includes)
+    env_graphics.add_source_files(env.modules_sources, "effects/*.cpp")
+
 env_graphics.add_source_files(env.modules_sources, "*.cpp")

@@ -46,7 +46,14 @@ func _run() -> void:
 
 	terrain.ocean_enabled = true
 	await frames(1)
-	check("turning the ocean on gives it a material to edit", terrain.ocean_material is ShaderMaterial, terrain.ocean_material)
+	check("turning the ocean on gives it water to edit", terrain.ocean_material is WaterMaterial, terrain.ocean_material)
+	var seas := terrain.get_children(true).filter(func(child: Node) -> bool: return child is Water3D)
+	check("an endless sea at the ocean's level", seas.size() == 1 and seas[0].size == Vector2.ZERO and is_equal_approx(seas[0].position.y, terrain.ocean_level), seas)
+	terrain.ocean_level = -3.0
+	check("which follows it", is_equal_approx(seas[0].position.y, -3.0))
+	terrain.ocean_enabled = false
+	await frames(1)
+	check("and goes when it's off", terrain.get_children(true).filter(func(child: Node) -> bool: return child is Water3D).is_empty())
 
 	var grass := Terrain3DTextureAsset.new()
 	var mud := Terrain3DTextureAsset.new()
@@ -59,6 +66,8 @@ func _run() -> void:
 	await _shifted()
 	await _streaming()
 	await _navigation()
+	if DisplayServer.get_name() != "headless":
+		await _occlusion()
 	print("terrain: %d failed" % failures if failures else "terrain: all passed")
 	quit(1 if failures else 0)
 
@@ -220,3 +229,50 @@ func ground_at(at: Vector3) -> float:
 	var space := root.get_world_3d().direct_space_state
 	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(at + Vector3.UP * 100.0, at - Vector3.UP * 100.0))
 	return hit.position.y if hit else NAN
+
+
+
+# Hills hide what's behind them: with the terrain's occluders, a box behind a ridge isn't drawn.
+func _occlusion() -> void:
+	var view := SubViewport.new()
+	view.size = Vector2i(64, 64)
+	view.own_world_3d = true
+	view.use_occlusion_culling = true
+	view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	root.add_child(view)
+	var terrain := Terrain3D.new()
+	view.add_child(terrain)
+	await frames(2)
+	terrain.data.add_region_blank(Vector2i.ZERO)
+	for x in range(0, 256):
+		for z in range(60, 161):
+			terrain.data.set_height(Vector3(x, 0, z), 40.0)
+	terrain.data.update_maps()
+	var camera := Camera3D.new()
+	camera.position = Vector3(128, 5, 20)
+	camera.rotation_degrees.y = 180.0  # looking across the ridge
+	view.add_child(camera)
+	camera.make_current()
+	var box := MeshInstance3D.new()
+	box.mesh = BoxMesh.new()
+	box.position = Vector3(128, 5, 230)
+	view.add_child(box)
+	var drawn := func() -> int:
+		for i in 8:
+			await process_frame
+		return RenderingServer.viewport_get_render_info(view.get_viewport_rid(), RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, RenderingServer.VIEWPORT_RENDER_INFO_OBJECTS_IN_FRAME)
+	# The occluders are made in the background: give them time before counting.
+	await frames(60)
+	box.visible = false
+	var none: int = await drawn.call()
+	box.visible = true
+	var behind: int = await drawn.call()
+	check("a box behind a hill isn't drawn", behind == none, [behind, none])
+	box.position = Vector3(128, 5, 45)  # in front of the ridge
+	var in_front: int = await drawn.call()
+	check("one in front of it is", in_front == none + 1, [in_front, none])
+	box.position = Vector3(128, 5, 230)
+	terrain.occluders_enabled = false
+	var without: int = await drawn.call()
+	check("and with occluders off, the one behind is drawn", without > behind, [without, behind])
+	view.queue_free()

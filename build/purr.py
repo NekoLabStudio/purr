@@ -7,6 +7,7 @@ module_text_server_fb_enabled = "no"  # Keep the advanced text server (Japanese 
 module_mobile_vr_enabled = "no"  # Cardboard-style phone VR; not used
 module_webxr_enabled = "no"
 module_godot_physics_3d_enabled = "no"  # 3D projects use Jolt; Godot Physics 2D stays
+module_mono_enabled = "no"  # No C#: games are GDScript, with C++ in modules or GDExtensions
 
 # On macOS, editors and debug templates mark the engine's work (each frame, its physics, each
 # viewport's drawing) for Instruments, beside a Metal System Trace. It costs nothing measurable

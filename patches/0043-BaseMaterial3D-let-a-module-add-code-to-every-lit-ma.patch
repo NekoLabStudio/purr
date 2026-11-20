@@ -1,0 +1,84 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Thu, 19 Nov 2026 18:14:27 +0000
+Subject: [PATCH] BaseMaterial3D: let a module add code to every lit material
+
+A module can give every StandardMaterial3D and ORMMaterial3D a few lines
+of its own: declarations before fragment() and code at its end, set as
+the engine starts. It's how weather reaches a game's ordinary materials,
+such as snow settling on whatever faces up, without the game replacing
+them with shader materials. Unshaded materials are left as they are.
+---
+ godot/scene/resources/material.cpp | 16 ++++++++++++++++
+ godot/scene/resources/material.h   |  7 +++++++
+ 2 files changed, 23 insertions(+)
+
+diff --git a/godot/scene/resources/material.cpp b/godot/scene/resources/material.cpp
+index 6e95cbf5..e03358fa 100644
+--- a/godot/scene/resources/material.cpp
++++ b/godot/scene/resources/material.cpp
+@@ -555,6 +555,13 @@ ShaderMaterial::~ShaderMaterial() {
+ /////////////////////////////////
+ 
+ HashMap<BaseMaterial3D::MaterialKey, BaseMaterial3D::ShaderData, BaseMaterial3D::MaterialKey> BaseMaterial3D::shader_map;
++String BaseMaterial3D::extra_declarations;
++String BaseMaterial3D::extra_fragment;
++
++void BaseMaterial3D::set_extra_shader_code(const String &p_declarations, const String &p_fragment) {
++	extra_declarations = p_declarations;
++	extra_fragment = p_fragment;
++}
+ Mutex BaseMaterial3D::shader_map_mutex;
+ BaseMaterial3D::ShaderNames *BaseMaterial3D::shader_names = nullptr;
+ Mutex BaseMaterial3D::material_mutex;
+@@ -1487,6 +1494,11 @@ vec4 triplanar_texture(sampler2D p_sampler, vec3 p_weights, vec3 p_triplanar_pos
+ )";
+ 	}
+ 
++	const bool extra = shading_mode != SHADING_MODE_UNSHADED && !extra_fragment.is_empty();
++	if (extra) {
++		code += "\n" + extra_declarations + "\n";
++	}
++
+ 	// Generate fragment shader.
+ 	code += R"(
+ void fragment() {)";
+@@ -2083,6 +2095,10 @@ void fragment() {)";
+ )";
+ 	}
+ 
++	if (extra) {
++		code += "\n" + extra_fragment + "\n";
++	}
++
+ 	code += "}\n";
+ 
+ 	// We must create the shader outside the shader_map_mutex to avoid potential deadlocks with
+diff --git a/godot/scene/resources/material.h b/godot/scene/resources/material.h
+index 130332c1..fe722ed2 100644
+--- a/godot/scene/resources/material.h
++++ b/godot/scene/resources/material.h
+@@ -416,6 +416,11 @@ private:
+ 	static HashMap<MaterialKey, ShaderData, MaterialKey> shader_map;
+ 	static Mutex shader_map_mutex;
+ 
++	// Code an engine module adds to every lit material: declarations before fragment(), and lines
++	// at its end. Set as the engine starts, before any material is made.
++	static String extra_declarations;
++	static String extra_fragment;
++
+ 	MaterialKey current_key;
+ 
+ 	_FORCE_INLINE_ MaterialKey _compute_key() const {
+@@ -884,6 +889,8 @@ public:
+ 
+ 	virtual Shader::Mode get_shader_mode() const override;
+ 
++	static void set_extra_shader_code(const String &p_declarations, const String &p_fragment);
++
+ 	BaseMaterial3D(bool p_orm);
+ 	virtual ~BaseMaterial3D();
+ };
+-- 
+2.54.0 (Apple Git-157)
+

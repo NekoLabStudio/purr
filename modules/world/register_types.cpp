@@ -1,11 +1,24 @@
 #include "register_types.h"
 
+#include "baked_animation_material.h"
+#include "baked_animations.h"
+#include "cloudy_sky_material.h"
+#include "impostor.h"
+#include "impostor_material.h"
+#include "foliage_bender_3d.h"
+#include "foliage_material.h"
 #include "instance_group_3d.h"
+#include "interior_material.h"
 #include "light_pool_3d.h"
 #include "multimesh_body_3d.h"
 #include "reflection_probe_pool.h"
 #include "scatter_3d.h"
+#include "static_scenery_3d.h"
 #include "time_of_day.h"
+#include "ground_marks_3d.h"
+#include "water_3d.h"
+#include "water_material.h"
+#include "weather_3d.h"
 #include "world_origin.h"
 #include "world_streamer.h"
 
@@ -31,7 +44,21 @@ void initialize_world_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(LightPool3D);
 		GDREGISTER_CLASS(ReflectionProbePool);
 		GDREGISTER_CLASS(Scatter3D);
+		GDREGISTER_CLASS(StaticScenery3D);
 		GDREGISTER_CLASS(TimeOfDay);
+		GDREGISTER_CLASS(Weather3D);
+		GDREGISTER_CLASS(CloudySkyMaterial);
+		GDREGISTER_CLASS(FoliageMaterial);
+		GDREGISTER_CLASS(FoliageBender3D);
+		GDREGISTER_CLASS(GroundMarks3D);
+		GDREGISTER_CLASS(WaterMaterial);
+		GDREGISTER_CLASS(InteriorMaterial);
+		GDREGISTER_CLASS(Water3D);
+		GDREGISTER_CLASS(BakedAnimations);
+		GDREGISTER_CLASS(BakedAnimationMaterial);
+		GDREGISTER_CLASS(Impostor);
+		GDREGISTER_CLASS(ImpostorMaterial);
+		GDREGISTER_INTERNAL_CLASS(ImpostorBake);
 	}
 #ifdef TOOLS_ENABLED
 	if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
@@ -44,6 +71,14 @@ void initialize_world_module(ModuleInitializationLevel p_level) {
 
 void uninitialize_world_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
+		CloudySkyMaterial::cleanup_shader();
+		FoliageMaterial::cleanup_shader();
+		FoliageBender3D::cleanup();
+		GroundMarks3D::cleanup();
+		WaterMaterial::cleanup_shader();
+		InteriorMaterial::cleanup_shader();
+		BakedAnimationMaterial::cleanup_shader();
+		ImpostorMaterial::cleanup_shader();
 		memdelete(world_origin);
 		world_origin = nullptr;
 	}

@@ -60,6 +60,7 @@ private:
 
 	void _start();
 	void _process_frame();
+	void _tree_exiting();
 	void _ensure_view();
 	Vector<Argument> _arguments(const Callable &p_callable, bool &r_known) const;
 	String _usage(const String &p_name) const;

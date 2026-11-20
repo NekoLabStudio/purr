@@ -68,6 +68,12 @@ func _run() -> void:
 	check("and its settings are the window's", root.mesh_lod_threshold == RecommendedGraphics.get_settings(RecommendedGraphics.get_tier()).mesh_lod_threshold, root.mesh_lod_threshold)
 	Options.set_value("display/graphics_tier", "ultra")
 	check("changing it changes the window", root.mesh_lod_threshold == 1.0 and ProjectSettings.get_setting("rendering/mesh_lod/lod_change/threshold_pixels") == 1.0 and RecommendedGraphics.get_tier() != RecommendedGraphics.TIER_ULTRA, root.mesh_lod_threshold)
+	check("ultra has contact shadows", ProjectSettings.get_setting("rendering/lights_and_shadows/contact_shadow/enabled") == true)
+	Options.set_value("display/graphics_tier", "low")
+	check("low doesn't", ProjectSettings.get_setting("rendering/lights_and_shadows/contact_shadow/enabled") == false)
+	check("and loads textures without their sharpest level", ProjectSettings.get_setting("rendering/textures/quality/skip_mipmaps") == 1)
+	check("and a headset never does", RecommendedGraphics.get_settings(RecommendedGraphics.TIER_ULTRA, true).contact_shadows == false)
+	Options.set_value("display/graphics_tier", "ultra")
 	check("window modes are choices", Options.get_info("display/window_mode").get("choices") == PackedStringArray(["windowed", "fullscreen", "exclusive_fullscreen"]), Options.get_info("display/window_mode"))
 
 	var changes := []

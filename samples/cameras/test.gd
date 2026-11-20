@@ -27,7 +27,9 @@ func _initialize() -> void:
 
 func _run() -> void:
 	await check_3d()
+	await check_focus_and_obstacles()
 	await check_2d()
+	await check_photo_mode()
 	print("cameras: %d failed" % failures if failures else "cameras: all passed")
 	quit(1 if failures else 0)
 
@@ -186,6 +188,62 @@ func check_3d() -> void:
 	await frames(1)
 
 
+# Autofocus on what's followed, and what stands in the way faded out.
+func check_focus_and_obstacles() -> void:
+	var world := Node3D.new()
+	root.add_child(world)
+	var camera := Camera3D.new()
+	world.add_child(camera)
+	var player := Node3D.new()
+	player.position = Vector3(0, 0, -8)
+	world.add_child(player)
+	var follower := virtual_camera(world, 10)
+	follower.follow_mode = VirtualCamera3D.FOLLOW_TARGET
+	follower.follow_target = follower.get_path_to(player)
+	follower.follow_offset = Vector3(0, 0, 8)
+	follower.focus_mode = VirtualCamera3D.FOCUS_TARGET
+	follower.focus_damping = 0.0
+	follower.focus_blur = 0.5
+	await frames(2)
+	check("autofocus keeps the target in focus", is_equal_approx(follower.get_focus_distance(), 8.0), follower.get_focus_distance())
+	var attributes := camera.attributes as CameraAttributesPractical
+	check("through the real camera's depth of field", attributes != null and attributes.dof_blur_far_enabled and attributes.dof_blur_far_distance > 8.0, attributes)
+	follower.focus_mode = VirtualCamera3D.FOCUS_OFF
+	await frames(1)
+	check("and gives the camera back as it was when off", camera.attributes == null)
+
+	# A wall between the camera and the player, as a mesh with its collision under it.
+	var wall := MeshInstance3D.new()
+	wall.mesh = BoxMesh.new()
+	wall.mesh.size = Vector3(4, 4, 0.2)
+	wall.position = Vector3(0, 0, -4)
+	world.add_child(wall)
+	var body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	shape.shape = BoxShape3D.new()
+	shape.shape.size = Vector3(4, 4, 0.2)
+	body.add_child(shape)
+	wall.add_child(body)
+	follower.fade_obstacles = true
+	await physics_frames(2)
+	await create_timer(0.3).timeout
+	await frames(1)
+	check("what's in the way of the player fades out", wall.transparency > 0.5, wall.transparency)
+	player.position = Vector3(0, 6, -8)
+	await physics_frames(2)
+	await create_timer(0.3).timeout
+	await frames(1)
+	check("and back in once it isn't", wall.transparency == 0.0, wall.transparency)
+	player.position = Vector3(0, 0, -8)
+	await physics_frames(2)
+	await create_timer(0.3).timeout
+	await frames(1)
+	follower.fade_obstacles = false
+	check("turning fading off shows it again at once", wall.transparency == 0.0, wall.transparency)
+	world.queue_free()
+	await frames(1)
+
+
 func check_2d() -> void:
 	var world := Node2D.new()
 	root.add_child(world)
@@ -220,3 +278,30 @@ func check_2d() -> void:
 	check("2D: and zooms out to fit it", camera.zoom.x < 1.0 and 2000.0 * camera.zoom.x <= view.x, [camera.zoom, view])
 	world.queue_free()
 	await frames(1)
+
+
+# Photo mode: the game stops, its HUD goes, and a camera of its own takes over until it closes.
+func check_photo_mode() -> void:
+	var world := Node3D.new()
+	root.add_child(world)
+	var game_camera := Camera3D.new()
+	game_camera.position = Vector3(1, 2, 3)
+	world.add_child(game_camera)
+	game_camera.make_current()
+	var hud := CanvasLayer.new()
+	root.add_child(hud)
+	var refused: Dictionary = await PhotoMode.take_photo()
+	check("a photo can't be taken with photo mode closed", refused.ok == false and refused.error == "not_open", refused)
+	check("photo mode opens over a 3D game", PhotoMode.open() and PhotoMode.is_open())
+	await frames(2)
+	var photo_camera := root.get_camera_3d()
+	check("the game stops", paused)
+	check("its HUD goes", not hud.visible)
+	check("and a camera of photo mode's own takes over where the game's was", photo_camera != game_camera and photo_camera.global_position.is_equal_approx(game_camera.global_position), photo_camera)
+	var shot: Dictionary = await PhotoMode.take_photo()
+	check("taking a photo answers with whether it was saved", shot.has("ok") and (shot.ok == false or FileAccess.file_exists(shot.path)), shot)
+	PhotoMode.close()
+	await frames(1)
+	check("closing gives the game back as it was", not paused and hud.visible and root.get_camera_3d() == game_camera and not PhotoMode.is_open())
+	hud.queue_free()
+	world.queue_free()

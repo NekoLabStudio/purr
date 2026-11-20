@@ -37,6 +37,12 @@
 		<member name="density" type="float" setter="set_density" getter="get_density" default="1.0">
 			How many copies to try for each square metre of the box's floor. Fewer land where there's no surface below or it's too steep.
 		</member>
+		<member name="impostor" type="Impostor" setter="set_impostor" getter="get_impostor">
+			The copies as an [Impostor], drawn past [member impostor_distance] in place of the mesh: trees far away as one quad each.
+		</member>
+		<member name="impostor_distance" type="float" setter="set_impostor_distance" getter="get_impostor_distance" default="60.0">
+			How far away, in meters, the copies give way to [member impostor], fading over a few meters. It's measured to the whole scatter, so it suits scatters a chunk or a copse in size. While there's an impostor, it sets [member GeometryInstance3D.visibility_range_end].
+		</member>
 		<member name="max_slope" type="float" setter="set_max_slope" getter="get_max_slope" default="45.0">
 			The steepest surface a copy lands on, in degrees.
 		</member>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="LocalExposureEffect" inherits="CompositorEffect" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Brings bright and dark parts of the picture towards middle grey, each on its own.
+	</brief_description>
+	<description>
+		The eye adapts to bright and dark parts of a scene at once; a camera doesn't. This effect does it for each part of the picture: the light round each pixel is brought towards middle grey, highlights and shadows each by a contrast of their own, so a sunlit sky keeps its clouds while the street below still reads, and a lit sign keeps its lettering at night. The detail within each part is kept, and the scene's exposure (the [Environment]'s and the camera's) still sets the picture's brightness overall.
+		Add it to a [Compositor]'s [member Compositor.compositor_effects], on a [WorldEnvironment] or [Camera3D]. It's drawn after the scene's see-through objects, before tonemapping, with the Forward+ renderer; with the others it draws nothing. In a headset it draws nothing: each eye's picture would be evened out differently.
+	</description>
+	<tutorials>
+		<link title="Screen effects">https://oss.nekolab.studio/purr/modules/graphics/#screen-effects</link>
+	</tutorials>
+	<members>
+		<member name="detail" type="float" setter="set_detail" getter="get_detail" default="0.6">
+			How closely it follows edges of brightness: at [code]1[/code], a lit sign beside a dark alley is evened out without darkening the alley; at [code]0[/code], the light round each pixel is a plain blur.
+		</member>
+		<member name="highlights" type="float" setter="set_highlights" getter="get_highlights" default="0.8">
+			The contrast of the picture's brighter parts against middle grey: below [code]1[/code] they're brought down towards it, above [code]1[/code] pushed further. [code]1[/code] leaves them be.
+		</member>
+		<member name="shadows" type="float" setter="set_shadows" getter="get_shadows" default="0.85">
+			The contrast of the picture's darker parts against middle grey: below [code]1[/code] they're brought up towards it. [code]1[/code] leaves them be.
+		</member>
+	</members>
+</class>

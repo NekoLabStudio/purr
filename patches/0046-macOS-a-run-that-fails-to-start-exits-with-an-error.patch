@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Thu, 19 Nov 2026 23:27:29 +0000
+Subject: [PATCH] macOS: a run that fails to start exits with an error
+
+Linux and Windows exit with EXIT_FAILURE when Main::start() fails, but
+the headless and embedded run loops on macOS left the exit code at 0.
+A script run with -s that fails to parse, or a missing scene, then
+looked like success: a test script with a parse error passed CI.
+---
+ godot/platform/macos/os_macos.mm | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/godot/platform/macos/os_macos.mm b/godot/platform/macos/os_macos.mm
+index 10e92d0e..18a8ab84 100644
+--- a/godot/platform/macos/os_macos.mm
++++ b/godot/platform/macos/os_macos.mm
+@@ -1229,6 +1229,10 @@ static void handle_interrupt(int sig) {
+ 		ret = Main::start();
+ 	}
+ 
++	if (ret != EXIT_SUCCESS) {
++		set_exit_code(EXIT_FAILURE);
++	}
++
+ 	if (ret == EXIT_SUCCESS && main_loop) {
+ 		@autoreleasepool {
+ 			main_loop->initialize();
+@@ -1293,6 +1297,10 @@ static void handle_interrupt(int sig) {
+ 		ret = Main::start();
+ 	}
+ 
++	if (ret != EXIT_SUCCESS) {
++		set_exit_code(EXIT_FAILURE);
++	}
++
+ 	DisplayServerMacOSEmbedded *ds = Object::cast_to<DisplayServerMacOSEmbedded>(DisplayServer::get_singleton());
+ 	if (!ds) {
+ 		ERR_FAIL_MSG("DisplayServerMacOSEmbedded is not initialized.");
+-- 
+2.54.0 (Apple Git-157)
+

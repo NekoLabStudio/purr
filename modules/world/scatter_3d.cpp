@@ -1,5 +1,7 @@
 #include "scatter_3d.h"
 
+#include "impostor.h"
+
 #include "multimesh_body_3d.h"
 #include "world_origin.h"
 
@@ -23,6 +25,7 @@ void Scatter3D::_notification(int p_what) {
 				set_notify_transform(true); // Moving it in the editor scatters it again.
 			}
 			_update_body();
+			_update_far();
 		} break;
 		case NOTIFICATION_READY: {
 			// Made in code rather than saved with a scene: scatter it now.
@@ -167,6 +170,7 @@ void Scatter3D::scatter() {
 
 	set_multimesh(multimesh);
 	_update_body();
+	_update_far();
 }
 
 int Scatter3D::get_count() const {
@@ -190,6 +194,60 @@ void Scatter3D::_update_body() {
 	body->set_shape(collision_shape);
 	body->set_collision_layer(collision_layer);
 	body->set_multimesh(get_multimesh());
+}
+
+// Past impostor_distance, the copies are drawn as the impostor: a second MultiMesh of the same
+// transforms, with the impostor's quad, and the copies themselves no further than that.
+void Scatter3D::_update_far() {
+	const bool wanted = impostor.is_valid() && impostor->get_texture().is_valid() && impostor_distance > 0.0 && get_multimesh().is_valid();
+	if (!wanted) {
+		if (far != nullptr) {
+			far->queue_free();
+			far = nullptr;
+			set_visibility_range_end(0.0);
+		}
+		return;
+	}
+	if (far == nullptr) {
+		far = memnew(MultiMeshInstance3D);
+		add_child(far, false, INTERNAL_MODE_BACK); // Not saved: made again from the properties.
+	}
+	const Ref<MultiMesh> near = get_multimesh();
+	Ref<MultiMesh> copies;
+	copies.instantiate();
+	copies->set_transform_format(MultiMesh::TRANSFORM_3D);
+	copies->set_mesh(impostor->get_mesh());
+	copies->set_instance_count(near->get_instance_count());
+	copies->set_buffer(near->get_buffer());
+	far->set_multimesh(copies);
+	far->set_cast_shadows_setting(get_cast_shadows_setting());
+	far->set_layer_mask(get_layer_mask());
+	// Each takes over from the other across a few metres, fading.
+	const float margin = MAX(impostor_distance * 0.05f, 1.0f);
+	set_visibility_range_end(impostor_distance + margin);
+	set_visibility_range_end_margin(margin);
+	set_visibility_range_fade_mode(VISIBILITY_RANGE_FADE_SELF);
+	far->set_visibility_range_begin(impostor_distance - margin);
+	far->set_visibility_range_begin_margin(margin);
+	far->set_visibility_range_fade_mode(VISIBILITY_RANGE_FADE_SELF);
+}
+
+void Scatter3D::set_impostor(const Ref<Impostor> &p_impostor) {
+	impostor = p_impostor;
+	_update_far();
+}
+
+Ref<Impostor> Scatter3D::get_impostor() const {
+	return impostor;
+}
+
+void Scatter3D::set_impostor_distance(float p_distance) {
+	impostor_distance = MAX(p_distance, 0.0f);
+	_update_far();
+}
+
+float Scatter3D::get_impostor_distance() const {
+	return impostor_distance;
 }
 
 void Scatter3D::_validate_property(PropertyInfo &p_property) const {
@@ -350,6 +408,13 @@ void Scatter3D::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "align_to_surface", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_align_to_surface", "get_align_to_surface");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "max_slope", PROPERTY_HINT_RANGE, "0,90,0.1,degrees"), "set_max_slope", "get_max_slope");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "surface_mask", PROPERTY_HINT_LAYERS_3D_PHYSICS), "set_surface_mask", "get_surface_mask");
+	ClassDB::bind_method(D_METHOD("set_impostor", "impostor"), &Scatter3D::set_impostor);
+	ClassDB::bind_method(D_METHOD("get_impostor"), &Scatter3D::get_impostor);
+	ClassDB::bind_method(D_METHOD("set_impostor_distance", "distance"), &Scatter3D::set_impostor_distance);
+	ClassDB::bind_method(D_METHOD("get_impostor_distance"), &Scatter3D::get_impostor_distance);
+	ADD_GROUP("Far away", "impostor");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "impostor", PROPERTY_HINT_RESOURCE_TYPE, "Impostor"), "set_impostor", "get_impostor");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "impostor_distance", PROPERTY_HINT_RANGE, "0,2000,0.1,or_greater,suffix:m"), "set_impostor_distance", "get_impostor_distance");
 	ADD_GROUP("Collision", "collision_");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "collision_shape", PROPERTY_HINT_RESOURCE_TYPE, "Shape3D"), "set_collision_shape", "get_collision_shape");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "collision_layer", PROPERTY_HINT_LAYERS_3D_PHYSICS), "set_collision_layer", "get_collision_layer");

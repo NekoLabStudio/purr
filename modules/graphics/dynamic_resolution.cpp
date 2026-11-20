@@ -1,5 +1,7 @@
 #include "dynamic_resolution.h"
 
+#include "frame_pacing.h"
+#include "gpu_time.h"
 #include "recommended_graphics.h"
 
 #include "core/config/engine.h"
@@ -64,24 +66,26 @@ float DynamicResolution::get_frame_rate_target() const {
 		return target_fps;
 	}
 	Viewport *viewport = _viewport();
+	float rate = FramePacing::refresh_rate(viewport);
 	if (viewport != nullptr && viewport->is_using_xr()) {
-		// The headset sets the pace (OpenXR reports its refresh rate).
-		Ref<XRInterface> xr = XRServer::get_singleton()->get_primary_interface();
-		float rate = xr.is_valid() && xr->has_method(SNAME("get_display_refresh_rate")) ? float(xr->call(SNAME("get_display_refresh_rate"))) : 0.0f;
-		return rate > 0.0 ? rate : 90.0;
+		return rate; // The headset sets the pace.
 	}
 	DisplayServer *display = DisplayServer::get_singleton();
-	float rate = display != nullptr ? display->screen_get_refresh_rate(display->window_get_current_screen()) : 0.0f;
-	if (rate <= 0.0) {
-		rate = 60.0;
-	}
 	// On a faster display, 60 at most with vertical sync on: most players would rather have the
 	// picture sharp at 60 than soft at 120. Vertical sync off asks for the most frames there are.
 	if (display == nullptr || display->window_get_vsync_mode(DisplayServerEnums::MAIN_WINDOW_ID) != DisplayServerEnums::VSYNC_DISABLED) {
 		rate = MIN(rate, DEFAULT_TARGET_FPS);
 	}
+	// A cap of the game's own counts; FramePacing's doesn't: it caps because the full rate isn't held.
 	int max_fps = Engine::get_singleton()->get_max_fps();
+	if (FramePacing::get_singleton() != nullptr && max_fps == FramePacing::get_singleton()->get_own_cap()) {
+		max_fps = 0;
+	}
 	return max_fps > 0 ? MIN(rate, float(max_fps)) : rate;
+}
+
+bool DynamicResolution::can_lower_resolution() const {
+	return running && !paused && scale > _floor() + 0.001f;
 }
 
 // The lowest scale allowed: min_scale, or MetalFX's temporal upscaler's own limit if higher.
@@ -159,7 +163,7 @@ void DynamicResolution::_frame() {
 
 	// The GPU's timings arrive a couple of frames late: those just after a change are the old scale's.
 	frames_since_change++;
-	double gpu_ms = RenderingServer::get_singleton()->viewport_get_measured_render_time_gpu(viewport->get_viewport_rid());
+	double gpu_ms = GpuTime::frame_ms(viewport);
 	if (frames_since_change > 3 && gpu_ms > 0.0) {
 		smoothed_gpu_ms = smoothed_gpu_ms == 0.0 ? gpu_ms : Math::lerp(smoothed_gpu_ms, gpu_ms, SMOOTHING);
 	}

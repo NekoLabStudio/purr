@@ -1,5 +1,9 @@
 #include "camera_director.h"
 
+#include "camera_focus.h"
+
+#include "photo_mode.h"
+
 #include "virtual_camera_2d.h"
 #include "virtual_camera_3d.h"
 
@@ -140,6 +144,10 @@ void CameraDirector::_direct_3d(real_t p_delta) {
 		if (camera == nullptr) {
 			continue;
 		}
+		// Photo mode's camera is the player's to move.
+		if (PhotoMode::get_singleton() != nullptr && PhotoMode::get_singleton()->is_photo_camera(camera)) {
+			continue;
+		}
 #ifndef XR_DISABLED
 		// In VR the headset moves the camera.
 		if (Object::cast_to<XRCamera3D>(camera) != nullptr) {
@@ -174,7 +182,42 @@ void CameraDirector::_direct_3d(real_t p_delta) {
 		}
 		camera->set_global_transform(pose);
 		camera->set_fov(fov);
+		_focus(view, camera, best);
 	}
+}
+
+// The live camera's autofocus, as the real camera's depth of field; put back as it was when off.
+void CameraDirector::_focus(View &p_view, Camera3D *p_camera, const VirtualCamera3D *p_live) {
+	const bool wanted = p_live->get_focus_mode() != VirtualCamera3D::FOCUS_OFF;
+	if (!wanted && !p_view.focusing) {
+		return;
+	}
+	Ref<CameraAttributesPractical> attributes = p_camera->get_attributes();
+	if (!wanted) {
+		if (p_view.focus_attributes.is_valid() && attributes == p_view.focus_attributes) {
+			p_camera->set_attributes(p_view.own_attributes);
+		} else if (attributes.is_valid()) {
+			attributes->set_dof_blur_far_enabled(false);
+			attributes->set_dof_blur_near_enabled(false);
+		}
+		p_view.focusing = false;
+		p_view.own_attributes.unref();
+		p_view.focus_attributes.unref();
+		return;
+	}
+	if (attributes.is_null()) {
+		if (p_camera->get_attributes().is_valid()) {
+			return; // Physical attributes have a lens of their own.
+		}
+		if (p_view.focus_attributes.is_null()) {
+			p_view.focus_attributes.instantiate();
+		}
+		p_view.own_attributes = p_camera->get_attributes();
+		attributes = p_view.focus_attributes;
+		p_camera->set_attributes(attributes);
+	}
+	p_view.focusing = true;
+	CameraFocus::set(attributes.ptr(), p_live->get_focus_distance(), p_live->get_focus_blur());
 }
 
 void CameraDirector::_direct_2d(real_t p_delta) {

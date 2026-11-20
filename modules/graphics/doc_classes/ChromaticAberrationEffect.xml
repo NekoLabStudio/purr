@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="ChromaticAberrationEffect" inherits="CompositorEffect" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Red and blue spreading apart towards the picture's edges.
+	</brief_description>
+	<description>
+		Red and blue spread apart towards the edges of the picture, as a lens bends each color a little differently. Add it to a [Compositor]'s [member Compositor.compositor_effects], on a [WorldEnvironment] or [Camera3D]. It's drawn after the scene's see-through objects, before tonemapping, in each view (both eyes in VR), with the Forward+ renderer; with the others it draws nothing.
+	</description>
+	<tutorials>
+		<link title="Screen effects">https://oss.nekolab.studio/purr/modules/graphics/#screen-effects</link>
+	</tutorials>
+	<members>
+		<member name="strength" type="float" setter="set_strength" getter="get_strength" default="0.01">
+			How far apart the colors spread at the corners, as a share of the screen.
+		</member>
+	</members>
+</class>

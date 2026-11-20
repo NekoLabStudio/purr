@@ -84,7 +84,9 @@ String CrashReports::_folder() {
 }
 
 void CrashReports::_start() {
-	if (!enabled) {
+	// Only a game: tools that start the engine without one (--doctool, --check-project's scans and
+	// the like) run no scene tree, and aren't the game's runs to watch.
+	if (!enabled || SceneTree::get_singleton() == nullptr) {
 		return;
 	}
 	DirAccess::make_dir_recursive_absolute(_folder());

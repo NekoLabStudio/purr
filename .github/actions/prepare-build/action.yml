@@ -44,6 +44,7 @@ runs:
       run: |
         git apply patches/*.patch
         cp branding/splash.png godot/main/splash.png
+        cp branding/app_icon.png godot/main/app_icon.png
         cp branding/editor/*.svg godot/editor/icons/
         # Godot reads its commit hash from godot/.git/HEAD, which can't be stored in the repository.
         # Its build then asks git for that commit's date, which this repo doesn't have: the "fatal: bad

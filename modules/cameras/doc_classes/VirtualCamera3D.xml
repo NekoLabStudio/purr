@@ -18,6 +18,12 @@
 	<tutorials>
 	</tutorials>
 	<methods>
+		<method name="get_focus_distance" qualifiers="const">
+			<return type="float" />
+			<description>
+				How far away what it keeps in focus is now, in meters, eased by [member focus_damping].
+			</description>
+		</method>
 		<method name="is_live" qualifiers="const">
 			<return type="bool" />
 			<description>
@@ -48,6 +54,24 @@
 		</member>
 		<member name="blend_transition" type="int" setter="set_blend_transition" getter="get_blend_transition" enum="Tween.TransitionType" default="7">
 			The curve of the blend to this camera, as a [Tween]'s.
+		</member>
+		<member name="fade_amount" type="float" setter="set_fade_amount" getter="get_fade_amount" default="0.8">
+			How see-through what's in the way becomes, from [code]0[/code] to [code]1[/code].
+		</member>
+		<member name="fade_obstacles" type="bool" setter="set_fade_obstacles" getter="is_fading_obstacles" default="false">
+			If [code]true[/code], while it's live, what stands between it and its [member follow_target] fades out (as [member GeometryInstance3D.transparency]) so the player stays in sight, and back in once it's out of the way. What counts is any body on [member orbit_collision_mask] a line from the target to the camera passes through: the meshes under it, and the mesh it's under.
+		</member>
+		<member name="focus_blur" type="float" setter="set_focus_blur" getter="get_focus_blur" default="0.3">
+			How blurred what's out of focus is, from [code]0[/code] to [code]1[/code].
+		</member>
+		<member name="focus_collision_mask" type="int" setter="set_focus_collision_mask" getter="get_focus_collision_mask" default="1">
+			The physics layers [constant FOCUS_CENTER] focuses on.
+		</member>
+		<member name="focus_damping" type="float" setter="set_focus_damping" getter="get_focus_damping" default="0.25">
+			Seconds the focus takes to settle on a new distance, as a camera's autofocus does.
+		</member>
+		<member name="focus_mode" type="int" setter="set_focus_mode" getter="get_focus_mode" enum="VirtualCamera3D.FocusMode" default="0">
+			What it keeps in focus, with depth of field round it: nothing, what's in the middle of the view, or its target. The real camera's [CameraAttributesPractical] (made for it if it has none) take the focus while this camera is live, and are given back when it isn't.
 		</member>
 		<member name="follow_damping" type="float" setter="set_follow_damping" getter="get_follow_damping" default="0.0">
 			How slowly it catches up with where it should be, in seconds: about how long it takes to cover most of the way. [code]0[/code] keeps up exactly.
@@ -116,6 +140,15 @@
 		</constant>
 		<constant name="FOLLOW_GROUP" value="4" enum="FollowMode">
 			Keeps every node in [member follow_targets] in view, backing off along [member follow_offset] as they spread out.
+		</constant>
+		<constant name="FOCUS_OFF" value="0" enum="FocusMode">
+			No depth of field from it.
+		</constant>
+		<constant name="FOCUS_CENTER" value="1" enum="FocusMode">
+			Focuses on what's in the middle of the view: the first thing on [member focus_collision_mask] straight ahead.
+		</constant>
+		<constant name="FOCUS_TARGET" value="2" enum="FocusMode">
+			Focuses on [member look_at_target], or else [member follow_target].
 		</constant>
 	</constants>
 </class>

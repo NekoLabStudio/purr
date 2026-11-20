@@ -171,11 +171,57 @@ void VirtualCamera3D::update_pose(real_t p_delta) {
 	}
 	placed = true;
 	set_global_transform(Transform3D(basis, position));
+	_update_focus(p_delta);
+	if (fade_obstacles && live && target != nullptr) {
+		fader.update(get_world_3d().ptr(), target, position, orbit_collision_mask, fade_amount, p_delta);
+	} else {
+		fader.clear();
+	}
 
 	if (shake_left > 0.0) {
 		shake_left = MAX(shake_left - p_delta, 0.0);
 		shake_time += p_delta;
 	}
+}
+
+// How far away what's in focus is: what's in the middle of the view, or the target.
+void VirtualCamera3D::_update_focus(real_t p_delta) {
+	if (focus_mode == FOCUS_OFF) {
+		focus_placed = false;
+		return;
+	}
+	const Transform3D pose = get_global_transform();
+	real_t wanted = focus_distance;
+	if (focus_mode == FOCUS_TARGET) {
+		Node3D *subject = _node(look_at_target);
+		if (subject == nullptr) {
+			subject = _node(follow_target);
+		}
+		if (subject != nullptr) {
+			wanted = pose.origin.distance_to(_position_of(subject));
+		}
+	} else {
+		constexpr real_t FURTHEST = 500.0;
+		wanted = FURTHEST;
+		PhysicsDirectSpaceState3D *space = is_inside_tree() ? get_world_3d()->get_direct_space_state() : nullptr;
+		if (space != nullptr) {
+			PhysicsServer3DTypes::RayParameters ray;
+			ray.from = pose.origin;
+			ray.to = pose.origin - pose.basis.get_column(Vector3::AXIS_Z).normalized() * FURTHEST;
+			ray.collision_mask = focus_collision_mask;
+			PhysicsServer3DTypes::RayResult hit;
+			if (space->intersect_ray(ray, hit)) {
+				wanted = pose.origin.distance_to(hit.position);
+			}
+		}
+	}
+	wanted = MAX(wanted, 0.1);
+	focus_distance = focus_placed ? Math::lerp(focus_distance, wanted, damping_weight(focus_damping, p_delta)) : wanted;
+	focus_placed = true;
+}
+
+real_t VirtualCamera3D::get_focus_distance() const {
+	return focus_distance;
 }
 
 Transform3D VirtualCamera3D::get_shaken_transform() const {
@@ -195,6 +241,9 @@ void VirtualCamera3D::set_live(bool p_live) {
 		return;
 	}
 	live = p_live;
+	if (!live) {
+		fader.clear();
+	}
 	emit_signal(SNAME("live_changed"), live);
 }
 
@@ -349,6 +398,58 @@ real_t VirtualCamera3D::get_fov() const {
 	return fov;
 }
 
+void VirtualCamera3D::set_focus_mode(FocusMode p_mode) {
+	focus_mode = p_mode;
+	focus_placed = false;
+}
+
+VirtualCamera3D::FocusMode VirtualCamera3D::get_focus_mode() const {
+	return focus_mode;
+}
+
+void VirtualCamera3D::set_focus_blur(real_t p_blur) {
+	focus_blur = CLAMP(p_blur, 0.0, 1.0);
+}
+
+real_t VirtualCamera3D::get_focus_blur() const {
+	return focus_blur;
+}
+
+void VirtualCamera3D::set_focus_damping(real_t p_seconds) {
+	focus_damping = MAX(p_seconds, 0.0);
+}
+
+real_t VirtualCamera3D::get_focus_damping() const {
+	return focus_damping;
+}
+
+void VirtualCamera3D::set_focus_collision_mask(uint32_t p_mask) {
+	focus_collision_mask = p_mask;
+}
+
+uint32_t VirtualCamera3D::get_focus_collision_mask() const {
+	return focus_collision_mask;
+}
+
+void VirtualCamera3D::set_fade_obstacles(bool p_fade) {
+	fade_obstacles = p_fade;
+	if (!fade_obstacles) {
+		fader.clear();
+	}
+}
+
+bool VirtualCamera3D::is_fading_obstacles() const {
+	return fade_obstacles;
+}
+
+void VirtualCamera3D::set_fade_amount(real_t p_amount) {
+	fade_amount = CLAMP(p_amount, 0.0, 1.0);
+}
+
+real_t VirtualCamera3D::get_fade_amount() const {
+	return fade_amount;
+}
+
 void VirtualCamera3D::set_blend_time(real_t p_seconds) {
 	blend_time = MAX(p_seconds, 0.0);
 }
@@ -402,6 +503,19 @@ void VirtualCamera3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_look_damping"), &VirtualCamera3D::get_look_damping);
 	ClassDB::bind_method(D_METHOD("set_fov", "degrees"), &VirtualCamera3D::set_fov);
 	ClassDB::bind_method(D_METHOD("get_fov"), &VirtualCamera3D::get_fov);
+	ClassDB::bind_method(D_METHOD("set_focus_mode", "mode"), &VirtualCamera3D::set_focus_mode);
+	ClassDB::bind_method(D_METHOD("get_focus_mode"), &VirtualCamera3D::get_focus_mode);
+	ClassDB::bind_method(D_METHOD("set_focus_blur", "blur"), &VirtualCamera3D::set_focus_blur);
+	ClassDB::bind_method(D_METHOD("get_focus_blur"), &VirtualCamera3D::get_focus_blur);
+	ClassDB::bind_method(D_METHOD("set_focus_damping", "seconds"), &VirtualCamera3D::set_focus_damping);
+	ClassDB::bind_method(D_METHOD("get_focus_damping"), &VirtualCamera3D::get_focus_damping);
+	ClassDB::bind_method(D_METHOD("set_focus_collision_mask", "mask"), &VirtualCamera3D::set_focus_collision_mask);
+	ClassDB::bind_method(D_METHOD("get_focus_collision_mask"), &VirtualCamera3D::get_focus_collision_mask);
+	ClassDB::bind_method(D_METHOD("set_fade_obstacles", "fade"), &VirtualCamera3D::set_fade_obstacles);
+	ClassDB::bind_method(D_METHOD("is_fading_obstacles"), &VirtualCamera3D::is_fading_obstacles);
+	ClassDB::bind_method(D_METHOD("set_fade_amount", "amount"), &VirtualCamera3D::set_fade_amount);
+	ClassDB::bind_method(D_METHOD("get_fade_amount"), &VirtualCamera3D::get_fade_amount);
+	ClassDB::bind_method(D_METHOD("get_focus_distance"), &VirtualCamera3D::get_focus_distance);
 	ClassDB::bind_method(D_METHOD("set_blend_time", "seconds"), &VirtualCamera3D::set_blend_time);
 	ClassDB::bind_method(D_METHOD("get_blend_time"), &VirtualCamera3D::get_blend_time);
 	ClassDB::bind_method(D_METHOD("set_blend_transition", "transition"), &VirtualCamera3D::set_blend_transition);
@@ -430,6 +544,14 @@ void VirtualCamera3D::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "look_damping", PROPERTY_HINT_RANGE, "0,5,0.01,or_greater,suffix:s"), "set_look_damping", "get_look_damping");
 	ADD_GROUP("Lens", "");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "fov", PROPERTY_HINT_RANGE, "1,179,0.1,degrees"), "set_fov", "get_fov");
+	ADD_GROUP("Focus", "focus_");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "focus_mode", PROPERTY_HINT_ENUM, "Off,Center,Target"), "set_focus_mode", "get_focus_mode");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "focus_blur", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_focus_blur", "get_focus_blur");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "focus_damping", PROPERTY_HINT_RANGE, "0,5,0.01,or_greater,suffix:s"), "set_focus_damping", "get_focus_damping");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "focus_collision_mask", PROPERTY_HINT_LAYERS_3D_PHYSICS), "set_focus_collision_mask", "get_focus_collision_mask");
+	ADD_GROUP("Obstacles", "fade_");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "fade_obstacles"), "set_fade_obstacles", "is_fading_obstacles");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "fade_amount", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_fade_amount", "get_fade_amount");
 	ADD_GROUP("Blend", "blend_");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "blend_time", PROPERTY_HINT_RANGE, "0,10,0.01,or_greater,suffix:s"), "set_blend_time", "get_blend_time");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "blend_transition", PROPERTY_HINT_ENUM, "Linear,Sine,Quint,Quart,Quad,Expo,Elastic,Cubic,Circ,Bounce,Back,Spring"), "set_blend_transition", "get_blend_transition");
@@ -442,4 +564,7 @@ void VirtualCamera3D::_bind_methods() {
 	BIND_ENUM_CONSTANT(FOLLOW_ORBIT);
 	BIND_ENUM_CONSTANT(FOLLOW_PATH);
 	BIND_ENUM_CONSTANT(FOLLOW_GROUP);
+	BIND_ENUM_CONSTANT(FOCUS_OFF);
+	BIND_ENUM_CONSTANT(FOCUS_CENTER);
+	BIND_ENUM_CONSTANT(FOCUS_TARGET);
 }

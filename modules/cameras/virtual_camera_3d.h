@@ -4,10 +4,13 @@
 // should be every frame (following a target, orbiting it, sliding along a path, framing a
 // group) and what it looks at; the real camera takes the pose of the one with the highest
 // priority, blending over when that changes. Put several in a scene and switch between them by
-// priority.
+// priority. It can keep what it looks at in focus, and fade out what comes between it and
+// what it follows.
 
 #include "scene/3d/node_3d.h"
 #include "scene/animation/tween.h"
+
+#include "obstacle_fader.h"
 
 class VirtualCamera3D : public Node3D {
 	GDCLASS(VirtualCamera3D, Node3D);
@@ -19,6 +22,12 @@ public:
 		FOLLOW_ORBIT,
 		FOLLOW_PATH,
 		FOLLOW_GROUP,
+	};
+
+	enum FocusMode {
+		FOCUS_OFF,
+		FOCUS_CENTER,
+		FOCUS_TARGET,
 	};
 
 private:
@@ -36,6 +45,12 @@ private:
 	NodePath look_at_target;
 	real_t look_damping = 0.0;
 	real_t fov = 75.0;
+	FocusMode focus_mode = FOCUS_OFF;
+	real_t focus_blur = 0.3;
+	real_t focus_damping = 0.25;
+	uint32_t focus_collision_mask = 1;
+	bool fade_obstacles = false;
+	real_t fade_amount = 0.8;
 	real_t blend_time = 1.0;
 	Tween::TransitionType blend_transition = Tween::TRANS_CUBIC;
 	Tween::EaseType blend_ease = Tween::EASE_IN_OUT;
@@ -48,10 +63,14 @@ private:
 	real_t shake_left = 0.0;
 	real_t shake_duration = 0.0;
 	real_t shake_time = 0.0;
+	real_t focus_distance = 10.0;
+	bool focus_placed = false;
+	ObstacleFader fader;
 
 	Node3D *_node(const NodePath &p_path) const;
 	static Vector3 _position_of(Node3D *p_node);
 	Vector3 _orbit_position(const Vector3 &p_pivot, real_t p_delta);
+	void _update_focus(real_t p_delta);
 
 protected:
 	void _notification(int p_what);
@@ -86,6 +105,18 @@ public:
 	real_t get_look_damping() const;
 	void set_fov(real_t p_degrees);
 	real_t get_fov() const;
+	void set_focus_mode(FocusMode p_mode);
+	FocusMode get_focus_mode() const;
+	void set_focus_blur(real_t p_blur);
+	real_t get_focus_blur() const;
+	void set_focus_damping(real_t p_seconds);
+	real_t get_focus_damping() const;
+	void set_focus_collision_mask(uint32_t p_mask);
+	uint32_t get_focus_collision_mask() const;
+	void set_fade_obstacles(bool p_fade);
+	bool is_fading_obstacles() const;
+	void set_fade_amount(real_t p_amount);
+	real_t get_fade_amount() const;
 	void set_blend_time(real_t p_seconds);
 	real_t get_blend_time() const;
 	void set_blend_transition(Tween::TransitionType p_transition);
@@ -94,6 +125,8 @@ public:
 	Tween::EaseType get_blend_ease() const;
 
 	bool is_live() const;
+	// How far away what it keeps in focus is, eased.
+	real_t get_focus_distance() const;
 	void shake(real_t p_strength = 1.0, real_t p_duration = 0.5);
 	void snap();
 
@@ -109,3 +142,4 @@ public:
 };
 
 VARIANT_ENUM_CAST(VirtualCamera3D::FollowMode);
+VARIANT_ENUM_CAST(VirtualCamera3D::FocusMode);

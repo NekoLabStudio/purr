@@ -7,7 +7,7 @@ def configure(env):
 
 
 def get_doc_classes():
-    return ["VirtualCamera2D", "VirtualCamera3D"]
+    return ["PhotoMode", "VirtualCamera2D", "VirtualCamera3D"]
 
 
 def get_doc_path():

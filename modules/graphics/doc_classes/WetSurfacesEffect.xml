@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="WetSurfacesEffect" inherits="CompositorEffect" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Rain on the world's surfaces, for every material.
+	</brief_description>
+	<description>
+		As a [Weather3D]'s ground gets wet, what the rain can reach darkens, takes on a sheen, and flat ground gathers puddles, low spots first, that reflect what's on screen above them and ripple while it rains. Smooth surfaces (metal, glass) don't darken, walls get less wet than the ground, and what's under roofs, bridges and trees stays dry, by the weather's height map of what's overhead. It works with every material, from the depth and normals the renderer already has, so nothing in the scene needs changing.
+		Add it to a [Compositor]'s [member Compositor.compositor_effects], on a [WorldEnvironment] or [Camera3D]. It's drawn after the sky, before see-through objects, with the Forward+ renderer; with the others it draws nothing. Reflections come from what's on screen: what's off screen isn't reflected.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="darkening" type="float" setter="set_darkening" getter="get_darkening" default="0.45">
+			How much darker wet surfaces get, from [code]0[/code] to [code]1[/code].
+		</member>
+		<member name="puddles" type="float" setter="set_puddles" getter="get_puddles" default="0.35">
+			How much of flat ground puddles cover when it's soaked, from [code]0[/code] to [code]1[/code].
+		</member>
+		<member name="reflections" type="float" setter="set_reflections" getter="get_reflections" default="1.0">
+			How strongly wet surfaces and puddles reflect, from [code]0[/code] to [code]1[/code].
+		</member>
+	</members>
+</class>

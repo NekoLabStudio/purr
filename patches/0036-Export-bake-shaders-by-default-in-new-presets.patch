@@ -1,0 +1,75 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Thu, 19 Nov 2026 11:26:46 +0000
+Subject: [PATCH] Export: bake shaders by default in new presets
+
+shader_baker/enabled now starts on (off for projects on the Compatibility
+renderer, which it doesn't support), so players of an exported game don't
+wait on shaders compiling the first time they're needed. Presets already
+saved keep their value.
+---
+ godot/editor/export/editor_export_platform_apple_embedded.cpp | 3 ++-
+ godot/editor/export/editor_export_platform_pc.cpp             | 3 ++-
+ godot/platform/android/export/export_plugin.cpp               | 3 ++-
+ godot/platform/macos/export/export_plugin.cpp                 | 3 ++-
+ 4 files changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/godot/editor/export/editor_export_platform_apple_embedded.cpp b/godot/editor/export/editor_export_platform_apple_embedded.cpp
+index 2133823f..33291af3 100644
+--- a/godot/editor/export/editor_export_platform_apple_embedded.cpp
++++ b/godot/editor/export/editor_export_platform_apple_embedded.cpp
+@@ -335,7 +335,8 @@ void EditorExportPlatformAppleEmbedded::get_export_options(List<ExportOption> *r
+ 	}
+ 	r_options->push_back(ExportOption(PropertyInfo(Variant::PACKED_STRING_ARRAY, "capabilities/additional"), PackedStringArray()));
+ 
+-	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "shader_baker/enabled"), false));
++	// On for new presets, so players don't wait on shaders compiling, except where it can't work.
++	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "shader_baker/enabled"), String(GLOBAL_GET("rendering/renderer/rendering_method")) != "gl_compatibility"));
+ 
+ 	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "user_data/accessible_from_files_app"), false));
+ 	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "user_data/accessible_from_itunes_sharing"), false));
+diff --git a/godot/editor/export/editor_export_platform_pc.cpp b/godot/editor/export/editor_export_platform_pc.cpp
+index fcdc0593..e68ce34d 100644
+--- a/godot/editor/export/editor_export_platform_pc.cpp
++++ b/godot/editor/export/editor_export_platform_pc.cpp
+@@ -69,7 +69,8 @@ void EditorExportPlatformPC::get_export_options(List<ExportOption> *r_options) c
+ 	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "texture_format/s3tc_bptc"), true));
+ 	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "texture_format/etc2_astc"), false));
+ 
+-	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "shader_baker/enabled"), false));
++	// On for new presets, so players don't wait on shaders compiling, except where it can't work.
++	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "shader_baker/enabled"), String(GLOBAL_GET("rendering/renderer/rendering_method")) != "gl_compatibility"));
+ }
+ 
+ String EditorExportPlatformPC::get_export_option_warning(const EditorExportPreset *p_preset, const StringName &p_name) const {
+diff --git a/godot/platform/android/export/export_plugin.cpp b/godot/platform/android/export/export_plugin.cpp
+index 8f49df7d..7325d43d 100644
+--- a/godot/platform/android/export/export_plugin.cpp
++++ b/godot/platform/android/export/export_plugin.cpp
+@@ -2197,7 +2197,8 @@ void EditorExportPlatformAndroid::get_export_options(List<ExportOption> *r_optio
+ 
+ 	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "graphics/opengl_debug"), false));
+ 
+-	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "shader_baker/enabled"), false));
++	// On for new presets, so players don't wait on shaders compiling, except where it can't work.
++	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "shader_baker/enabled"), String(GLOBAL_GET("rendering/renderer/rendering_method")) != "gl_compatibility"));
+ 
+ #ifndef XR_DISABLED
+ 	r_options->push_back(ExportOption(PropertyInfo(Variant::INT, "xr_features/xr_mode", PROPERTY_HINT_ENUM, "Regular,OpenXR"), XR_MODE_REGULAR, false, true));
+diff --git a/godot/platform/macos/export/export_plugin.cpp b/godot/platform/macos/export/export_plugin.cpp
+index 4a908ef2..88578901 100644
+--- a/godot/platform/macos/export/export_plugin.cpp
++++ b/godot/platform/macos/export/export_plugin.cpp
+@@ -496,7 +496,8 @@ void EditorExportPlatformMacOS::get_export_options(List<ExportOption> *r_options
+ 	r_options->push_back(ExportOption(PropertyInfo(Variant::INT, "application/export_angle", PROPERTY_HINT_ENUM, "Auto,Yes,No"), 0, true));
+ 	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "display/high_res"), true));
+ 
+-	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "shader_baker/enabled"), false));
++	// On for new presets, so players don't wait on shaders compiling, except where it can't work.
++	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "shader_baker/enabled"), String(GLOBAL_GET("rendering/renderer/rendering_method")) != "gl_compatibility"));
+ 
+ 	r_options->push_back(ExportOption(PropertyInfo(Variant::STRING, "application/additional_plist_content", PROPERTY_HINT_MULTILINE_TEXT, "monospace,no_wrap"), ""));
+ 
+-- 
+2.54.0 (Apple Git-157)
+

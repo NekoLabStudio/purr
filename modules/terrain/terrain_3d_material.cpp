@@ -14,6 +14,8 @@
 #include "scene/resources/image_texture.h"
 #include "servers/rendering/rendering_server.h"
 
+#include "modules/graphics/sky_globals.h"
+#include "modules/graphics/weather_snow_shader.h"
 #include "modules/noise/fastnoise_lite.h"
 #include "modules/noise/noise_texture_2d.h"
 
@@ -59,6 +61,8 @@ void Terrain3DMaterial::_preload_shaders() {
 	_parse_shader(
 #include "shaders/samplers.glsl"
 			, "samplers");
+
+	_shader_code["WEATHER_SNOW"] = String(WEATHER_SNOW_DECLARATIONS);
 
 	// Load main code
 	_shader_code["main"] = String(
@@ -824,6 +828,7 @@ void Terrain3DMaterial::initialize(Terrain3D *p_terrain) {
 		return;
 	}
 	LOG(INFO, "Initializing material");
+	SkyGlobals::ensure(); // The weather the shader reads (its snow).
 	_preload_shaders();
 	if (!_material.is_valid()) {
 		_material = RenderingServer::get_singleton()->material_create();

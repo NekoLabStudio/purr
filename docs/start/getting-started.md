@@ -14,8 +14,9 @@ For how it looks and runs:
 
 - [Recommended graphics settings](../modules/graphics.md) for the player's computer, with a benchmark and dynamic resolution.
 - Parametric, a film-like tonemapper that keeps mid grey and rolls highlights off into white, and the default for new environments.
-- [Large worlds](../modules/world.md): a floating origin, streaming, thousands of moving copies drawn in chunks, and pools of lights and reflection probes round the player.
-- [Terrain](../modules/terrain.md) you sculpt and paint in the editor, [scattering](../modules/scattering.md) for rocks and grass, and a [time of day](../modules/time-of-day.md) that moves the sun and moon.
+- [Screen effects](../modules/graphics.md#screen-effects): motion blur, light shafts, lens flares, vignette, film grain and chromatic aberration, and [colour grading](../modules/graphics.md#colour-grading) by place, time of day and weather.
+- [Large worlds](../modules/world.md): a floating origin, streaming, static scenery merged into a few meshes, thousands of moving copies drawn in chunks, and pools of lights and reflection probes round the player.
+- [Terrain](../modules/terrain.md) you sculpt and paint in the editor, [scattering](../modules/scattering.md) for rocks and grass, and a [time of day and weather](../modules/time-of-day.md): the sun, the moon and stars, rain, snow, fog and storms, and [water](../modules/water.md).
 
 For building the game:
 
@@ -23,6 +24,7 @@ For building the game:
 - [Behaviour trees and state machines](../modules/behavior-trees.md) for characters' decisions.
 - [Debug tools](../modules/debug-tools.md): drawing from anywhere, an in-game console, a performance overlay and profiling outside the editor.
 - [Tests and project checks](../modules/testing.md) that run in CI, with timings of heavy work.
+- [AI assistants](ai-assistants.md): an MCP server that gives Claude Code, Codex, Antigravity or OpenCode Purr's docs, your project, its tests, and the open editor and running game.
 
 For particular games and devices:
 
@@ -56,8 +58,9 @@ purr --headless --path my_game -s tests/run.gd
 
 ## Coming from Godot
 
-Purr opens Godot projects of the Godot version it's based on (see the release notes). Four things work differently:
+Purr opens Godot projects of the Godot version it's based on (see the release notes). Five things work differently:
 
+- There's no C#. Games are written in GDScript, and code that needs to be closer to the engine in C++, as an engine module or a GDExtension. A C# project opens, but its C# scripts don't run.
 - There's no Compatibility (OpenGL) renderer. Purr runs on Vulkan, Direct3D 12 and Metal, so there are no web exports.
 - 3D physics is always Jolt, including in projects that never chose a physics engine. 2D physics is Godot's.
 - APIs Godot has deprecated are left out. If a script stops parsing, the editor names the replacement.
