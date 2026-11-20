@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="MotionBlurEffect" inherits="CompositorEffect" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Smears what moves across the screen along its motion.
+	</brief_description>
+	<description>
+		What moves across the screen (the camera turning, a car racing past) is smeared along its motion over [member shutter] of the frame, from the renderer's motion vectors, as a film camera's exposure does. Add it to a [Compositor]'s [member Compositor.compositor_effects], on a [WorldEnvironment] or [Camera3D]. It's drawn after the scene's see-through objects, before tonemapping, in each view (both eyes in VR), with the Forward+ renderer; with the others it draws nothing.
+		In a headset, motion blur the player didn't cause makes many people sick: leave it out of the compositor used in VR.
+	</description>
+	<tutorials>
+		<link title="Screen effects">https://oss.nekolab.studio/purr/modules/graphics/#screen-effects</link>
+	</tutorials>
+	<members>
+		<member name="max_length" type="float" setter="set_max_length" getter="get_max_length" default="0.04">
+			The longest smear, as a share of the screen's width, so a sudden turn doesn't blur the whole picture.
+		</member>
+		<member name="samples" type="int" setter="set_samples" getter="get_samples" default="8">
+			How many times each pixel is sampled along its motion. More is smoother and costs more.
+		</member>
+		<member name="shutter" type="float" setter="set_shutter" getter="get_shutter" default="0.5">
+			The share of each frame's motion that's smeared: [code]0.5[/code] is a film camera's 180-degree shutter, [code]1.0[/code] smears the whole of it.
+		</member>
+	</members>
+</class>

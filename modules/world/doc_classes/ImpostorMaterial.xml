@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="ImpostorMaterial" inherits="Material" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Draws an Impostor as a quad turned to the camera.
+	</brief_description>
+	<description>
+		The material of [method Impostor.get_mesh]: it turns its quad to the camera, shows the view baked nearest the camera's direction, and lights it as a rounded shape, as a tree's crown is. It turns to the light when drawing shadows, so it casts a shadow of the right shape. [Impostor] sets it up.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="alpha_scissor_threshold" type="float" setter="set_alpha_scissor_threshold" getter="get_alpha_scissor_threshold" default="0.5">
+			Where the texture's alpha is below this, nothing is drawn.
+		</member>
+		<member name="center" type="Vector3" setter="set_center" getter="get_center" default="Vector3(0, 0, 0)">
+			As [member Impostor.center].
+		</member>
+		<member name="grid" type="int" setter="set_grid" getter="get_grid" default="8">
+			As [member Impostor.grid].
+		</member>
+		<member name="radius" type="float" setter="set_radius" getter="get_radius" default="1.0">
+			As [member Impostor.radius].
+		</member>
+		<member name="texture" type="Texture2D" setter="set_texture" getter="get_texture">
+			As [member Impostor.texture].
+		</member>
+	</members>
+</class>

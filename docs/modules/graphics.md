@@ -24,11 +24,44 @@ RecommendedGraphics.apply(get_viewport(), RecommendedGraphics.get_settings(Recom
 
 `get_tier()` is a first guess from the graphics card. It reads the card's generation and class from its name (an RTX 4070 is generation 40, class 70; an M4 Max is generation 4, Max), so cards that come out later get a sensible tier without an update. Laptop graphics sit a step below the desktop card of the same name, and integrated graphics (including phones, tablets and Apple TV) start low. Cards from families it doesn't know go by whether they're discrete.
 
-`get_settings(tier)` gives the engine settings for a tier as a dictionary of `Viewport` properties (upscaling, anti-aliasing, texture filtering, model detail) plus the sun's shadow size, and `apply()` sets them. They take the screen into account: each tier below ultra draws at most so many pixels, so it upscales more on a 4K, 5K or ultrawide screen than on a 1080p one. Upscaling uses MetalFX on Apple devices and FSR elsewhere, temporal where the tier smooths with TAA. With the Mobile renderer, which has no TAA, it smooths with FXAA instead.
+`get_settings(tier)` gives the engine settings for a tier as a dictionary of `Viewport` properties (upscaling, anti-aliasing, texture filtering, model detail) plus the sun's shadow size and contact shadows, and `apply()` sets them. Contact shadows are short shadows drawn on the screen where small things meet the ground, which the sun's shadow map is too coarse for: ultra and high have them, and a headset never does. Low also loads 3D textures without their sharpest level, which takes three quarters of their video memory off; it applies to textures loaded after the tier changes, so in full from the next start. They take the screen into account: each tier below ultra draws at most so many pixels, so it upscales more on a 4K, 5K or ultrawide screen than on a 1080p one. Upscaling uses MetalFX on Apple devices and FSR elsewhere, temporal where the tier smooths with TAA. With the Mobile renderer, which has no TAA, it smooths with FXAA instead.
 
 In a headset, use `get_settings(tier, true)`. It never uses TAA, which smears as the head turns, and smooths with MSAA instead. The lower tiers limit the pixels drawn for each eye, so a high-resolution headset upscales more.
 
+## Screen effects
+
+Purr has the camera effects games usually reach for, as compositor effects: add them to a `Compositor` on the `WorldEnvironment` (or a `Camera3D`), in its `compositor_effects` list.
+
+- `MotionBlurEffect`: what moves across the screen smeared along its motion, from the renderer's motion vectors. `shutter` is the share of each frame's motion smeared (0.5 is a film camera's).
+- `LightShaftsEffect`: shafts of sunlight through the gaps between buildings, trees and clouds, towards the sun on screen.
+- `LensFlareEffect`: a glare round the sun and coloured ghosts across the screen, fading as the sun goes behind something.
+- `VignetteEffect`: the picture darkening towards its corners.
+- `FilmGrainEffect`: fine noise that changes every frame, as on film.
+- `ChromaticAberrationEffect`: red and blue spreading apart towards the edges.
+- `LocalExposureEffect`: bright and dark parts of the picture each brought towards middle grey, as the eye adapts to both at once: a sunlit sky keeps its clouds while the street below still reads. Not in a headset.
+- `WetSurfacesEffect`: the world getting wet with `Weather3D`'s rain, with puddles. See [Time of day and weather](time-of-day.md#wet-surfaces).
+
+The sun is the brightest `DirectionalLight3D` lighting the scene, so light shafts and the flare follow it as it moves and take its colour. Each effect is one pass over the screen, drawn before tonemapping, in each eye in VR. They need the Forward+ renderer.
+
+Leave motion blur out of the compositor used in VR: blur the player didn't cause by moving their head makes many people sick. A graphics menu can turn effects off with their `enabled`, as any compositor effect.
+
+## Colour grading
+
+A cave can feel colder, a market warmer and a stormy night bleaker. A `ColorGrade` is such a look (exposure, brightness, contrast, saturation, a tint and a colour lookup table), and a `ColorGradeVolume3D` gives it to a place: while the camera is inside the volume's box, the grade is blended into the camera's environment, fading in over `blend_distance` as the camera comes in.
+
+A volume can follow the day and the weather instead, with `when`: a `global` volume set to night fades in as `TimeOfDay` turns to night, and one set to raining as `Weather3D`'s rain starts. Where volumes overlap, higher `priority` goes over lower, and `weight` fades one by hand, for a flashback. The environment is given back as it was once the last volume goes; in the editor it's left alone.
+
+A lookup table is a `Texture3D` (red across, green down, blue through its layers), as `Environment` takes one; a tint or table is blended with the environment's own into a single table.
+
+## Frame pacing
+
+With vertical sync on, a frame stays on screen for a whole number of the screen's refreshes. A game that can't keep up with the screen shows some frames for one refresh and some for two, and moves unevenly even at 40 or 50 frames a second. So Purr caps the frame rate to the highest even share of the refresh rate the game holds (60, then 30 on a 60 Hz screen; 120, 60, then 40 on a 120 Hz one), and tries the faster rate again when the game has room, backing off for longer each time it doesn't hold. While dynamic resolution can still lower the resolution, it gets to try that first.
+
+In a headset it only caps to 72 frames a second or more: below that, the headset's own reprojection does a better job. It leaves a game that sets `Engine.max_fps` alone, and doesn't count frames while the window is in the background. Turn it off with `display/window/vsync/even_frame_pacing`.
+
 ## Measuring
+
+The GPU's time for each frame is the custom performance monitor `graphics/gpu_ms`, in the editor's Monitors tab or from `Performance.get_custom_monitor(&"graphics/gpu_ms")`. On a Mac it runs high: it counts the GPU waiting between batches of work, so measure with Instruments' Metal System Trace when the exact figure matters.
 
 A first guess can't know how heavy the game is. `benchmark()` measures each tier in the game itself, best first, and keeps the first one that holds a frame rate:
 

@@ -40,12 +40,13 @@ fi
 newest=$(ls patches/*.patch 2>/dev/null | tail -n 1)
 if [ -n "$newest" ] && ! git apply --reverse --check "$newest" 2>/dev/null; then
 	git apply patches/*.patch
-	trap 'cd "$root" && for p in $(ls -r patches/*.patch); do git apply --reverse "$p"; done && git checkout -q -- godot/main/splash.png godot/editor/icons' EXIT
+	trap 'cd "$root" && for p in $(ls -r patches/*.patch); do git apply --reverse "$p"; done && git checkout -q -- godot/main/splash.png godot/main/app_icon.png godot/editor/icons' EXIT
 else
-	trap 'cd "$root" && git checkout -q -- godot/main/splash.png godot/editor/icons' EXIT
+	trap 'cd "$root" && git checkout -q -- godot/main/splash.png godot/main/app_icon.png godot/editor/icons' EXIT
 fi
 trap 'exit 1' INT TERM
 cp branding/splash.png godot/main/splash.png
+cp branding/app_icon.png godot/main/app_icon.png
 cp branding/editor/*.svg godot/editor/icons/
 
 # Godot reads its commit hash from godot/.git/HEAD, which can't be stored in this repo.

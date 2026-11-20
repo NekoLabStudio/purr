@@ -1,0 +1,329 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Thu, 19 Nov 2026 11:26:45 +0000
+Subject: [PATCH] Rendering: keep a directional shadow's far splits for a few
+ frames
+
+rendering/lights_and_shadows/directional_shadow/cache_far_splits (on by
+default) draws the third of four splits every other frame and the fourth
+every fourth frame (the second of two every other frame), on frames of their
+own, instead of all of them every frame. A kept split is drawn with 5% more
+room and drawn again at once when the camera leaves it, the light turns more
+than half a degree, the shadow's size or split count changes, or another
+view draws over the atlas. Each drawn split clears its own part of the atlas
+rather than the whole atlas being cleared first.
+
+In a large city scene this drew a third fewer shadow primitives and saved
+about 8% of the GPU's frame.
+---
+ godot/doc/classes/ProjectSettings.xml         |  3 +
+ .../drivers/gles3/rasterizer_scene_gles3.cpp  |  6 ++
+ godot/drivers/gles3/storage/light_storage.cpp | 17 ++---
+ .../render_forward_clustered.cpp              |  6 +-
+ .../forward_mobile/render_forward_mobile.cpp  |  6 +-
+ .../servers/rendering/renderer_scene_cull.cpp | 66 ++++++++++++++++++-
+ godot/servers/rendering/renderer_scene_cull.h | 31 ++++++++-
+ 7 files changed, 115 insertions(+), 20 deletions(-)
+
+diff --git a/godot/doc/classes/ProjectSettings.xml b/godot/doc/classes/ProjectSettings.xml
+index d99a5d94..1c295f85 100644
+--- a/godot/doc/classes/ProjectSettings.xml
++++ b/godot/doc/classes/ProjectSettings.xml
+@@ -3193,6 +3193,9 @@
+ 		<member name="rendering/lights_and_shadows/directional_shadow/16_bits" type="bool" setter="" getter="" default="true">
+ 			Use 16 bits for the directional shadow depth map. Enabling this results in shadows having less precision and may result in shadow acne, but can lead to performance improvements on some devices.
+ 		</member>
++		<member name="rendering/lights_and_shadows/directional_shadow/cache_far_splits" type="bool" setter="" getter="" default="true">
++			If [code]true[/code], the farthest splits of a [DirectionalLight3D]'s shadow are drawn every few frames instead of every frame, which saves much of the shadow's cost in large scenes. With [constant DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS], the third split is drawn every other frame and the fourth every fourth frame; with [constant DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS], the second split every other frame. A kept split is drawn again at once when the camera moves out of what it covers, the light turns, or another viewport draws the shadow. Moving objects' shadows in the far splits follow a frame or a few behind. Read when the project starts.
++		</member>
+ 		<member name="rendering/lights_and_shadows/directional_shadow/size" type="int" setter="" getter="" default="4096">
+ 			The directional shadow's size in pixels. Higher values will result in sharper shadows, at the cost of performance. The value is rounded up to the nearest power of 2.
+ 		</member>
+diff --git a/godot/drivers/gles3/rasterizer_scene_gles3.cpp b/godot/drivers/gles3/rasterizer_scene_gles3.cpp
+index a3843b58..1d9d23f4 100644
+--- a/godot/drivers/gles3/rasterizer_scene_gles3.cpp
++++ b/godot/drivers/gles3/rasterizer_scene_gles3.cpp
+@@ -2403,6 +2403,12 @@ void RasterizerSceneGLES3::_render_shadow_pass(RID p_light, RID p_shadow_atlas,
+ 	RasterizerUtilGLES3::clear_depth(0.0);
+ 	if (needs_clear) {
+ 		glClear(GL_DEPTH_BUFFER_BIT);
++	} else if (light_storage->light_get_type(base) == RSE::LIGHT_DIRECTIONAL) {
++		// Only this cascade's part of the atlas: cascades kept from earlier frames stay.
++		glEnable(GL_SCISSOR_TEST);
++		glScissor(atlas_rect.position.x, atlas_rect.position.y, atlas_rect.size.x, atlas_rect.size.y);
++		glClear(GL_DEPTH_BUFFER_BIT);
++		glDisable(GL_SCISSOR_TEST);
+ 	}
+ 
+ 	uint64_t spec_constant_base_flags = SceneShaderGLES3::DISABLE_LIGHTMAP |
+diff --git a/godot/drivers/gles3/storage/light_storage.cpp b/godot/drivers/gles3/storage/light_storage.cpp
+index 21dec131..24aa37f5 100644
+--- a/godot/drivers/gles3/storage/light_storage.cpp
++++ b/godot/drivers/gles3/storage/light_storage.cpp
+@@ -1740,15 +1740,16 @@ void LightStorage::update_directional_shadow_atlas() {
+ 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_GREATER);
+ 
+ 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, directional_shadow.depth, 0);
+-	}
+-	glUseProgram(0);
+-	glDepthMask(GL_TRUE);
+-	glBindFramebuffer(GL_FRAMEBUFFER, directional_shadow.fbo);
+-	RasterizerUtilGLES3::clear_depth(0.0);
+-	glClear(GL_DEPTH_BUFFER_BIT);
+ 
+-	glBindTexture(GL_TEXTURE_2D, 0);
+-	glBindFramebuffer(GL_FRAMEBUFFER, GLES3::TextureStorage::system_fbo);
++		// Each cascade drawn clears its own part afterwards: cascades kept from earlier frames stay.
++		glUseProgram(0);
++		glDepthMask(GL_TRUE);
++		RasterizerUtilGLES3::clear_depth(0.0);
++		glClear(GL_DEPTH_BUFFER_BIT);
++
++		glBindTexture(GL_TEXTURE_2D, 0);
++		glBindFramebuffer(GL_FRAMEBUFFER, GLES3::TextureStorage::system_fbo);
++	}
+ }
+ 
+ void LightStorage::directional_shadow_atlas_set_size(int p_size, bool p_16_bits) {
+diff --git a/godot/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp b/godot/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp
+index 12eb2537..9cdb882b 100644
+--- a/godot/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp
++++ b/godot/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp
+@@ -1669,10 +1669,8 @@ void RenderForwardClustered::_pre_opaque_render(RenderDataRD *p_render_data, boo
+ 		}
+ 
+ 		if (p_render_data->directional_shadows.size()) {
+-			//open the pass for directional shadows
++			// Each cascade drawn clears its own part of the atlas: cascades kept from earlier frames stay.
+ 			light_storage->update_directional_shadow_atlas();
+-			RD::get_singleton()->draw_list_begin(light_storage->direction_shadow_get_fb(), RD::DRAW_CLEAR_DEPTH, Vector<Color>(), 0.0f);
+-			RD::get_singleton()->draw_list_end();
+ 		}
+ 	}
+ 
+@@ -1695,7 +1693,7 @@ void RenderForwardClustered::_pre_opaque_render(RenderDataRD *p_render_data, boo
+ 
+ 		//render directional shadows
+ 		for (uint32_t i = 0; i < p_render_data->directional_shadows.size(); i++) {
+-			_render_shadow_pass(p_render_data->render_shadows[p_render_data->directional_shadows[i]].light, p_render_data->shadow_atlas, p_render_data->render_shadows[p_render_data->directional_shadows[i]].pass, p_render_data->render_shadows[p_render_data->directional_shadows[i]].instances, lod_distance_multiplier, p_render_data->scene_data->screen_mesh_lod_threshold, false, i == p_render_data->directional_shadows.size() - 1, false, p_render_data->render_info, viewport_size, p_render_data->scene_data->cam_transform);
++			_render_shadow_pass(p_render_data->render_shadows[p_render_data->directional_shadows[i]].light, p_render_data->shadow_atlas, p_render_data->render_shadows[p_render_data->directional_shadows[i]].pass, p_render_data->render_shadows[p_render_data->directional_shadows[i]].instances, lod_distance_multiplier, p_render_data->scene_data->screen_mesh_lod_threshold, false, i == p_render_data->directional_shadows.size() - 1, true, p_render_data->render_info, viewport_size, p_render_data->scene_data->cam_transform);
+ 		}
+ 		//render positional shadows
+ 		for (uint32_t i = 0; i < p_render_data->shadows.size(); i++) {
+diff --git a/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp b/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
+index 8909445b..cf41a823 100644
+--- a/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
++++ b/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
+@@ -829,10 +829,8 @@ void RenderForwardMobile::_pre_opaque_render(RenderDataRD *p_render_data) {
+ 		}
+ 
+ 		if (p_render_data->directional_shadows.size()) {
+-			//open the pass for directional shadows
++			// Each cascade drawn clears its own part of the atlas: cascades kept from earlier frames stay.
+ 			light_storage->update_directional_shadow_atlas();
+-			RD::get_singleton()->draw_list_begin(light_storage->direction_shadow_get_fb(), RD::DRAW_CLEAR_DEPTH, Vector<Color>(), 0.0f);
+-			RD::get_singleton()->draw_list_end();
+ 		}
+ 	}
+ 
+@@ -846,7 +844,7 @@ void RenderForwardMobile::_pre_opaque_render(RenderDataRD *p_render_data) {
+ 
+ 		//render directional shadows
+ 		for (uint32_t i = 0; i < p_render_data->directional_shadows.size(); i++) {
+-			_render_shadow_pass(p_render_data->render_shadows[p_render_data->directional_shadows[i]].light, p_render_data->shadow_atlas, p_render_data->render_shadows[p_render_data->directional_shadows[i]].pass, p_render_data->render_shadows[p_render_data->directional_shadows[i]].instances, lod_distance_multiplier, p_render_data->scene_data->screen_mesh_lod_threshold, false, i == p_render_data->directional_shadows.size() - 1, false, p_render_data->render_info, p_render_data->scene_data->cam_transform);
++			_render_shadow_pass(p_render_data->render_shadows[p_render_data->directional_shadows[i]].light, p_render_data->shadow_atlas, p_render_data->render_shadows[p_render_data->directional_shadows[i]].pass, p_render_data->render_shadows[p_render_data->directional_shadows[i]].instances, lod_distance_multiplier, p_render_data->scene_data->screen_mesh_lod_threshold, false, i == p_render_data->directional_shadows.size() - 1, true, p_render_data->render_info, p_render_data->scene_data->cam_transform);
+ 		}
+ 		//render positional shadows
+ 		for (uint32_t i = 0; i < p_render_data->shadows.size(); i++) {
+diff --git a/godot/servers/rendering/renderer_scene_cull.cpp b/godot/servers/rendering/renderer_scene_cull.cpp
+index 1c35dcb4..43e51caa 100644
+--- a/godot/servers/rendering/renderer_scene_cull.cpp
++++ b/godot/servers/rendering/renderer_scene_cull.cpp
+@@ -2258,7 +2258,7 @@ void RendererSceneCull::_update_instance_lightmap_captures(Instance *p_instance)
+ 	geom->geometry_instance->set_lightmap_capture(p_instance->lightmap_sh.ptr());
+ }
+ 
+-void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_index, Instance *p_instance, const Transform3D p_cam_transform, const Projection &p_cam_projection, bool p_cam_orthogonal, bool p_cam_vaspect) {
++void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_index, Instance *p_instance, const Transform3D p_cam_transform, const Projection &p_cam_projection, bool p_cam_orthogonal, bool p_cam_vaspect, const void *p_owner) {
+ 	// For later tight culling, the light culler needs to know the details of the directional light.
+ 	light_culler->prepare_directional_light_begin(p_instance, p_shadow_index);
+ 
+@@ -2310,6 +2310,28 @@ void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_in
+ 	cull.shadows[p_shadow_index].light_instance = light->instance;
+ 	cull.shadows[p_shadow_index].caster_mask = RSG::light_storage->light_get_shadow_caster_mask(p_instance->base);
+ 
++	// The far cascades can be kept from an earlier frame while they still cover what the camera
++	// sees: the last of four is drawn every fourth frame, the one before it every other frame
++	// (the last of two every other frame), each on frames of its own. They're drawn with room
++	// for the camera to move, and drawn again at once when the camera leaves it, the light turns,
++	// the shadow's settings change or another view draws over the atlas.
++	static const uint32_t cache_intervals[3][RendererSceneRender::MAX_DIRECTIONAL_LIGHT_CASCADES] = { { 1, 1, 1, 1 }, { 1, 2, 1, 1 }, { 1, 1, 2, 4 } };
++	const uint32_t *intervals = cache_intervals[splits == 4 ? 2 : (splits == 2 ? 1 : 0)];
++	const real_t cache_room = 0.05; // How much bigger a cached cascade is drawn.
++	const uint64_t frame = RSG::rasterizer->get_frame_number();
++	DirectionalShadowCache &cache = light->directional_shadow_cache;
++	const Vector3 light_direction = light_transform.basis.get_column(Vector3::AXIS_Z).normalized();
++	if (!directional_shadow_cache_far_splits || cache.owner != p_owner || cache.shadow_index != p_shadow_index || cache.cascade_count != uint32_t(splits) || cache.texture_size != texture_size || cache.light_direction.dot(light_direction) < Math::cos(Math::deg_to_rad(real_t(0.5)))) {
++		for (DirectionalShadowCache::Cascade &cascade : cache.cascades) {
++			cascade.valid = false;
++		}
++	}
++	cache.owner = p_owner;
++	cache.shadow_index = p_shadow_index;
++	cache.cascade_count = splits;
++	cache.texture_size = texture_size;
++	cache.light_direction = light_direction;
++
+ 	for (int i = 0; i < splits; i++) {
+ 		RENDER_TIMESTAMP("Cull DirectionalLight3D, Split " + itos(i));
+ 
+@@ -2411,6 +2433,31 @@ void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_in
+ 
+ 			radius *= texture_size / (texture_size - 2.0); //add a texel by each side
+ 
++			const bool cacheable = directional_shadow_cache_far_splits && intervals[i] > 1;
++			DirectionalShadowCache::Cascade &cached = cache.cascades[i];
++			if (cacheable && cached.valid && (frame + i) % intervals[i] != 0 && frame - cached.frame < intervals[i] && cached.center.distance_to(center) + radius <= cached.radius) {
++				Cull::Shadow::Cascade &cascade = cull.shadows[p_shadow_index].cascades[i];
++				cascade.projection = cached.projection;
++				cascade.transform = cached.transform;
++				cascade.zfar = cached.zfar;
++				cascade.split = distances[i + 1];
++				cascade.shadow_texel_size = cached.shadow_texel_size;
++				cascade.bias_scale = cached.bias_scale;
++				cascade.range_begin = z_vec.dot(cached.transform.origin - p_cam_transform.origin);
++				cascade.uv_scale = cached.uv_scale;
++				cascade.reused = true;
++				continue;
++			}
++			if (cacheable) {
++				radius *= 1.0 + cache_room;
++				cached.valid = true;
++				cached.frame = frame;
++				cached.center = center;
++				cached.radius = radius;
++			} else {
++				cached.valid = false;
++			}
++
+ 			z_min_cam = z_vec.dot(center) - radius;
+ 
+ 			{
+@@ -2478,6 +2525,15 @@ void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_in
+ 			cull.shadows[p_shadow_index].cascades[i].bias_scale = (z_max - z_min_cam);
+ 			cull.shadows[p_shadow_index].cascades[i].range_begin = z_max - z_vec.dot(p_cam_transform.origin);
+ 			cull.shadows[p_shadow_index].cascades[i].uv_scale = uv_scale;
++			cull.shadows[p_shadow_index].cascades[i].reused = false;
++
++			DirectionalShadowCache::Cascade &cached = cache.cascades[i];
++			cached.projection = ortho_camera;
++			cached.transform = ortho_transform;
++			cached.zfar = z_max - z_min_cam;
++			cached.shadow_texel_size = radius * 2.0 / texture_size;
++			cached.bias_scale = z_max - z_min_cam;
++			cached.uv_scale = uv_scale;
+ 		}
+ 	}
+ }
+@@ -3349,6 +3405,9 @@ void RendererSceneCull::_scene_cull(CullData &cull_data, InstanceCullResult &cul
+ 
+ 			for (uint32_t j = 0; j < cull_data.cull->shadow_count; j++) {
+ 				for (uint32_t k = 0; k < cull_data.cull->shadows[j].cascade_count; k++) {
++					if (cull_data.cull->shadows[j].cascades[k].reused) {
++						continue;
++					}
+ 					if (!light_culler->cull_directional_light(cull_data.scenario->instance_aabbs[i], j, k)) { // pass the cascade index
+ 						continue;
+ 					}
+@@ -3495,7 +3554,7 @@ void RendererSceneCull::_render_scene(const RendererSceneRender::CameraData *p_c
+ 		RSG::light_storage->set_directional_shadow_count(lights_with_shadow.size());
+ 
+ 		for (int i = 0; i < lights_with_shadow.size(); i++) {
+-			_light_instance_setup_directional_shadow(i, lights_with_shadow[i], p_camera_data->main_transform, p_camera_data->main_projection, p_camera_data->is_orthogonal, p_camera_data->vaspect);
++			_light_instance_setup_directional_shadow(i, lights_with_shadow[i], p_camera_data->main_transform, p_camera_data->main_projection, p_camera_data->is_orthogonal, p_camera_data->vaspect, p_render_buffers.ptr());
+ 		}
+ 	}
+ 
+@@ -3593,7 +3652,7 @@ void RendererSceneCull::_render_scene(const RendererSceneRender::CameraData *p_c
+ 				const Cull::Shadow::Cascade &c = cull.shadows[i].cascades[j];
+ 				//			print_line("shadow " + itos(i) + " cascade " + itos(j) + " elements: " + itos(c.cull_result.size()));
+ 				RSG::light_storage->light_instance_set_shadow_transform(cull.shadows[i].light_instance, c.projection, c.transform, c.zfar, c.split, j, c.shadow_texel_size, c.bias_scale, c.range_begin, c.uv_scale);
+-				if (max_shadows_used == MAX_UPDATE_SHADOWS) {
++				if (c.reused || max_shadows_used == MAX_UPDATE_SHADOWS) {
+ 					continue;
+ 				}
+ 				render_shadow_data[max_shadows_used].light = cull.shadows[i].light_instance;
+@@ -4632,6 +4691,7 @@ RendererSceneCull::RendererSceneCull() {
+ 
+ 	light_culler = memnew(RenderingLightCuller);
+ 
++	directional_shadow_cache_far_splits = GLOBAL_DEF("rendering/lights_and_shadows/directional_shadow/cache_far_splits", true);
+ 	bool tighter_caster_culling = GLOBAL_DEF("rendering/lights_and_shadows/tighter_shadow_caster_culling", true);
+ 	light_culler->set_caster_culling_active(tighter_caster_culling);
+ 	light_culler->set_light_culling_active(tighter_caster_culling);
+diff --git a/godot/servers/rendering/renderer_scene_cull.h b/godot/servers/rendering/renderer_scene_cull.h
+index 41663755..11b35390 100644
+--- a/godot/servers/rendering/renderer_scene_cull.h
++++ b/godot/servers/rendering/renderer_scene_cull.h
+@@ -693,6 +693,30 @@ public:
+ 	SpinLock visible_notifier_list_lock;
+ 	SelfList<InstanceVisibilityNotifierData>::List visible_notifier_list;
+ 
++	// The cascades of a directional light's shadow as last drawn, so the far ones can be kept for a
++	// few frames instead of drawn again each frame (rendering/lights_and_shadows/directional_shadow/cache_far_splits).
++	struct DirectionalShadowCache {
++		struct Cascade {
++			bool valid = false;
++			uint64_t frame = 0;
++			Vector3 center; // The sphere the cascade covers, with room for the camera to move.
++			real_t radius = 0;
++			Projection projection;
++			Transform3D transform;
++			real_t zfar = 0;
++			real_t split = 0;
++			real_t shadow_texel_size = 0;
++			real_t bias_scale = 0;
++			Vector2 uv_scale;
++		};
++		const void *owner = nullptr; // The render buffers the atlas was last drawn for.
++		int shadow_index = -1;
++		uint32_t cascade_count = 0;
++		real_t texture_size = 0;
++		Vector3 light_direction;
++		Cascade cascades[RendererSceneRender::MAX_DIRECTIONAL_LIGHT_CASCADES];
++	};
++
+ 	struct InstanceLightData : public InstanceBaseData {
+ 		RID instance;
+ 		uint64_t last_version;
+@@ -709,6 +733,8 @@ public:
+ 		uint32_t max_sdfgi_cascade = 2;
+ 		uint32_t cull_mask = 0xFFFFFFFF;
+ 
++		DirectionalShadowCache directional_shadow_cache;
++
+ 	private:
+ 		// Instead of a single dirty flag, we maintain a count
+ 		// so that we can detect lights that are being made dirty
+@@ -1083,7 +1109,9 @@ public:
+ 	_FORCE_INLINE_ void _update_instance_lightmap_captures(Instance *p_instance) const;
+ 	void _unpair_instance(Instance *p_instance);
+ 
+-	void _light_instance_setup_directional_shadow(int p_shadow_index, Instance *p_instance, const Transform3D p_cam_transform, const Projection &p_cam_projection, bool p_cam_orthogonal, bool p_cam_vaspect);
++	bool directional_shadow_cache_far_splits = true;
++
++	void _light_instance_setup_directional_shadow(int p_shadow_index, Instance *p_instance, const Transform3D p_cam_transform, const Projection &p_cam_projection, bool p_cam_orthogonal, bool p_cam_vaspect, const void *p_owner);
+ 
+ 	_FORCE_INLINE_ bool _light_instance_update_shadow(Instance *p_instance, const Transform3D p_cam_transform, const Projection &p_cam_projection, bool p_cam_orthogonal, bool p_cam_vaspect, RID p_shadow_atlas, Scenario *p_scenario, float p_screen_mesh_lod_threshold, uint32_t p_visible_layers = 0xFFFFFF);
+ 
+@@ -1105,6 +1133,7 @@ public:
+ 				real_t bias_scale;
+ 				real_t range_begin;
+ 				Vector2 uv_scale;
++				bool reused = false; // Kept from an earlier frame: not culled or drawn this time.
+ 
+ 			} cascades[RendererSceneRender::MAX_DIRECTIONAL_LIGHT_CASCADES]; //max 4 cascades
+ 			uint32_t cascade_count;
+-- 
+2.54.0 (Apple Git-157)
+

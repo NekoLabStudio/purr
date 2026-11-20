@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="FoliageBender3D" inherits="Node3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Pushes grass and plants aside where it is.
+	</brief_description>
+	<description>
+		Put one on a player, an animal or each wheel of a car: [FoliageMaterial]'s plants within [member radius] bend away from it and are pressed down, so a path opens through a meadow as something walks through it. Only plants growing about level with it bend, not those on a floor above or below.
+		The 16 benders nearest the camera count; further ones don't bend anything. They reach shaders as the [code]foliage_benders[/code] shader global, two texels each: the first holds the bender's position and radius, the second its strength.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="radius" type="float" setter="set_radius" getter="get_radius" default="0.8">
+			How far round it plants bend, in meters.
+		</member>
+		<member name="strength" type="float" setter="set_strength" getter="get_strength" default="1.0">
+			How hard it pushes, from [code]0[/code] to [code]2[/code]: [code]1[/code] bends plants right over at its middle.
+		</member>
+	</members>
+</class>

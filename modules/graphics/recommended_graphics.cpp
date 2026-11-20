@@ -1,5 +1,7 @@
 #include "recommended_graphics.h"
 
+#include "core/config/project_settings.h"
+
 #include "adapter_tier.h"
 #include "recommended_graphics_benchmark.h"
 
@@ -30,6 +32,8 @@ struct TierSettings {
 	Viewport::AnisotropicFiltering anisotropy;
 	float lod_threshold;
 	int shadow_size;
+	bool contact_shadows; // Screen-space shadows where the sun's shadow map is too coarse.
+	int skip_mipmaps; // Textures' largest mipmaps left out as they load, for less video memory.
 	// In a headset: no TAA (it smears as the head turns), MSAA instead, and a budget per eye.
 	float headset_pixel_budget;
 	Viewport::MSAA headset_msaa;
@@ -37,10 +41,10 @@ struct TierSettings {
 };
 
 const TierSettings TIER_SETTINGS[] = {
-	{ 1.0, 0, Viewport::MSAA_2X, true, Viewport::SCREEN_SPACE_AA_DISABLED, Viewport::ANISOTROPY_16X, 1.0, 8192, 0, Viewport::MSAA_4X, 8192 },
-	{ 1.0, 10600000, Viewport::MSAA_DISABLED, true, Viewport::SCREEN_SPACE_AA_DISABLED, Viewport::ANISOTROPY_4X, 1.0, 8192, 0, Viewport::MSAA_2X, 4096 },
-	{ 0.85, 7200000, Viewport::MSAA_DISABLED, true, Viewport::SCREEN_SPACE_AA_DISABLED, Viewport::ANISOTROPY_4X, 2.0, 4096, 4000000, Viewport::MSAA_2X, 2048 },
-	{ 0.7, 3700000, Viewport::MSAA_DISABLED, false, Viewport::SCREEN_SPACE_AA_FXAA, Viewport::ANISOTROPY_2X, 4.0, 2048, 3000000, Viewport::MSAA_2X, 2048 },
+	{ 1.0, 0, Viewport::MSAA_2X, true, Viewport::SCREEN_SPACE_AA_DISABLED, Viewport::ANISOTROPY_16X, 1.0, 8192, true, 0, 0, Viewport::MSAA_4X, 8192 },
+	{ 1.0, 10600000, Viewport::MSAA_DISABLED, true, Viewport::SCREEN_SPACE_AA_DISABLED, Viewport::ANISOTROPY_4X, 1.0, 8192, true, 0, 0, Viewport::MSAA_2X, 4096 },
+	{ 0.85, 7200000, Viewport::MSAA_DISABLED, true, Viewport::SCREEN_SPACE_AA_DISABLED, Viewport::ANISOTROPY_4X, 2.0, 4096, false, 0, 4000000, Viewport::MSAA_2X, 2048 },
+	{ 0.7, 3700000, Viewport::MSAA_DISABLED, false, Viewport::SCREEN_SPACE_AA_FXAA, Viewport::ANISOTROPY_2X, 4.0, 2048, false, 1, 3000000, Viewport::MSAA_2X, 2048 },
 };
 
 // Below half size, upscaling looks too soft.
@@ -139,6 +143,9 @@ Dictionary RecommendedGraphics::get_settings(Tier p_tier, bool p_headset) const 
 	result["anisotropic_filtering_level"] = tier.anisotropy;
 	result["mesh_lod_threshold"] = tier.lod_threshold;
 	result["directional_shadow_size"] = p_headset ? tier.headset_shadow_size : tier.shadow_size;
+	// Not in a headset: a screen-space pass for each eye costs more than it shows.
+	result["contact_shadows"] = tier.contact_shadows && !p_headset;
+	result["skip_mipmaps"] = tier.skip_mipmaps;
 	return result;
 }
 
@@ -147,6 +154,16 @@ void RecommendedGraphics::apply(Viewport *p_viewport, const Dictionary &p_settin
 	for (const KeyValue<Variant, Variant> &entry : p_settings) {
 		if (String(entry.key) == "directional_shadow_size") {
 			RenderingServer::get_singleton()->directional_shadow_atlas_set_size(entry.value, true);
+			continue;
+		}
+		if (String(entry.key) == "skip_mipmaps") {
+			// Read as textures load: textures loaded from now on.
+			ProjectSettings::get_singleton()->set_setting("rendering/textures/quality/skip_mipmaps", entry.value);
+			continue;
+		}
+		if (String(entry.key) == "contact_shadows") {
+			// A Project Setting the renderer reads each frame, not one a viewport has.
+			ProjectSettings::get_singleton()->set_setting("rendering/lights_and_shadows/contact_shadow/enabled", entry.value);
 			continue;
 		}
 		bool valid = false;

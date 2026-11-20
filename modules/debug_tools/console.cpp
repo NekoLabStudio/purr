@@ -15,6 +15,7 @@
 #include "core/variant/variant_utility.h"
 #include "scene/main/scene_tree.h"
 #include "scene/main/window.h"
+#include "scene/scene_string_names.h"
 
 #include <cstdio>
 
@@ -103,6 +104,8 @@ void Console::_start() {
 	}
 	started = true;
 	tree->connect(SNAME("process_frame"), callable_mp(this, &Console::_process_frame));
+	// The game's commands go with its tree, while their scripts can still let go of them.
+	tree->get_root()->connect(SceneStringName(tree_exiting), callable_mp(this, &Console::_tree_exiting), CONNECT_ONE_SHOT);
 	if (enabled) {
 		_ensure_view();
 	}
@@ -165,6 +168,10 @@ void Console::set_visible(bool p_visible) {
 
 bool Console::is_visible() const {
 	return visible;
+}
+
+void Console::_tree_exiting() {
+	commands.clear();
 }
 
 void Console::add_command(const String &p_name, const Callable &p_callable, const String &p_description) {

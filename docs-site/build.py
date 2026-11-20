@@ -549,6 +549,7 @@ def docs_nav_groups() -> list[tuple[str, list[tuple[str, str]]]]:
                 ("start/first-game", "start/first-game.md"),
                 ("start/exporting", "start/exporting.md"),
                 ("start/building", "start/building.md"),
+                ("start/ai-assistants", "start/ai-assistants.md"),
             ],
         ),
         (
@@ -588,6 +589,8 @@ def docs_nav_groups() -> list[tuple[str, list[tuple[str, str]]]]:
                 ("modules/behavior-trees", "modules/behavior-trees.md"),
                 ("modules/terrain", "modules/terrain.md"),
                 ("modules/scattering", "modules/scattering.md"),
+                ("modules/water", "modules/water.md"),
+                ("modules/ground-marks", "modules/ground-marks.md"),
                 ("modules/time-of-day", "modules/time-of-day.md"),
                 ("modules/crash-reports", "modules/crash-reports.md"),
                 ("modules/options", "modules/options.md"),

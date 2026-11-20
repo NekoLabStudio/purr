@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="CloudySkyMaterial" inherits="Material" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		A sky that follows the sun through the day, with clouds.
+	</brief_description>
+	<description>
+		A sky for a [WorldEnvironment]'s [Sky]: its colors move from night through dusk to day as the sun rises, gathering dusk's color on the sun's side, with the sun's disc and glow, high thin cirrus, and a layer of clouds lit from the sun's side, glowing at a low sun. Under overcast, a grey deck of cloud covers the sun, and in a storm lightning lights it from inside. At night, stars and the Milky Way turn with the sky, and the moon shows its phase.
+		It follows a [TimeOfDay]'s sun, moon and stars (even below the horizon, for dusk and night); without one, the scene's first [DirectionalLight3D], with still stars and no moon. A [Weather3D] sets its clouds and makes them drift with the wind; without one, [member cloud_cover] sets them, and they stand still. It reads these through shader globals, which aren't saved in the project, so drifting clouds don't make the sky's reflections be drawn again each frame.
+	</description>
+	<tutorials>
+		<link title="Time of day and weather">https://oss.nekolab.studio/purr/modules/time-of-day/</link>
+	</tutorials>
+	<members>
+		<member name="cloud_cover" type="float" setter="set_cloud_cover" getter="get_cloud_cover" default="0.4">
+			How much of the sky the clouds cover, from [code]0[/code] (clear) to [code]1[/code] (overcast). A [Weather3D] sets it while there is one.
+		</member>
+		<member name="cloud_scale" type="float" setter="set_cloud_scale" getter="get_cloud_scale" default="1.0">
+			How large the clouds look: smaller values make bigger clouds.
+		</member>
+		<member name="day_horizon_color" type="Color" setter="set_day_horizon_color" getter="get_day_horizon_color" default="Color(0.68, 0.79, 0.9, 1)">
+			The sky at the horizon in the day.
+		</member>
+		<member name="day_top_color" type="Color" setter="set_day_top_color" getter="get_day_top_color" default="Color(0.25, 0.46, 0.8, 1)">
+			The sky overhead in the day.
+		</member>
+		<member name="dusk_horizon_color" type="Color" setter="set_dusk_horizon_color" getter="get_dusk_horizon_color" default="Color(0.96, 0.57, 0.36, 1)">
+			The sky at the horizon at dawn and dusk, strongest on the sun's side.
+		</member>
+		<member name="dusk_top_color" type="Color" setter="set_dusk_top_color" getter="get_dusk_top_color" default="Color(0.22, 0.27, 0.47, 1)">
+			The sky overhead at dawn and dusk.
+		</member>
+		<member name="energy_multiplier" type="float" setter="set_energy_multiplier" getter="get_energy_multiplier" default="1.0">
+			Multiplies the sky's brightness.
+		</member>
+		<member name="ground_color" type="Color" setter="set_ground_color" getter="get_ground_color" default="Color(0.32, 0.34, 0.37, 1)">
+			Below the horizon, the haze, darker at night.
+		</member>
+		<member name="night_horizon_color" type="Color" setter="set_night_horizon_color" getter="get_night_horizon_color" default="Color(0.035, 0.045, 0.075, 1)">
+			The sky at the horizon at night.
+		</member>
+		<member name="night_top_color" type="Color" setter="set_night_top_color" getter="get_night_top_color" default="Color(0.012, 0.016, 0.035, 1)">
+			The sky overhead at night.
+		</member>
+		<member name="overcast_color" type="Color" setter="set_overcast_color" getter="get_overcast_color" default="Color(0.58, 0.6, 0.64, 1)">
+			The grey of an overcast sky in the day, darker at night.
+		</member>
+	</members>
+</class>

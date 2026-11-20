@@ -130,6 +130,10 @@ Points can change after they're added: `set_point_strength()` (0 for a shop that
 
 Use a pool for each kind of light, each with its own template and `count`: lamps, shop windows, video screens. `height_weight` above 1 makes points far above or below the player count as further away, so the lamps on a viaduct overhead don't take every light from the street beneath. Lights without shadows shine through floors, so set `reach_above` to leave out points too far above the player altogether.
 
+### Windows
+
+Lit windows make a city feel lived in. Give a building's front an `InteriorMaterial` and each window shows a room behind the glass, with walls, a floor, a ceiling, sometimes blinds and furniture, without any geometry inside: the room is worked out for each pixel from where the camera looks in. Its UVs set the windows (`rooms` across and down each UV square), and a `facade_texture` whose alpha is 0 where the glass is lays the wall round them. At night `lit_rooms` of the rooms light up, a few at a time as it gets dark, following `TimeOfDay`.
+
 ## Reflections
 
 Wet streets, glass and car paint should reflect the place round them, but a large world can't have reflection probes everywhere, and screen-space reflections only show what's on screen. `ReflectionProbePool` places a few probes at the sites nearest the player, such as each junction of a city's streets, and moves them as the player goes.
@@ -145,6 +149,51 @@ for junction in junctions:
 Capturing a probe draws the scene round it, so new ones are placed one a frame. Leave what moves out of the template's `cull_mask`: captured once, a passing car would stay in every puddle. When the light changes enough to show (dusk, rain), call `recapture()` and they're captured again, one a frame. In a world with levels, `height_reach` leaves out sites too far above or below the player: on a viaduct, the junctions of the street beneath aren't its own.
 
 Sites needn't all be added at the start. A game whose sites come from data round the player (a road network's junctions, the water in the tiles loaded) can add them as the player nears them and remove them as they're left behind: the pool still picks the nearest and places them one a frame.
+
+## Animated crowds
+
+`InstanceGroup3D` moves thousands of copies, but a walking person or a running enemy is a skinned mesh with a skeleton posed every frame, and a few hundred of those is already slow. Bake the character's animations once instead: `BakedAnimations` records every vertex's place in every frame into textures, and `BakedAnimationMaterial` plays them on the GPU, so each copy costs what a still mesh does.
+
+```gdscript
+var baked := BakedAnimations.new()
+baked.bake($Walker, $Walker/AnimationPlayer, ["walk", "idle"])  # once, then save it
+crowd.mesh = baked.mesh
+crowd.use_custom_data = true
+crowd.material_override = BakedAnimationMaterial.new()
+crowd.material_override.baked_animations = baked
+
+
+func _process(delta: float) -> void:
+	var data := PackedColorArray()
+	for person in people:
+		person.time += delta
+		data.append(baked.get_custom_data(person.animation, person.time))
+	crowd.set_custom_data(data)
+	crowd.set_transforms(transforms)
+```
+
+Each copy has its own animation and time, so a crowd never walks in step. Between recorded frames the material blends (30 a second by default is smooth for walking). Bake in a tool script and save the resource, or as the game loads. Only what the skeleton does is recorded: move the copies themselves, as the transforms you give.
+
+## Static scenery
+
+A town is thousands of objects that never move: walls, houses, fences, lamp posts, crates. Each one is a draw of its own, and draws add up long before the GPU runs out of room for triangles. Put them under a `StaticScenery3D` and, when the game runs, it merges them by material: within each chunk of the world (`chunk_size`, 64 m by default), everything with the same material becomes one mesh, drawn once.
+
+```text
+Village (Node3D)
+├── Scenery (StaticScenery3D)
+│   ├── Houses (instanced scenes, each with its MeshInstance3D nodes)
+│   ├── Walls (MeshInstance3D nodes)
+│   └── Fence (MultiMeshInstance3D)
+└── Market (scenes that move or change: not under the scenery)
+```
+
+The merging happens in the background as the scene starts; the originals draw until it's done, and the `merged` signal says when the merged meshes have taken over. The originals stay in the tree, only hidden, so their collision, scripts and the nodes under them work as before.
+
+Each merged mesh gets simpler versions for distance, as imported meshes do, so a far chunk draws fewer triangles as well as fewer meshes (`generate_lods`). And pieces at least 2 m long in two directions (walls, houses, big rocks) become occluders, so they hide what's behind them: walk down a street and the next street isn't drawn (`occluders_enabled`).
+
+Some things keep drawing on their own: see-through materials (they're drawn in order of distance, which merging would lose), skinned meshes and blend shapes, material overlays, per-instance shader parameters, visibility ranges, MultiMeshes with colours or custom data, and large MultiMeshes such as grass or a forest (over 65,536 vertices), which draw faster as they are. Merging only takes in what's there when it runs: after adding, moving, removing, hiding or showing what's under the scenery, call `merge()`. Hide or show the whole scenery with the `StaticScenery3D` node itself. In the editor nothing is merged, so you edit the originals as usual.
+
+Larger chunks mean fewer draws; smaller ones mean less drawn off screen. 64 m suits a town seen from the street. A scenery node inside a `WorldStreamer` cell merges that cell when it loads.
 
 ## Many moving copies
 

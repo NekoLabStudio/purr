@@ -7,6 +7,8 @@
 #include "core/os/os.h"
 #include "core/templates/sort_array.h"
 #include "scene/main/scene_tree.h"
+#include "scene/main/window.h"
+#include "scene/scene_string_names.h"
 #include "servers/display/display_server.h"
 
 FrameBudget *FrameBudget::singleton = nullptr;
@@ -49,6 +51,12 @@ void FrameBudget::_start() {
 	}
 	started = true;
 	tree->connect(SNAME("process_frame"), callable_mp(this, &FrameBudget::_frame));
+	// Unfinished work goes with the game's tree, while its scripts can still let go of it.
+	tree->get_root()->connect(SceneStringName(tree_exiting), callable_mp(this, &FrameBudget::_tree_exiting), CONNECT_ONE_SHOT);
+}
+
+void FrameBudget::_tree_exiting() {
+	jobs.clear();
 }
 
 void FrameBudget::measure(const String &p_what, uint64_t p_since_usec) {

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="AtmosphereSkyMaterial" inherits="Material" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		The sky as the air makes it, with volumetric clouds.
+	</brief_description>
+	<description>
+		A sky worked out from the air, as Hillaire's 2020 technique does: blue overhead, paler and hazier towards the horizon, reddening at dawn and dusk as the sun's light crosses more air, and the sun's disc dimmed and coloured by the air in front of it. The air's lookup tables are worked out on the GPU, again only as the sun moves or the air changes, so it costs little each frame. Give it to a [WorldEnvironment]'s [Sky], and add an [AerialPerspectiveEffect] to the environment's compositor for the same air between the camera and the scene.
+		It follows a [TimeOfDay]'s sun, even below the horizon; without one, [member sun_direction]. With [member volumetric_clouds], clouds with depth are raymarched round the camera, lit by the sun through the air, lowering to a grey deck as a [Weather3D] turns overcast and drifting with its wind; otherwise, and in the editor, painted clouds. At night, stars and the Milky Way turn with the sky and the moon shows its phase, as a [TimeOfDay] sets them, and in a [Weather3D]'s storm lightning lights the clouds. It needs the Forward+ or Mobile renderer.
+	</description>
+	<tutorials>
+		<link title="Time of day and weather">https://oss.nekolab.studio/purr/modules/time-of-day/#the-sky</link>
+	</tutorials>
+	<members>
+		<member name="air_density" type="float" setter="set_air_density" getter="get_air_density" default="1.0">
+			How much air there is: more makes a deeper blue and redder sunsets.
+		</member>
+		<member name="altitude" type="float" setter="set_altitude" getter="get_altitude" default="40.0">
+			How high above sea level the camera is, in meters: higher, the sky overhead is darker.
+		</member>
+		<member name="brightness" type="float" setter="set_brightness" getter="get_brightness" default="9.0">
+			How bright the sun's light is in the scene's units, which the sky's brightness follows. Match it to the scene's exposure.
+		</member>
+		<member name="cloud_cover" type="float" setter="set_cloud_cover" getter="get_cloud_cover" default="0.4">
+			How much of the sky is cloud without a [Weather3D], from [code]0[/code] to [code]1[/code].
+		</member>
+		<member name="cloud_scale" type="float" setter="set_cloud_scale" getter="get_cloud_scale" default="1.0">
+			How large the clouds are: smaller values make bigger clouds.
+		</member>
+		<member name="ground_color" type="Color" setter="set_ground_color" getter="get_ground_color" default="Color(0.3, 0.3, 0.3, 1)">
+			The ground's color as the air sees it from above, which lights the air from below.
+		</member>
+		<member name="haze" type="float" setter="set_haze" getter="get_haze" default="0.2">
+			How hazy the air is near the ground: how much light it takes out each kilometer. Clear mountain air is under [code]0.05[/code], a hazy summer's day [code]0.5[/code], a polluted city more.
+		</member>
+		<member name="haze_height" type="float" setter="set_haze_height" getter="get_haze_height" default="600.0">
+			How high the haze reaches, in meters: it thins out over this height.
+		</member>
+		<member name="night_glow" type="Color" setter="set_night_glow" getter="get_night_glow" default="Color(0.004, 0.005, 0.009, 1)">
+			The night sky's own glow (starlight, a town's lights on the air), and the light on clouds' undersides at night.
+		</member>
+		<member name="overcast_color" type="Color" setter="set_overcast_color" getter="get_overcast_color" default="Color(0.55, 0.57, 0.6, 1)">
+			The grey of an overcast sky.
+		</member>
+		<member name="sun_direction" type="Vector3" setter="set_sun_direction" getter="get_sun_direction" default="Vector3(0.30304578, 0.80812204, 0.5050762)">
+			Towards the sun, used when there's no [TimeOfDay].
+		</member>
+		<member name="sun_disc_size" type="float" setter="set_sun_disc_size" getter="get_sun_disc_size" default="0.9">
+			The sun's disc across, in degrees: a little larger than the real sun's, so it reads on screen.
+		</member>
+		<member name="volumetric_clouds" type="bool" setter="set_volumetric_clouds" getter="is_volumetric_clouds" default="true">
+			If [code]true[/code], clouds with depth are raymarched round the main camera, a sixteenth of the sky each frame, lit by the sun through the air. In the editor and when [code]false[/code], painted clouds instead, which cost less.
+		</member>
+	</members>
+</class>

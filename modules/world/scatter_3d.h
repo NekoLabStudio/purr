@@ -10,6 +10,7 @@
 #include "scene/resources/3d/shape_3d.h"
 #include "scene/resources/mesh.h"
 
+class Impostor;
 class MultiMeshBody3D;
 class PhysicsDirectSpaceState3D;
 
@@ -29,12 +30,17 @@ class Scatter3D : public MultiMeshInstance3D {
 	Ref<Shape3D> collision_shape;
 	uint32_t collision_layer = 1;
 
+	Ref<Impostor> impostor;
+	float impostor_distance = 60.0;
+	MultiMeshInstance3D *far = nullptr; // The impostors past impostor_distance.
+
 	MultiMeshBody3D *body = nullptr;
 	bool scatter_queued = false;
 
 	void _queue_scatter();
 	void _scatter_queued();
 	void _update_body();
+	void _update_far();
 	bool _find_surface(PhysicsDirectSpaceState3D *p_space, const Vector<Node *> &p_terrains, const Vector3 &p_from, const Vector3 &p_to, Vector3 &r_position, Vector3 &r_normal) const;
 	static void _find_terrains(Node *p_node, Vector<Node *> &r_terrains);
 
@@ -69,6 +75,10 @@ public:
 	void set_collision_shape(const Ref<Shape3D> &p_shape);
 	Ref<Shape3D> get_collision_shape() const;
 	void set_collision_layer(uint32_t p_layer);
+	void set_impostor(const Ref<Impostor> &p_impostor);
+	Ref<Impostor> get_impostor() const;
+	void set_impostor_distance(float p_distance);
+	float get_impostor_distance() const;
 	uint32_t get_collision_layer() const;
 
 	void scatter();

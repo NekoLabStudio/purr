@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="FilmGrainEffect" inherits="CompositorEffect" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Fine noise over the picture, as on film.
+	</brief_description>
+	<description>
+		Fine noise over the picture that changes every frame, strongest in the mid and dark tones, as on film. Add it to a [Compositor]'s [member Compositor.compositor_effects], on a [WorldEnvironment] or [Camera3D]. It's drawn after the scene's see-through objects, before tonemapping, in each view (both eyes in VR), with the Forward+ renderer; with the others it draws nothing.
+	</description>
+	<tutorials>
+		<link title="Screen effects">https://oss.nekolab.studio/purr/modules/graphics/#screen-effects</link>
+	</tutorials>
+	<members>
+		<member name="amount" type="float" setter="set_amount" getter="get_amount" default="0.05">
+			How strong the grain is.
+		</member>
+		<member name="colored" type="bool" setter="set_colored" getter="is_colored" default="false">
+			If [code]true[/code], each color channel has its own grain; otherwise the grain is the same in each, as on black-and-white film.
+		</member>
+		<member name="grain_size" type="float" setter="set_grain_size" getter="get_grain_size" default="1.0">
+			The size of a grain, in pixels.
+		</member>
+	</members>
+</class>

@@ -7,7 +7,7 @@ def configure(env):
 
 
 def get_doc_classes():
-    return ["InstanceGroup3D", "LightPool3D", "MultiMeshBody3D", "ReflectionProbePool", "Scatter3D", "TimeOfDay", "WorldOrigin", "WorldStreamer"]
+    return ["BakedAnimationMaterial", "BakedAnimations", "CloudySkyMaterial", "FoliageBender3D", "FoliageMaterial", "GroundMarks3D", "Impostor", "ImpostorMaterial", "InstanceGroup3D", "InteriorMaterial", "LightPool3D", "MultiMeshBody3D", "ReflectionProbePool", "Scatter3D", "StaticScenery3D", "TimeOfDay", "Water3D", "WaterMaterial", "Weather3D", "WorldOrigin", "WorldStreamer"]
 
 
 def get_doc_path():

@@ -23,14 +23,17 @@ On a Mac, `brew install --cask nekolabstudio/tap/purr` installs the editor. Each
 - VR on a Mac through Godot's OpenXR: Meta Quest and other headsets with Valve's Steam Link app, and Apple Vision Pro.
 - Apple TV exports.
 - Parametric, a film-like tonemapper and the default for new environments.
+- Screen effects: motion blur, light shafts, lens flares, vignette, film grain and chromatic aberration.
 - Recommended graphics settings for the player's computer, with a benchmark to check them, and dynamic resolution.
-- Large worlds: a floating origin, streaming, collision for instanced props, thousands of moving copies drawn in chunks, and pools of lights and reflection probes round the player.
+- Large worlds: a floating origin, streaming, static scenery merged into a few meshes with occluders, collision for instanced props, thousands of moving copies drawn in chunks, and pools of lights and reflection probes round the player.
 - Debug drawing (shapes, text and values from anywhere, in 3D and 2D) and an in-game console for your own commands.
 - Behaviour trees and state machines for characters' decisions, written in GDScript, with a tree editor that shows them working live.
-- Virtual cameras that follow, orbit, ride a rail or frame a group, blending as they take over.
+- Virtual cameras that follow, orbit, ride a rail or frame a group, blending as they take over, with autofocus and walls that fade out of the way.
 - Terrain you sculpt and paint in the editor, with textures, holes, scattered grass and rocks, and an ocean.
 - Scattering: rocks, grass and debris dropped onto whatever is below a box, by density, slope and scale, solid if you like.
-- A time of day that moves the sun and moon across the sky and dims it at night.
+- A time of day that moves the sun, the moon in its phases and the stars across the sky, lights that come on at dusk, and weather: rain, snow, fog and storms that come and go, wet ground with puddles, and snow that settles.
+- Water (lakes, rivers and an endless sea), trails of tyre marks and footprints, plants that bend as things go through them, and windows with rooms behind them.
+- An MCP server for AI assistants (Claude Code, Codex, Antigravity, OpenCode): Purr's docs, the project, its checks and tests, and the open editor and running game.
 - Crash reports: a run that crashed is noticed on the next start, with a report of what it ran on and how it ended, sent to your online services if the player agrees.
 - Options: the player's settings, saved and put into effect, from the window and audio volumes to the game's own.
 - Tests (`purr --run-tests`), with timings of heavy work against the last run, and a check for broken files (`purr --check-project`), ready for CI.

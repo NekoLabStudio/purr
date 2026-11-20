@@ -16,6 +16,7 @@
 #include "target_node_3d.h"
 #include "terrain_3d_assets.h"
 #include "terrain_3d_collision.h"
+#include "terrain_occluders.h"
 #include "terrain_3d_data.h"
 #include "terrain_3d_editor.h"
 #include "terrain_3d_instancer.h"
@@ -49,6 +50,8 @@ private:
 	Terrain3DData *_data = nullptr;
 	Ref<Terrain3DAssets> _assets;
 	Terrain3DCollision *_collision = nullptr;
+	TerrainOccluders _occluders;
+	bool _occluders_enabled = true;
 	Terrain3DInstancer *_instancer = nullptr;
 	Terrain3DEditor *_editor = nullptr;
 	Object *_editor_plugin = nullptr;
@@ -85,16 +88,10 @@ private:
 	Vector2 _last_buffer_position = V2_MAX;
 
 	// Ocean Mesh
-	Terrain3DMesher *_ocean_mesher = nullptr;
+	// The sea round and between the land: an endless Water3D of its own.
+	class Water3D *_ocean = nullptr;
 	bool _ocean_enabled = false;
-	int _ocean_mesh_lods = 7;
-	int _ocean_tessellation_level = 0;
-	int _ocean_mesh_size = 32;
-	real_t _ocean_vertex_spacing = 4.0f;
-	real_t _ocean_cull_margin = 20.0f;
-	RSE::ShadowCastingSetting _ocean_cast_shadows = RSE::SHADOW_CASTING_SETTING_OFF;
-	GeometryInstance3D::GIMode _ocean_gi_mode = GeometryInstance3D::GI_MODE_DISABLED;
-	uint32_t _ocean_render_layers = 1u;
+	real_t _ocean_level = 0.0f;
 	Ref<Material> _ocean_material;
 
 	// Rendering
@@ -129,9 +126,8 @@ private:
 	void _setup_terrain_mesher();
 	void _update_mesher_aabbs() { _terrain_mesher ? _terrain_mesher->update_aabbs() : void(); }
 	void _destroy_terrain_mesher(const bool p_final = false);
-	void _setup_ocean_mesher();
-	void _update_ocean_aabbs() { _ocean_mesher ? _ocean_mesher->update_aabbs() : void(); }
-	void _destroy_ocean_mesher(const bool p_final = false);
+	void _setup_ocean();
+	void _destroy_ocean();
 
 	void _setup_displacement_buffer();
 	void _update_displacement_buffer();
@@ -140,7 +136,6 @@ private:
 	void _build_containers();
 	void _destroy_containers();
 	void _destroy_labels();
-	static Ref<ShaderMaterial> _make_ocean_material();
 	void _find_region_files();
 	real_t _region_distance(const Vector2i &p_region_loc, const Vector2 &p_map_position) const;
 	void _stream_regions(const Vector2 &p_target, const bool p_wait);
@@ -257,25 +252,14 @@ public:
 	Ref<Shader> get_buffer_shader_override() const { return _material.is_valid() ? _material->get_buffer_shader_override() : Ref<Shader>(); }
 
 	// Ocean Mesh
-	Terrain3DMesher *get_ocean_mesher() const { return _ocean_mesher; }
+	void set_occluders_enabled(const bool p_enabled);
+	bool is_occluders_enabled() const { return _occluders_enabled; }
+	void _occluder_regions_changed() { _occluders.mark_regions_changed(); }
+	void _occluders_edited(const AABB &p_area);
 	void set_ocean_enabled(const bool p_enabled);
 	bool is_ocean_enabled() const { return _ocean_enabled; }
-	void set_ocean_mesh_lods(const int p_count);
-	int get_ocean_mesh_lods() const { return _ocean_mesh_lods; }
-	void set_ocean_tessellation_level(const int p_level);
-	int get_ocean_tessellation_level() const { return _ocean_tessellation_level; }
-	void set_ocean_mesh_size(const int p_size);
-	int get_ocean_mesh_size() const { return _ocean_mesh_size; }
-	void set_ocean_vertex_spacing(const real_t p_spacing);
-	real_t get_ocean_vertex_spacing() const { return _ocean_vertex_spacing; }
-	void set_ocean_cull_margin(const real_t p_margin);
-	real_t get_ocean_cull_margin() const { return _ocean_cull_margin; }
-	void set_ocean_cast_shadows(const RSE::ShadowCastingSetting p_cast_shadows);
-	RSE::ShadowCastingSetting get_ocean_cast_shadows() const { return _ocean_cast_shadows; }
-	void set_ocean_gi_mode(const GeometryInstance3D::GIMode p_gi_mode);
-	GeometryInstance3D::GIMode get_ocean_gi_mode() const { return _ocean_gi_mode; }
-	void set_ocean_render_layers(const uint32_t p_layers);
-	uint32_t get_ocean_render_layers() const { return _ocean_render_layers; }
+	void set_ocean_level(const real_t p_level);
+	real_t get_ocean_level() const { return _ocean_level; }
 	void set_ocean_material(const Ref<Material> &p_material);
 	Ref<Material> get_ocean_material() const { return _ocean_material; }
 

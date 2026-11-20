@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="ColorGrade" inherits="Resource" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		A look for the picture, which [ColorGradeVolume3D]s blend in.
+	</brief_description>
+	<description>
+		Exposure, brightness, contrast, saturation, a tint and a color lookup table: what a place, a time of day or a weather does to the picture. Give it to a [ColorGradeVolume3D]. Everything but [member exposure] is applied as the [Environment]'s adjustments are, after tonemapping; a tint or lookup table is blended into one lookup table with the environment's own.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="brightness" type="float" setter="set_brightness" getter="get_brightness" default="1.0">
+			The picture's brightness, as [member Environment.adjustment_brightness].
+		</member>
+		<member name="contrast" type="float" setter="set_contrast" getter="get_contrast" default="1.0">
+			The picture's contrast, as [member Environment.adjustment_contrast].
+		</member>
+		<member name="exposure" type="float" setter="set_exposure" getter="get_exposure" default="1.0">
+			Times the environment's own [member Environment.tonemap_exposure]: below [code]1[/code] darker, above brighter.
+		</member>
+		<member name="lut" type="Texture3D" setter="set_lut" getter="get_lut">
+			A color lookup table, as [member Environment.adjustment_color_correction] takes one: a [Texture3D] with red across, green down and blue through its layers. Its data must be readable.
+		</member>
+		<member name="saturation" type="float" setter="set_saturation" getter="get_saturation" default="1.0">
+			The picture's saturation, as [member Environment.adjustment_saturation]: [code]0[/code] is black and white.
+		</member>
+		<member name="tint" type="Color" setter="set_tint" getter="get_tint" default="Color(1, 1, 1, 1)">
+			A color the picture is multiplied by, after tonemapping.
+		</member>
+	</members>
+</class>

@@ -1,5 +1,7 @@
 #include "performance_overlay.h"
 
+#include "modules/graphics/gpu_time.h"
+
 #include "core/os/os.h"
 #include "main/performance.h"
 #include "scene/main/viewport.h"
@@ -137,7 +139,7 @@ void PerformanceOverlay::_sample(Viewport *p_root, uint64_t p_now) {
 	}
 	last_frame_usec = p_now;
 
-	gpu_sum += RenderingServer::get_singleton()->viewport_get_measured_render_time_gpu(p_root->get_viewport_rid());
+	gpu_sum += GpuTime::frame_ms(p_root);
 	window_frames++;
 
 	// A pass's time is from its timestamp to the next; > and < open and close groups.

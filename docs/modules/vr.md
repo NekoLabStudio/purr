@@ -40,6 +40,12 @@ Other platforms build for a headset or they don't, and OpenXR starts as the proj
 
 macOS exports include the runtime when the export preset's **Include VR Runtime** option (`xr/include_vr_runtime`) is on. It's on by default when `xr/openxr/enabled` is, so a game without VR carries none of it. A game that turns OpenXR on as it starts, through a settings override or `--xr-mode`, leaves `xr/openxr/enabled` off in its project, so turn the option on in its macOS preset. A player can still pick another runtime with the `XR_RUNTIME_JSON` environment variable.
 
+## Foveated rendering
+
+On Windows and Linux, the edges of each eye's view are drawn more coarsely, where the headset's lenses blur them anyway, which saves much of the GPU's work in a headset. Purr turns it on when VR starts: through the headset runtime's own foveation where it has it (Meta's), and otherwise with variable-rate shading on GPUs that have it, with Vulkan and Direct3D 12. A project that sets `xr/openxr/foveation_level` or `rendering/vrs/mode` itself keeps its own values. MSAA turns the runtime's foveation off.
+
+On a Mac, the game draws every pixel at full detail: Metal's equivalent works only with the Mobile renderer, and not with what the Steam Link stream needs.
+
 ## Steam Link
 
 The player opens Steam Link on the headset. The Mac shows up in its list as the Mac's name followed by "(VR)". The first time, the headset shows a PIN and the game asks for it in a small sheet; after that, every game made with Purr on that Mac is paired. When VR starts in the game, the picture appears in the headset, with the game's sound.

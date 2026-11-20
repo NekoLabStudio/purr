@@ -44,6 +44,28 @@ func _on_explosion(strength: float) -> void:
 
 `shake()` turns a 3D camera by up to a few degrees, or moves a 2D one by a few pixels on screen, at a strength of `1.0`, fading out over the duration. A weaker shake doesn't cut short a stronger one.
 
+## Focus
+
+`focus_mode` gives a 3D camera depth of field that keeps something in focus, as a camera's autofocus does: what's in the middle of the view (`FOCUS_CENTER`, the first thing on `focus_collision_mask` straight ahead), or its target (`FOCUS_TARGET`, the `look_at_target` or else the `follow_target`). The focus eases to a new distance over `focus_damping`, and `focus_blur` sets how blurred the rest is. The real camera's attributes take the focus while the camera is live, and are given back when it isn't.
+
+## Keeping the player in sight
+
+With `fade_obstacles`, a following camera fades out what stands between it and its target (a wall, a tree, a pillar) so the player stays in sight, and fades it back once it's out of the way. What counts is any body on `orbit_collision_mask` in the way: the meshes under it, and the mesh it's under. `fade_amount` is how see-through they become.
+
 ## 2D
 
 `VirtualCamera2D` has the target and group modes, with `zoom` for the real camera's zoom while it's live (in group mode, the closest it zooms in). The real `Camera2D`'s position smoothing is turned off while it's driven, as `follow_damping` does that job. Its limits still apply.
+
+## Photo mode
+
+Players like to stop the game and take a picture of it. Call `PhotoMode.open()` from your pause menu:
+
+```gdscript
+func _on_photo_mode_pressed() -> void:
+	PhotoMode.open()
+```
+
+The game stops, its HUD goes, and the player flies a camera round the scene from where yours was. A small panel sets the field of view, roll, focus distance, background blur and exposure, adds a vignette or film grain, and takes the photo, without the panel in it. Photos are saved as PNG files in `user://photos` (`photo_mode/photos_folder` in Project Settings), and `photo_taken` says where.
+
+The camera sees as yours did, with its environment and compositor effects, and stays within 20 m of where it started (`photo_mode/max_distance`), so players can't fly out of the level to see what isn't finished. It works with a mouse and keyboard (hold the right button to look, WASD to move, H hides the panel) and with a controller (the sticks to move and look, A takes a photo, B closes). `PhotoMode.close()`, or Escape, gives the game back as it was.
+

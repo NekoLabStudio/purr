@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="InteriorMaterial" inherits="Material" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Windows with rooms behind them, and no geometry inside.
+	</brief_description>
+	<description>
+		For a building's front: each window shows a room behind the glass, worked out per pixel from where the camera looks in (interior mapping), with walls, floor and ceiling in its own colors, sometimes blinds partly down and something standing in the room. Its UVs set the windows: [member rooms] across and down each UV square. A [member facade_texture] whose alpha is [code]0[/code] where the glass is lays the wall round the windows; without one, the whole surface is windows, with frames between them.
+		By day the rooms are dim behind the glass, which reflects the sky. At night ([TimeOfDay]'s [code]time_of_day_night[/code]), [member lit_rooms] of them light up, a few at a time as it gets dark, most warm and some cooler.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="facade_texture" type="Texture2D" setter="set_facade_texture" getter="get_facade_texture">
+			The building's front: its alpha is [code]0[/code] where the glass is and the rooms show, [code]1[/code] for the wall.
+		</member>
+		<member name="frame_color" type="Color" setter="set_frame_color" getter="get_frame_color" default="Color(0.2, 0.2, 0.22, 1)">
+			The color of the window frames.
+		</member>
+		<member name="frame_width" type="float" setter="set_frame_width" getter="get_frame_width" default="0.04">
+			How wide the frames are round each window, as a part of the window.
+		</member>
+		<member name="light_color" type="Color" setter="set_light_color" getter="get_light_color" default="Color(1, 0.82, 0.6, 1)">
+			The color of most rooms' lights; some are cooler.
+		</member>
+		<member name="light_energy" type="float" setter="set_light_energy" getter="get_light_energy" default="0.6">
+			How bright a lit room is.
+		</member>
+		<member name="lit_rooms" type="float" setter="set_lit_rooms" getter="get_lit_rooms" default="0.6">
+			How many rooms light up at night, from [code]0[/code] to [code]1[/code].
+		</member>
+		<member name="room_depth" type="float" setter="set_room_depth" getter="get_room_depth" default="1.0">
+			How deep the rooms are, as a part of a window's width.
+		</member>
+		<member name="rooms" type="Vector2i" setter="set_rooms" getter="get_rooms" default="Vector2i(1, 1)">
+			How many windows across and down each UV square has, each with a room behind it.
+		</member>
+	</members>
+</class>

@@ -31,6 +31,7 @@ class FrameBudget : public Object {
 	bool started = false;
 
 	void _start();
+	void _tree_exiting();
 	void _frame();
 	void _run_jobs();
 	void _report(double p_ms, const Dictionary &p_work);

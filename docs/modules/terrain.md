@@ -66,6 +66,8 @@ if not is_nan(ground):
 
 Collision is made around the camera as it moves (`collision_mode`), so bodies near the camera collide with the ground without the cost of collision for the whole landscape. Set `collision_target` to make it round something else.
 
+Hills hide what's behind them: the terrain lays a coarse occluder just under its ground, so the renderer skips what a hill blocks from view (occlusion culling, on by default in Purr). It follows sculpting and streaming. Its cells are 16 metres across and never rise above the lowest ground round them, so a ridge narrower than about 30 metres hides nothing. On flat ground there's nothing to hide behind, so turn off `occluders_enabled` there.
+
 ## Large worlds
 
 Terrain works with a [floating origin](/modules/world/#floating-origin): when `WorldOrigin` shifts the world, the ground, its collision, its meshes and the ocean stay where they are on the map. The terrain's `data` (and its `instancer`) works in map positions, which are the same as global ones until the world first shifts, so convert positions when you use one:
@@ -87,8 +89,8 @@ The editor always loads every region, so all of it can be edited.
 
 ## Ocean
 
-Turn on `ocean_enabled` for water round and between the land, which also stretches to the horizon. It comes with an animated ocean material whose sea level, colour, waves and foam are its shader parameters.
+Turn on `ocean_enabled` for water round and between the land, which also stretches to the horizon, at `ocean_level`. It's an endless [`Water3D`](water.md) with a `WaterMaterial` you can change in `ocean_material`: its waves follow the wind, and it foams along the shore where it meets the land.
 
 ## Credits
 
-Terrain is based on [Terrain3D](https://github.com/TokisanGames/Terrain3D), by Cory Petkovsek, Roope Palmroos and its contributors (MIT). Its classes, data files and settings keep Terrain3D's names, so a project made with the Terrain3D plugin keeps its terrain in Purr: remove the plugin's folder, and replace anything a scene used from that folder (its example ocean material is built in here: clear `ocean_material` to use it).
+Terrain is based on [Terrain3D](https://github.com/TokisanGames/Terrain3D), by Cory Petkovsek, Roope Palmroos and its contributors (MIT). Its classes, data files and settings keep Terrain3D's names, so a project made with the Terrain3D plugin keeps its terrain in Purr: remove the plugin's folder, and replace anything a scene used from that folder (the plugin's ocean material doesn't carry over: clear `ocean_material` for Purr's water, and set `ocean_level` to the sea level it had).

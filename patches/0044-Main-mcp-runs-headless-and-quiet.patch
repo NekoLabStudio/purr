@@ -1,0 +1,46 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Thu, 19 Nov 2026 19:09:00 +0000
+Subject: [PATCH] Main: --mcp runs headless and quiet
+
+Purr's MCP server, which AI assistants start as `purr --path <project>
+--mcp`, talks to them over stdin and stdout. Like --doctool, it needs no
+window or audio; and since stdout carries only its own messages, nothing
+else may print there (errors still go to stderr). Editor builds only.
+---
+ godot/main/main.cpp | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/godot/main/main.cpp b/godot/main/main.cpp
+index f959b42d..aa5ce0ef 100644
+--- a/godot/main/main.cpp
++++ b/godot/main/main.cpp
+@@ -502,6 +502,9 @@ void Main::print_help(const char *p_binary) {
+ 	print_help_option("--version", "Display the version string.\n");
+ 	print_help_option("-v, --verbose", "Use verbose stdout mode.\n");
+ 	print_help_option("--quiet", "Quiet mode, silences stdout messages. Errors are still displayed.\n");
++#ifdef TOOLS_ENABLED
++	print_help_option("--mcp", "Serve the project to AI assistants over the Model Context Protocol, on stdin and stdout.\n", CLI_OPTION_AVAILABILITY_EDITOR);
++#endif
+ 	print_help_option("--no-header", "Do not print engine version and rendering driver/method header on startup.\n");
+ 
+ 	print_help_title("Run options");
+@@ -1704,6 +1707,15 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
+ 				}
+ 			}
+ #endif // DISABLE_DEPRECATED
++#ifdef TOOLS_ENABLED
++		} else if (arg == "--mcp") {
++			// Purr's MCP server for AI assistants (modules/mcp), which starts the project without its
++			// game. It talks over stdout, so nothing else may print there, and it has no window.
++			audio_driver = NULL_AUDIO_DRIVER;
++			display_driver = NULL_DISPLAY_DRIVER;
++			quiet_stdout = true;
++			main_args.push_back(arg);
++#endif
+ 		} else if (arg == "--doctool") {
+ 			// Actually handling is done in start().
+ 			cmdline_tool = true;
+-- 
+2.54.0 (Apple Git-157)
+

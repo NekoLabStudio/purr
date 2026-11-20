@@ -7,7 +7,23 @@ def configure(env):
 
 
 def get_doc_classes():
-    return ["DynamicResolution", "FrameBudget", "RecommendedGraphics"]
+    return [
+        "AerialPerspectiveEffect",
+        "AtmosphereSkyMaterial",
+        "ChromaticAberrationEffect",
+        "ColorGrade",
+        "ColorGradeVolume3D",
+        "DynamicResolution",
+        "FilmGrainEffect",
+        "FrameBudget",
+        "LensFlareEffect",
+        "LightShaftsEffect",
+        "LocalExposureEffect",
+        "MotionBlurEffect",
+        "RecommendedGraphics",
+        "VignetteEffect",
+        "WetSurfacesEffect",
+    ]
 
 
 def get_doc_path():

@@ -233,6 +233,8 @@ void Options::_apply_graphics_tier(bool p_starting) {
 		{ "anisotropic_filtering_level", "rendering/textures/default_filters/anisotropic_filtering_level" },
 		{ "mesh_lod_threshold", "rendering/mesh_lod/lod_change/threshold_pixels" },
 		{ "directional_shadow_size", "rendering/lights_and_shadows/directional_shadow/size" },
+		{ "contact_shadows", "rendering/lights_and_shadows/contact_shadow/enabled" },
+		{ "skip_mipmaps", "rendering/textures/quality/skip_mipmaps" },
 	};
 	ProjectSettings *project = ProjectSettings::get_singleton();
 	for (const auto &setting : SETTINGS) {

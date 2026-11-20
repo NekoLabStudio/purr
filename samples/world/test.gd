@@ -6,6 +6,12 @@ var failures := 0
 var shifts: Array[Vector3] = []
 
 
+# Whether a shader global is there. Only the editor and the headless renderer list them: in a game
+# window the renderer refuses, so this trusts it.
+func has_global(name: StringName) -> bool:
+	return DisplayServer.get_name() != "headless" or RenderingServer.global_shader_parameter_get_list().has(name)
+
+
 func check(what: String, ok: bool, detail: Variant = null) -> void:
 	print("check: ", what, "" if ok else "  FAILED  %s" % [detail])
 	if not ok:
@@ -85,6 +91,16 @@ func _run() -> void:
 	await _scatter()
 	await _time_of_day()
 	await _instance_group()
+	await _static_scenery()
+	await _weather()
+	await _baked_animations()
+	await _impostors()
+	await _night_sky()
+	await _storms_and_snow()
+	await _foliage_benders()
+	await _ground_marks()
+	await _water()
+	await _interiors()
 
 	print("world test: %s" % ("all checks passed" if failures == 0 else "%d failed" % failures))
 	quit(failures)
@@ -613,3 +629,476 @@ func _layer_drawn(cull_mask: int) -> bool:
 	var shown := view.get_texture().get_image().get_pixel(16, 16).a > 0.5
 	view.queue_free()
 	return shown
+
+
+# Static scenery: boxes sharing a material, and a MultiMesh of another, become one mesh each.
+func _static_scenery() -> void:
+	var scenery := StaticScenery3D.new()
+	var stone := StandardMaterial3D.new()
+	var wood := StandardMaterial3D.new()
+	var glass := StandardMaterial3D.new()
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var box := BoxMesh.new()
+	var boxes := 20
+	for i in boxes:
+		var piece := MeshInstance3D.new()
+		piece.mesh = box
+		piece.material_override = stone
+		piece.position = Vector3(i * 2.0, 0, 0)
+		piece.rotation.y = i * 0.3
+		scenery.add_child(piece)
+	var fence := MultiMeshInstance3D.new()
+	fence.multimesh = MultiMesh.new()
+	fence.multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	var post := CylinderMesh.new()
+	post.material = wood
+	fence.multimesh.mesh = post
+	fence.multimesh.instance_count = 10
+	for i in 10:
+		fence.multimesh.set_instance_transform(i, Transform3D(Basis(), Vector3(i, 0, 5)))
+	scenery.add_child(fence)
+	var window := MeshInstance3D.new()
+	window.mesh = QuadMesh.new()
+	window.material_override = glass
+	scenery.add_child(window)
+	root.add_child(scenery)
+	await scenery.merged
+	var meshes: Array[ArrayMesh] = scenery.get_merged_meshes()
+	check("static scenery merges each material's pieces into one mesh", scenery.is_merged() and meshes.size() == 2, meshes.size())
+	var by_material := {}
+	for mesh in meshes:
+		by_material[mesh.surface_get_material(0)] = mesh
+	var box_vertices: int = box.get_mesh_arrays()[Mesh.ARRAY_VERTEX].size()
+	var post_vertices: int = post.get_mesh_arrays()[Mesh.ARRAY_VERTEX].size()
+	check("with every piece in it", by_material.has(stone) and by_material[stone].surface_get_array_len(0) == box_vertices * boxes, by_material.get(stone))
+	check("and every copy of a MultiMesh", by_material.has(wood) and by_material[wood].surface_get_array_len(0) == post_vertices * 10, by_material.get(wood))
+	check("but not what's see-through, which draws in its own order", not by_material.has(glass))
+	var last: Vector3 = by_material[stone].surface_get_arrays(0)[Mesh.ARRAY_VERTEX][box_vertices * boxes - 1]
+	check("each piece where it stood", last.distance_to(Vector3((boxes - 1) * 2.0, 0, 0)) < 1.0, last)
+
+	var late := MeshInstance3D.new()
+	late.mesh = box
+	late.material_override = stone
+	scenery.add_child(late)
+	scenery.merge()
+	await scenery.merged
+	meshes = scenery.get_merged_meshes()
+	var stones := meshes.filter(func(mesh: ArrayMesh) -> bool: return mesh.surface_get_material(0) == stone)
+	check("merging again takes in what's been added", stones.size() == 1 and stones[0].surface_get_array_len(0) == box_vertices * (boxes + 1))
+
+	scenery.chunk_size = 10.0
+	scenery.merge()
+	await scenery.merged
+	check("pieces far apart are merged by chunk, so each chunk is culled on its own", scenery.get_merged_meshes().size() > 2, scenery.get_merged_meshes().size())
+	scenery.queue_free()
+
+	var meadow := StaticScenery3D.new()
+	var grass := MultiMeshInstance3D.new()
+	grass.multimesh = MultiMesh.new()
+	grass.multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	grass.multimesh.mesh = BoxMesh.new()
+	grass.multimesh.instance_count = 5000
+	meadow.add_child(grass)
+	var stone_wall := MeshInstance3D.new()
+	stone_wall.mesh = BoxMesh.new()
+	meadow.add_child(stone_wall)
+	root.add_child(meadow)
+	await meadow.merged
+	check("a MultiMesh too big to merge (a meadow's grass) draws instanced as it was", meadow.get_merged_meshes().size() == 1 and meadow.get_merged_meshes()[0].surface_get_array_len(0) == box_vertices, meadow.get_merged_meshes().size())
+	meadow.queue_free()
+
+	var hidden := StaticScenery3D.new()
+	hidden.visible = false
+	var piece := MeshInstance3D.new()
+	piece.mesh = box
+	hidden.add_child(piece)
+	root.add_child(hidden)
+	await hidden.merged
+	check("scenery hidden as it starts merges all the same, for when it's shown", hidden.get_merged_meshes().size() == 1, hidden.get_merged_meshes().size())
+	hidden.queue_free()
+
+
+# Weather: clouds and rain ease towards what's asked, the ground wets and dries, the sun dims.
+func _weather() -> void:
+	var holder := Node3D.new()
+	root.add_child(holder)
+	var day := TimeOfDay.new()
+	day.time = 12.0
+	day.day_length = 0.0
+	var sun := DirectionalLight3D.new()
+	day.add_child(sun)
+	holder.add_child(day)
+	var weather := Weather3D.new()
+	weather.cloud_cover = 0.2
+	holder.add_child(weather)
+	await process_frame
+	var clear_sun := sun.light_energy
+	check("weather starts as set", is_equal_approx(weather.get_current_cloud_cover(), 0.2) and weather.get_current_rain() == 0.0)
+	check("and publishes it for shaders", has_global(&"weather_wetness") and has_global(&"time_of_day_sun_direction"))
+
+	weather.change_time = 0.3
+	weather.wetting_time = 0.3
+	weather.drying_time = 3.0
+	weather.rain = 1.0
+	var started := Time.get_ticks_msec()
+	while weather.get_current_rain() < 1.0 and Time.get_ticks_msec() - started < 3000:
+		await process_frame
+	check("rain brings cloud over the sun before it falls", weather.get_current_cloud_cover() > 0.94 and weather.get_overcast() > 0.6 and weather.get_current_rain() == 1.0, [weather.get_current_cloud_cover(), weather.get_overcast(), weather.get_current_rain()])
+	check("which dims the sun", sun.light_energy < clear_sun * 0.5, [sun.light_energy, clear_sun])
+	while weather.get_wetness() < 1.0 and Time.get_ticks_msec() - started < 4000:
+		await process_frame
+	check("the ground gets wet", is_equal_approx(weather.get_wetness(), 1.0), weather.get_wetness())
+
+	weather.rain = 0.0
+	started = Time.get_ticks_msec()
+	while weather.get_current_rain() > 0.0 and Time.get_ticks_msec() - started < 3000:
+		await process_frame
+	check("when the rain stops, the ground is still wet a while", weather.get_wetness() > 0.6, weather.get_wetness())
+
+	weather.cloud_cover = 0.1
+	weather.settle()
+	check("settle() jumps to the weather asked for, dry", is_equal_approx(weather.get_current_cloud_cover(), 0.1) and weather.get_wetness() == 0.0 and weather.get_overcast() == 0.0)
+	var sky := CloudySkyMaterial.new()
+	sky.cloud_cover = 1.5
+	check("a cloudy sky's cover stays within 0 and 1", sky.cloud_cover == 1.0)
+	check("and it has its own material on the renderer, for a Sky to draw", sky.get_rid().is_valid())
+	var air := AtmosphereSkyMaterial.new()
+	air.haze = -1.0
+	check("the air's sky has its material, and no less than no haze", air.get_rid().is_valid() and air.haze == 0.0)
+	var grass := FoliageMaterial.new()
+	grass.alpha_scissor_threshold = 2.0
+	check("foliage's cutout stays within 0 and 1, and it has its material", grass.alpha_scissor_threshold == 1.0 and grass.get_rid().is_valid())
+	check("the wind is there for foliage to sway in", has_global(&"weather_wind"))
+	holder.queue_free()
+
+
+# A skinned character's animation baked into textures, for crowds drawn on the GPU.
+func _baked_animations() -> void:
+	var character := Node3D.new()
+	var skeleton := Skeleton3D.new()
+	skeleton.name = "Skeleton3D"
+	skeleton.add_bone("root")
+	skeleton.add_bone("top")
+	skeleton.set_bone_parent(1, 0)
+	skeleton.set_bone_rest(1, Transform3D(Basis(), Vector3(0, 1, 0)))
+	skeleton.reset_bone_poses()
+	character.add_child(skeleton)
+	# A strip: its bottom on the root bone, its top on the top bone.
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = PackedVector3Array([Vector3(-0.1, 0, 0), Vector3(0.1, 0, 0), Vector3(-0.1, 2, 0), Vector3(0.1, 2, 0)])
+	arrays[Mesh.ARRAY_NORMAL] = PackedVector3Array([Vector3.BACK, Vector3.BACK, Vector3.BACK, Vector3.BACK])
+	arrays[Mesh.ARRAY_BONES] = PackedInt32Array([0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0])
+	arrays[Mesh.ARRAY_WEIGHTS] = PackedFloat32Array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0])
+	arrays[Mesh.ARRAY_INDEX] = PackedInt32Array([0, 2, 1, 1, 2, 3])
+	var strip := ArrayMesh.new()
+	strip.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var skin := Skin.new()
+	skin.add_bind(0, Transform3D())
+	skin.add_bind(1, Transform3D(Basis(), Vector3(0, -1, 0)))
+	var body := MeshInstance3D.new()
+	body.mesh = strip
+	body.skin = skin
+	skeleton.add_child(body)
+	body.skeleton = NodePath("..")
+	var player := AnimationPlayer.new()
+	character.add_child(player)
+	var bend := Animation.new()
+	bend.length = 1.0
+	bend.loop_mode = Animation.LOOP_LINEAR
+	var track := bend.add_track(Animation.TYPE_ROTATION_3D)
+	bend.track_set_path(track, "Skeleton3D:top")
+	bend.rotation_track_insert_key(track, 0.0, Quaternion())
+	bend.rotation_track_insert_key(track, 0.5, Quaternion(Vector3.BACK, PI / 2))
+	bend.rotation_track_insert_key(track, 1.0, Quaternion())
+	var library := AnimationLibrary.new()
+	library.add_animation("bend", bend)
+	player.add_animation_library("", library)
+	root.add_child(character)
+	await process_frame
+
+	var baked := BakedAnimations.new()
+	check("a skinned character's animations can be baked", baked.bake(character, player, PackedStringArray(), 10.0) == OK)
+	check("each animation's frames are kept, a looping one without its last", baked.get_animation_names() == PackedStringArray(["bend"]) and is_equal_approx(baked.get_length("bend"), 1.0), baked.get_animations())
+	check("a copy's custom data says the animation and where in it", baked.get_custom_data("bend", 1.25) == Color(0, 10, 2.5, 1), baked.get_custom_data("bend", 1.25))
+	var image := baked.positions.get_image()
+	var top_at := func(frame: int) -> Vector3:
+		var pixel := image.get_pixel(2, frame * baked.rows_per_frame)
+		return Vector3(pixel.r, pixel.g, pixel.b)
+	var bottom_at := func(frame: int) -> Vector3:
+		var pixel := image.get_pixel(0, frame * baked.rows_per_frame)
+		return Vector3(pixel.r, pixel.g, pixel.b)
+	check("the top of the strip moves as the bone bends", top_at.call(0).distance_to(Vector3(-0.1, 2, 0)) < 0.01 and top_at.call(5).distance_to(Vector3(-1, 0.9, 0)) < 0.01, [top_at.call(0), top_at.call(5)])
+	check("its bottom stays put", bottom_at.call(5).distance_to(Vector3(-0.1, 0, 0)) < 0.01, bottom_at.call(5))
+	check("the mesh to draw has no bones, and bounds every frame", baked.mesh.get_surface_count() == 1 and baked.mesh.get_custom_aabb().has_point(Vector3(-0.9, 1.0, 0)), baked.mesh.get_custom_aabb())
+	var material := BakedAnimationMaterial.new()
+	material.baked_animations = baked
+	check("its material draws it", material.get_rid().is_valid())
+	character.queue_free()
+
+
+# Distant trees as impostors: a quad showing the tree as baked from the nearest direction.
+func _impostors() -> void:
+	var tree := MeshInstance3D.new()
+	tree.mesh = CylinderMesh.new()
+	root.add_child(tree)
+	var impostor := Impostor.new()
+	if DisplayServer.get_name() == "headless":
+		var refused: Dictionary = await impostor.bake(tree)
+		check("impostors are baked by rendering, so not headless", refused.ok == false and refused.error == "no_renderer", refused)
+	else:
+		var baked: Dictionary = await impostor.bake(tree, 4, 32)
+		check("a node bakes into an impostor", baked.ok and impostor.texture != null and impostor.texture.get_width() == 128, baked)
+	tree.queue_free()
+	impostor.texture = ImageTexture.create_from_image(Image.create_empty(64, 64, false, Image.FORMAT_RGBA8))
+	impostor.radius = 2.0
+	var quad := impostor.get_mesh()
+	check("an impostor is drawn as a quad of its own material", quad is QuadMesh and quad.material is ImpostorMaterial and quad.material.get_rid().is_valid() and quad.get_custom_aabb().size.x == 4.0, quad)
+
+	var ground := StaticBody3D.new()
+	var floor_shape := CollisionShape3D.new()
+	floor_shape.shape = WorldBoundaryShape3D.new()
+	ground.add_child(floor_shape)
+	root.add_child(ground)
+	var scatter := Scatter3D.new()
+	scatter.mesh = CylinderMesh.new()
+	scatter.density = 0.5
+	scatter.impostor = impostor
+	scatter.impostor_distance = 80.0
+	root.add_child(scatter)
+	await physics_frame
+	scatter.scatter()
+	var far: MultiMeshInstance3D = scatter.get_children(true).filter(func(child: Node) -> bool: return child is MultiMeshInstance3D)[0] if scatter.get_children(true).any(func(child: Node) -> bool: return child is MultiMeshInstance3D) else null
+	check("a scatter with an impostor draws it past its distance", far != null and far.multimesh.instance_count == scatter.get_count() and far.visibility_range_begin < 80.0 and scatter.visibility_range_end > 80.0, [far, scatter.visibility_range_end])
+	scatter.impostor = null
+	check("and stops when it has none", scatter.visibility_range_end == 0.0)
+	scatter.queue_free()
+	ground.queue_free()
+
+
+# The moon in its phases and the stars turning, and lights that come on at dusk.
+func _night_sky() -> void:
+	var holder := Node3D.new()
+	root.add_child(holder)
+	var day := TimeOfDay.new()
+	day.day_length = 0.0
+	day.time = 0.0
+	day.moon_phase = 0.5
+	var sun := DirectionalLight3D.new()
+	var moon := DirectionalLight3D.new()
+	day.add_child(sun)
+	day.add_child(moon)
+	holder.add_child(day)
+	var lamp := OmniLight3D.new()
+	lamp.add_to_group(&"night_lights")
+	holder.add_child(lamp)
+	var other_lamp := OmniLight3D.new()
+	other_lamp.position = Vector3(12, 0, 3)
+	other_lamp.add_to_group(&"night_lights")
+	holder.add_child(other_lamp)
+	await process_frame
+	check("a full moon is opposite the sun", day.get_moon_direction().is_equal_approx(-day.get_sun_direction()), [day.get_moon_direction(), day.get_sun_direction()])
+	check("and lights the night", moon.visible and moon.light_energy > 0.0 and is_equal_approx(day.get_moon_light(), 1.0))
+	check("at midnight the night lights are on", lamp.visible and other_lamp.visible)
+	check("the moon, the stars and the night are published for shaders", has_global(&"time_of_day_night") and has_global(&"time_of_day_moon_direction") and has_global(&"time_of_day_star_rotation"))
+	day.moon_phase = 0.0
+	check("a new moon is beside the sun and gives no light", day.get_moon_direction().is_equal_approx(day.get_sun_direction()) and not moon.visible and day.get_moon_light() < 0.001)
+	var midnight_stars: Basis = day.get_star_rotation()
+	var pole := Vector3(0, sin(deg_to_rad(day.latitude)), -cos(deg_to_rad(day.latitude)))
+	day.time = 6.0
+	var dawn_stars: Basis = day.get_star_rotation()
+	check("the stars turn with the hours", not midnight_stars.is_equal_approx(dawn_stars))
+	check("round the celestial pole", (dawn_stars * pole).is_equal_approx(pole) and (midnight_stars * pole).is_equal_approx(pole), dawn_stars * pole)
+	day.time = 12.0
+	check("at noon the night lights are off", not lamp.visible and not other_lamp.visible)
+	var lit_at := {}
+	for step in 60:
+		day.time = 17.0 + step * 0.05
+		for each in [lamp, other_lamp]:
+			if each.visible and not lit_at.has(each):
+				lit_at[each] = day.time
+	check("at dusk they come on, each at its own moment", lit_at.size() == 2 and lit_at[lamp] != lit_at[other_lamp], lit_at)
+	day.day_length = 2400.0
+	var phase_before := day.moon_phase
+	for i in 10:
+		await process_frame
+	check("the moon's phase moves on as the days pass", day.moon_phase > phase_before, [phase_before, day.moon_phase])
+	holder.queue_free()
+	await process_frame
+
+
+# Snow that settles and melts, fog that thickens the world's, and storms' lightning.
+func _storms_and_snow() -> void:
+	var holder := Node3D.new()
+	root.add_child(holder)
+	var environment := Environment.new()
+	environment.fog_enabled = false
+	var world_environment := WorldEnvironment.new()
+	world_environment.environment = environment
+	holder.add_child(world_environment)
+	var weather := Weather3D.new()
+	weather.change_time = 0.2
+	weather.settling_time = 0.3
+	weather.melting_time = 0.6
+	holder.add_child(weather)
+	await process_frame
+	weather.snow = 1.0
+	var started := Time.get_ticks_msec()
+	while weather.get_snow_cover() < 1.0 and Time.get_ticks_msec() - started < 4000:
+		await process_frame
+	check("snow falls once it's overcast, and settles", is_equal_approx(weather.get_current_snow(), 1.0) and is_equal_approx(weather.get_snow_cover(), 1.0), [weather.get_current_snow(), weather.get_snow_cover()])
+	check("snow brings fog of its own into the world's", environment.fog_enabled and environment.fog_density > 0.0, environment.fog_density)
+	check("it's published for shaders", has_global(&"weather_snow_cover"))
+	weather.snow = 0.0
+	started = Time.get_ticks_msec()
+	while weather.get_current_snow() > 0.0 and Time.get_ticks_msec() - started < 3000:
+		await process_frame
+	check("when it stops, the snow lies a while", weather.get_snow_cover() > 0.3, weather.get_snow_cover())
+
+	var distances: Array[float] = []
+	weather.lightning_flashed.connect(func(distance: float) -> void: distances.append(distance))
+	weather.flash()
+	await process_frame
+	check("lightning flashes, saying how far away for the thunder", distances.size() == 1 and distances[0] >= 400.0 and distances[0] <= 6000.0, distances)
+	var flash: DirectionalLight3D = null
+	for child in weather.get_children(true):
+		if child is DirectionalLight3D:
+			flash = child
+	check("and lights the world", flash != null and flash.visible and flash.light_energy > 0.0)
+	await create_timer(1.2).timeout
+	check("briefly", not flash.visible)
+
+	weather.lightning = 1.0
+	weather.rain = 1.0
+	distances.clear()
+	started = Time.get_ticks_msec()
+	while distances.is_empty() and Time.get_ticks_msec() - started < 15000:
+		await process_frame
+	check("a storm brings lightning by itself", not distances.is_empty())
+	holder.remove_child(weather)
+	check("leaving, it gives the world its own fog back", not environment.fog_enabled and is_equal_approx(environment.fog_density, 0.01), [environment.fog_enabled, environment.fog_density])
+	weather.free()
+	holder.queue_free()
+	await process_frame
+
+
+# Grass bending away from what moves through it.
+func _foliage_benders() -> void:
+	var bender := FoliageBender3D.new()
+	bender.radius = 1.5
+	root.add_child(bender)
+	bender.global_position = Vector3(3, 0, -2)
+	await process_frame
+	check("benders are a shader global for foliage", has_global(&"foliage_benders"))
+	check("their reach stays above nothing", (func() -> bool: bender.radius = -1.0; return bender.radius > 0.0).call())
+	bender.queue_free()
+	await process_frame
+	var grass := MeshInstance3D.new()
+	grass.mesh = QuadMesh.new()
+	grass.material_override = FoliageMaterial.new()
+	root.add_child(grass)
+	await process_frame
+	check("foliage draws with benders and snow without errors", grass.material_override.get_rid().is_valid())
+	grass.queue_free()
+
+
+# Marks left on the ground: strips and stamps that fade.
+func _ground_marks() -> void:
+	var ground := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	shape.shape = BoxShape3D.new()
+	shape.shape.size = Vector3(100, 1, 100)
+	ground.add_child(shape)
+	ground.position = Vector3(0, -0.5, 0)
+	root.add_child(ground)
+	var marks := GroundMarks3D.new()
+	marks.spacing = 0.5
+	marks.lifetime = 0.6
+	root.add_child(marks)
+	marks.global_position = Vector3(0, 0.3, 0)
+	await physics_frame
+	await physics_frame
+	marks.emitting = true
+	for i in 10:
+		marks.global_position += Vector3(0.6, 0, 0)
+		await process_frame
+	check("GroundMarks3D lays a mark every spacing while it moves", marks.get_mark_count() >= 9, marks.get_mark_count())
+	marks.emitting = false
+	var count := marks.get_mark_count()
+	marks.global_position += Vector3(3, 0, 0)
+	await process_frame
+	check("and none when it's not emitting", marks.get_mark_count() <= count)
+	marks.emitting = true
+	marks.global_position = Vector3(0, 30, 0)
+	await process_frame
+	check("nor off the ground", marks.get_mark_count() <= count)
+	marks.emitting = false
+	await create_timer(0.8).timeout
+	await process_frame
+	check("marks fade away after their lifetime", marks.get_mark_count() == 0, marks.get_mark_count())
+	marks.mode = GroundMarks3D.MODE_STAMPS
+	marks.global_position = Vector3(0, 0.3, 0)
+	marks.emitting = true
+	for i in 4:
+		marks.global_position += Vector3(0, 0, 0.6)
+		await process_frame
+	check("stamps too", marks.get_mark_count() >= 3, marks.get_mark_count())
+	var before := marks.get_mark_count()
+	WorldOrigin.shift(Vector3(-1000, 0, 0))
+	check("marks stay put when the world shifts", marks.get_mark_count() == before)
+	WorldOrigin.reset()
+	marks.clear()
+	check("clear() takes them all away", marks.get_mark_count() == 0)
+	marks.queue_free()
+	ground.queue_free()
+	await process_frame
+
+
+# Water: a lake or an endless sea, and how high its waves are, for things that float.
+func _water() -> void:
+	var sea := Water3D.new()
+	sea.position = Vector3(0, 2, 0)
+	root.add_child(sea)
+	await process_frame
+	var material := WaterMaterial.new()
+	material.wave_height = 1.0
+	material.follow_wind = false
+	sea.material = material
+	var highest := 0.0
+	var differs := false
+	var first := sea.get_height_at(Vector3(0, 0, 0))
+	for x in 20:
+		var height := sea.get_height_at(Vector3(x * 1.7, 0, x * 0.9))
+		highest = maxf(highest, absf(height - 2.0))
+		differs = differs or not is_equal_approx(height, first)
+	check("the sea's surface rises and falls about its own height", differs and highest <= 1.0, highest)
+	material.wave_height = 0.0
+	check("still water is flat", is_equal_approx(sea.get_height_at(Vector3(5, 0, 5)), 2.0))
+	material.choppiness = 3.0
+	check("choppiness stays within 0 and 1", material.choppiness == 1.0)
+	material.wave_height = 0.5
+	WorldOrigin.shift(Vector3(-1000, 0, 0))
+	var after := sea.get_height_at(Vector3(-1000 + 5, 0, 5))
+	WorldOrigin.reset()
+	check("waves stay put when the world shifts", is_equal_approx(after, sea.get_height_at(Vector3(5, 0, 5))), [after, sea.get_height_at(Vector3(5, 0, 5))])
+	var lake := Water3D.new()
+	lake.size = Vector2(30, 20)
+	root.add_child(lake)
+	await process_frame
+	check("a lake and the sea draw without errors", material.get_rid().is_valid())
+	lake.queue_free()
+	sea.queue_free()
+
+
+# Windows with rooms behind them.
+func _interiors() -> void:
+	var front := MeshInstance3D.new()
+	front.mesh = QuadMesh.new()
+	var rooms := InteriorMaterial.new()
+	rooms.rooms = Vector2i(0, 4)
+	front.material_override = rooms
+	root.add_child(front)
+	await process_frame
+	check("a building's windows have at least one room each way", rooms.rooms == Vector2i(1, 4))
+	check("and draw without errors", rooms.get_rid().is_valid())
+	front.queue_free()

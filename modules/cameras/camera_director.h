@@ -6,7 +6,9 @@
 
 #include "core/templates/hash_map.h"
 #include "scene/main/node.h"
+#include "scene/resources/camera_attributes.h"
 
+class Camera3D;
 class VirtualCamera2D;
 class VirtualCamera3D;
 
@@ -20,6 +22,9 @@ class CameraDirector : public Node {
 		real_t blend_progress = 0.0;
 		Transform3D from_3d;
 		real_t from_fov = 75.0;
+		bool focusing = false; // Its depth of field is the live camera's autofocus.
+		Ref<CameraAttributes> own_attributes; // The camera's, given back when focusing ends.
+		Ref<CameraAttributesPractical> focus_attributes; // Made for focusing when it had none.
 		Vector2 from_position;
 		Vector2 from_zoom = Vector2(1, 1);
 	};
@@ -35,6 +40,7 @@ class CameraDirector : public Node {
 	template <typename T>
 	static void _end_live(View &p_view);
 	void _direct_3d(real_t p_delta);
+	void _focus(View &p_view, Camera3D *p_camera, const VirtualCamera3D *p_live);
 	void _direct_2d(real_t p_delta);
 
 protected:

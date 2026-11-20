@@ -43,6 +43,8 @@ render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_sc
 
 // WorldOrigin's offset: world positions plus this are map positions, where the terrain's data is.
 global uniform vec3 map_offset;
+// Weather3D's snow and where the sky is open (modules/graphics/weather_snow_shader.h).
+//INSERT: WEATHER_SNOW
 // Private uniforms
 group_uniforms private;
 uniform vec3 _target_pos = vec3(0.f);
@@ -640,6 +642,17 @@ void fragment() {
 	mat.normal_map_depth *= distant_normal_amplifier;
 
 	//INSERT: MACRO_VARIATION
+
+	// Snow settling (Weather3D's snow cover): first on the flattest ground, last on steep slopes,
+	// filling the low spots of each texture's height before covering its tops.
+	if (weather_snow_cover > 0.0) {
+		float lying = weather_snow_cover * 1.3 - (1.0 - smoothstep(0.55, 0.85, w_normal.y)) - mat.albedo_height.a * 0.3;
+		float snow = smoothstep(0.0, 0.15, lying) * weather_open_sky(v_vertex - map_offset + vec3(0.0, 0.05, 0.0));
+		mat.albedo_height.rgb = mix(mat.albedo_height.rgb, vec3(0.9, 0.92, 0.95), snow);
+		mat.normal_rough.a = mix(mat.normal_rough.a, 0.65, snow);
+		mat.normal_map_depth *= 1.0 - snow * 0.75;
+		color_map = vec4(mix(color_map.rgb, vec3(1.0), snow), mix(color_map.a, 0.5, snow));
+	}
 
 	// Wetness/roughness modifier, converting 0 - 1 range to -1 to 1 range, clamped to Godot roughness values 
 	float wetness = fma(color_map.a, -2., 1.);

@@ -18,6 +18,8 @@
 #include "servers/navigation_3d/navigation_server_3d.h"
 #endif
 #include "modules/noise/fastnoise_lite.h"
+#include "modules/world/water_3d.h"
+#include "modules/world/water_material.h"
 #include "modules/noise/noise_texture_2d.h"
 #include "scene/3d/label_3d.h"
 #include "scene/3d/light_3d.h"
@@ -86,6 +88,12 @@ void Terrain3D::_initialize() {
 		LOG(DEBUG, "Connecting _data::height_maps_changed signal to update_aabbs()");
 		_data->connect("height_maps_changed", callable_mp(this, &Terrain3D::_update_mesher_aabbs));
 	}
+	// Regions loaded, unloaded or sculpted: their occluders follow.
+	if (!_data->is_connected("height_maps_changed", callable_mp(this, &Terrain3D::_occluder_regions_changed))) {
+		_data->connect("height_maps_changed", callable_mp(this, &Terrain3D::_occluder_regions_changed));
+		_data->connect("region_map_changed", callable_mp(this, &Terrain3D::_occluder_regions_changed));
+		_data->connect("maps_edited", callable_mp(this, &Terrain3D::_occluders_edited));
+	}
 	// Texture assets changed, update material uniforms without rebuilding shaders
 	if (!_assets->is_connected("textures_changed", callable_mp(_material.ptr(), &Terrain3DMaterial::update).bind(Terrain3DMaterial::TEXTURE_ARRAYS))) {
 		LOG(DEBUG, "Connecting _assets.textures_changed to _material->update()");
@@ -100,7 +108,7 @@ void Terrain3D::_initialize() {
 		_collision->initialize(this);
 		_instancer->initialize(this);
 		_setup_terrain_mesher();
-		_setup_ocean_mesher();
+		_setup_ocean();
 		_update_displacement_buffer();
 		_initialized = true;
 		snap();
@@ -145,9 +153,6 @@ void Terrain3D::__physics_process(const double p_delta) {
 	} else if (_terrain_mesher) {
 		_terrain_mesher->snap();
 	}
-	if (_ocean_enabled && _ocean_mesher) {
-		_ocean_mesher->snap();
-	}
 	if (_light_target.is_valid()) {
 		DirectionalLight3D *light = cast_to<DirectionalLight3D>(_light_target.ptr());
 		if (light) {
@@ -158,12 +163,6 @@ void Terrain3D::__physics_process(const double p_delta) {
 					_material->set_shader_param("_light_color", color);
 					_material->set_shader_param("_light_direction", direction);
 				}
-				if (_ocean_material.is_valid()) {
-					if (ShaderMaterial *ocean_shader_mat = Object::cast_to<ShaderMaterial>(_ocean_material.ptr())) {
-						ocean_shader_mat->set_shader_parameter("_light_color", color);
-						ocean_shader_mat->set_shader_parameter("_light_direction", direction);
-					}
-				}
 				_last_light_color = color;
 				_last_light_direction = direction;
 			}
@@ -171,6 +170,9 @@ void Terrain3D::__physics_process(const double p_delta) {
 	}
 	if (_collision && _collision->is_dynamic_mode()) {
 		_collision->update();
+	}
+	if (_occluders_enabled && _occluders.needs_update()) {
+		_occluders.update(this);
 	}
 }
 
@@ -221,64 +223,30 @@ void Terrain3D::_destroy_terrain_mesher(const bool p_final) {
 	}
 }
 
-// The built-in ocean, given to a terrain whose ocean is turned on without a material, so it can be
-// changed in the inspector.
-Ref<ShaderMaterial> Terrain3D::_make_ocean_material() {
-	Ref<Shader> shader;
-	shader.instantiate();
-	shader->set_code(
-#include "shaders/ocean.glsl"
-	);
-	Ref<FastNoiseLite> noise;
-	noise.instantiate();
-	noise->set_noise_type(FastNoiseLite::TYPE_CELLULAR);
-	noise->set_frequency(0.029f);
-	noise->set_fractal_type(FastNoiseLite::FRACTAL_RIDGED);
-	noise->set_fractal_octaves(3);
-	noise->set_fractal_gain(0.195f);
-	noise->set_cellular_return_type(FastNoiseLite::RETURN_DISTANCE2_ADD);
-	Ref<NoiseTexture2D> foam;
-	foam.instantiate();
-	foam->set_generate_mipmaps(false);
-	foam->set_seamless(true);
-	foam->set_noise(noise);
-	Ref<ShaderMaterial> material;
-	material.instantiate();
-	material->set_shader(shader);
-	material->set_shader_parameter("foam_noise_texture", foam);
-	return material;
-}
-
-void Terrain3D::_setup_ocean_mesher() {
+// The sea: an endless Water3D at ocean_level, drawn with ocean_material (a WaterMaterial, made
+// when there's none, so it can be changed in the inspector).
+void Terrain3D::_setup_ocean() {
 	// Until it's in a world, the scene may still be loading its ocean_material.
-	if (_ocean_enabled && _is_inside_world) {
-		if (!_ocean_mesher) {
-			LOG(DEBUG, "Creating mesher");
-			_ocean_mesher = new Terrain3DMesher();
-		}
-		if (_ocean_material.is_null()) {
-			_ocean_material = _make_ocean_material();
-		}
-		ShaderMaterial *ocean_shader_mat = Object::cast_to<ShaderMaterial>(_ocean_material.ptr());
-		_ocean_mesher->initialize(this, _ocean_mesh_size, _ocean_mesh_lods, _ocean_tessellation_level, _ocean_vertex_spacing, _ocean_material->get_rid(), _ocean_render_layers);
-		_ocean_mesher->update_aabbs(_ocean_cull_margin, V2_ZERO);
-		if (ocean_shader_mat) {
-			ocean_shader_mat->set_shader_parameter("_mesh_size", _ocean_mesh_size);
-			ocean_shader_mat->set_shader_parameter("_vertex_spacing", _ocean_vertex_spacing);
-			ocean_shader_mat->set_shader_parameter("_vertex_density", 1.0f / _ocean_vertex_spacing);
-			ocean_shader_mat->set_shader_parameter("_subdiv", pow(2.f, real_t(_ocean_tessellation_level)));
-		}
+	if (!_ocean_enabled || !_is_inside_world) {
+		return;
 	}
+	if (_ocean_material.is_null()) {
+		Ref<WaterMaterial> water;
+		water.instantiate();
+		_ocean_material = water;
+	}
+	if (_ocean == nullptr) {
+		_ocean = memnew(Water3D);
+		add_child(_ocean, false, INTERNAL_MODE_BACK);
+	}
+	_ocean->set_position(Vector3(0.0f, _ocean_level, 0.0f));
+	_ocean->set_material(_ocean_material);
 }
 
-void Terrain3D::_destroy_ocean_mesher(const bool p_final) {
-	LOG(INFO, "Destroying ocean mesher");
-	if (_ocean_mesher) {
-		_ocean_mesher->destroy();
-		if (p_final) {
-			delete _ocean_mesher;
-			_ocean_mesher = nullptr;
-		}
+void Terrain3D::_destroy_ocean() {
+	if (_ocean != nullptr) {
+		_ocean->queue_free();
+		_ocean = nullptr;
 	}
 }
 
@@ -956,9 +924,6 @@ void Terrain3D::snap() {
 	if (_terrain_mesher) {
 		_terrain_mesher->reset_target_position();
 	}
-	if (_ocean_enabled && _ocean_mesher) {
-		_ocean_mesher->reset_target_position();
-	}
 	if (_collision) {
 		_collision->reset_target_position();
 	}
@@ -1051,85 +1016,33 @@ void Terrain3D::set_render_layers(const uint32_t p_layers) {
 	}
 }
 
+void Terrain3D::set_occluders_enabled(const bool p_enabled) {
+	SET_IF_DIFF(_occluders_enabled, p_enabled);
+	_occluders.clear();
+}
+
+void Terrain3D::_occluders_edited(const AABB &p_area) {
+	_occluders.mark_dirty(p_area, real_t(_region_size) * _vertex_spacing);
+}
+
 void Terrain3D::set_ocean_enabled(const bool p_enabled) {
 	SET_IF_DIFF(_ocean_enabled, p_enabled);
-	LOG(INFO, "Setting ocean enabled: ", _ocean_enabled);
 	if (_ocean_enabled) {
-		_setup_ocean_mesher();
+		_setup_ocean();
 	} else {
-		_destroy_ocean_mesher(false);
+		_destroy_ocean();
 	}
 	notify_property_list_changed();
 }
 
-void Terrain3D::set_ocean_mesh_lods(const int p_count) {
-	SET_IF_DIFF(_ocean_mesh_lods, CLAMP(p_count, 1, 10));
-	LOG(INFO, "Setting ocean mesh levels: ", _ocean_mesh_lods);
-	if (_ocean_enabled) {
-		_setup_ocean_mesher();
-	}
-}
-
-void Terrain3D::set_ocean_tessellation_level(const int p_level) {
-	SET_IF_DIFF(_ocean_tessellation_level, CLAMP(p_level, 0, 6));
-	LOG(INFO, "Setting ocean tessellation level: ", p_level);
-	if (_ocean_enabled) {
-		_setup_ocean_mesher();
-	}
-}
-
-void Terrain3D::set_ocean_mesh_size(const int p_size) {
-	SET_IF_DIFF(_ocean_mesh_size, CLAMP(p_size & ~1, 8, 256)); // Ensure even
-	LOG(INFO, "Setting ocean mesh size: ", _ocean_mesh_size);
-	if (_ocean_enabled) {
-		_setup_ocean_mesher();
-	}
-}
-
-void Terrain3D::set_ocean_vertex_spacing(const real_t p_spacing) {
-	SET_IF_DIFF(_ocean_vertex_spacing, CLAMP(p_spacing, 0.25f, 100.0f));
-	LOG(INFO, "Setting ocean vertex spacing: ", _ocean_vertex_spacing);
-	if (_ocean_enabled) {
-		_setup_ocean_mesher();
-	}
-}
-
-void Terrain3D::set_ocean_cull_margin(const real_t p_margin) {
-	SET_IF_DIFF(_ocean_cull_margin, CLAMP(p_margin, 0.f, 100000.f));
-	LOG(INFO, "Setting extra cull margin: ", _ocean_cull_margin);
-	if (_ocean_mesher) {
-		_ocean_mesher->update_aabbs(_ocean_cull_margin, V2_ZERO);
-	}
-}
-
-void Terrain3D::set_ocean_cast_shadows(const RSE::ShadowCastingSetting p_cast_shadows) {
-	SET_IF_DIFF(_ocean_cast_shadows, p_cast_shadows);
-	if (_ocean_mesher) {
-		_ocean_mesher->update();
-	}
-}
-
-void Terrain3D::set_ocean_gi_mode(const GeometryInstance3D::GIMode p_gi_mode) {
-	SET_IF_DIFF(_ocean_gi_mode, p_gi_mode);
-	if (_ocean_mesher) {
-		_ocean_mesher->update();
-	}
-}
-
-void Terrain3D::set_ocean_render_layers(const uint32_t p_layers) {
-	SET_IF_DIFF(_ocean_render_layers, p_layers);
-	LOG(INFO, "Setting ocean render layers to: ", p_layers);
-	if (_ocean_enabled) {
-		_setup_ocean_mesher();
-	}
+void Terrain3D::set_ocean_level(const real_t p_level) {
+	SET_IF_DIFF(_ocean_level, p_level);
+	_setup_ocean();
 }
 
 void Terrain3D::set_ocean_material(const Ref<Material> &p_material) {
 	SET_IF_DIFF(_ocean_material, p_material);
-	LOG(INFO, "Setting ocean material");
-	if (_ocean_enabled) {
-		_setup_ocean_mesher();
-	}
+	_setup_ocean();
 }
 
 void Terrain3D::set_mouse_layer(const uint32_t p_layer) {
@@ -1419,6 +1332,7 @@ void Terrain3D::_notification(const int p_what) {
 			if (_terrain_mesher) {
 				_terrain_mesher->update();
 			}
+			_occluders.set_scenario(get_world_3d()->get_scenario());
 			break;
 		}
 
@@ -1481,9 +1395,7 @@ void Terrain3D::_notification(const int p_what) {
 			if (_terrain_mesher) {
 				_terrain_mesher->update();
 			}
-			if (_ocean_mesher) {
-				_ocean_mesher->update();
-			}
+			_occluders.set_visible(is_visible_in_tree());
 			if (_instancer) {
 				if (!is_visible_in_tree()) {
 					_instancer->destroy();
@@ -1546,10 +1458,11 @@ void Terrain3D::_notification(const int p_what) {
 			LOG(INFO, "NOTIFICATION_EXIT_TREE");
 			set_physics_process(false);
 			_destroy_terrain_mesher();
-			_destroy_ocean_mesher();
+			_destroy_ocean();
 			_destroy_instancer();
 			_destroy_mouse_picking();
 			_destroy_displacement_buffer();
+			_occluders.clear();
 			if (_assets.is_valid()) {
 				_assets->uninitialize();
 			}
@@ -1565,6 +1478,7 @@ void Terrain3D::_notification(const int p_what) {
 			// Sent on scene changes
 			LOG(INFO, "NOTIFICATION_EXIT_WORLD");
 			_is_inside_world = false;
+			_occluders.set_scenario(RID());
 			break;
 		}
 
@@ -1572,7 +1486,6 @@ void Terrain3D::_notification(const int p_what) {
 			// Object is about to be deleted
 			LOG(INFO, "NOTIFICATION_PREDELETE");
 			_destroy_terrain_mesher(true);
-			_destroy_ocean_mesher(true);
 			_destroy_instancer();
 			_destroy_collision(true);
 			_assets.unref();
@@ -1708,24 +1621,12 @@ void Terrain3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_buffer_shader_override"), &Terrain3D::get_buffer_shader_override);
 
 	// Ocean Mesh
+	ClassDB::bind_method(D_METHOD("set_occluders_enabled", "enabled"), &Terrain3D::set_occluders_enabled);
+	ClassDB::bind_method(D_METHOD("is_occluders_enabled"), &Terrain3D::is_occluders_enabled);
 	ClassDB::bind_method(D_METHOD("set_ocean_enabled", "enabled"), &Terrain3D::set_ocean_enabled);
 	ClassDB::bind_method(D_METHOD("is_ocean_enabled"), &Terrain3D::is_ocean_enabled);
-	ClassDB::bind_method(D_METHOD("set_ocean_mesh_lods", "count"), &Terrain3D::set_ocean_mesh_lods);
-	ClassDB::bind_method(D_METHOD("get_ocean_mesh_lods"), &Terrain3D::get_ocean_mesh_lods);
-	ClassDB::bind_method(D_METHOD("set_ocean_tessellation_level", "size"), &Terrain3D::set_ocean_tessellation_level);
-	ClassDB::bind_method(D_METHOD("get_ocean_tessellation_level"), &Terrain3D::get_ocean_tessellation_level);
-	ClassDB::bind_method(D_METHOD("set_ocean_mesh_size", "size"), &Terrain3D::set_ocean_mesh_size);
-	ClassDB::bind_method(D_METHOD("get_ocean_mesh_size"), &Terrain3D::get_ocean_mesh_size);
-	ClassDB::bind_method(D_METHOD("set_ocean_vertex_spacing", "scale"), &Terrain3D::set_ocean_vertex_spacing);
-	ClassDB::bind_method(D_METHOD("get_ocean_vertex_spacing"), &Terrain3D::get_ocean_vertex_spacing);
-	ClassDB::bind_method(D_METHOD("set_ocean_cull_margin", "margin"), &Terrain3D::set_ocean_cull_margin);
-	ClassDB::bind_method(D_METHOD("get_ocean_cull_margin"), &Terrain3D::get_ocean_cull_margin);
-	ClassDB::bind_method(D_METHOD("set_ocean_cast_shadows", "shadow_casting_setting"), &Terrain3D::set_ocean_cast_shadows);
-	ClassDB::bind_method(D_METHOD("get_ocean_cast_shadows"), &Terrain3D::get_ocean_cast_shadows);
-	ClassDB::bind_method(D_METHOD("set_ocean_gi_mode", "gi_mode"), &Terrain3D::set_ocean_gi_mode);
-	ClassDB::bind_method(D_METHOD("get_ocean_gi_mode"), &Terrain3D::get_ocean_gi_mode);
-	ClassDB::bind_method(D_METHOD("set_ocean_render_layers", "layers"), &Terrain3D::set_ocean_render_layers);
-	ClassDB::bind_method(D_METHOD("get_ocean_render_layers"), &Terrain3D::get_ocean_render_layers);
+	ClassDB::bind_method(D_METHOD("set_ocean_level", "level"), &Terrain3D::set_ocean_level);
+	ClassDB::bind_method(D_METHOD("get_ocean_level"), &Terrain3D::get_ocean_level);
 	ClassDB::bind_method(D_METHOD("set_ocean_material", "material"), &Terrain3D::set_ocean_material);
 	ClassDB::bind_method(D_METHOD("get_ocean_material"), &Terrain3D::get_ocean_material);
 
@@ -1846,22 +1747,16 @@ void Terrain3D::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "buffer_shader_override_enabled"), "set_buffer_shader_override_enabled", "is_buffer_shader_override_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "buffer_shader_override", PROPERTY_HINT_RESOURCE_TYPE, "Shader"), "set_buffer_shader_override", "get_buffer_shader_override");
 
-	ADD_GROUP("Ocean Mesh", "ocean_");
+	ADD_GROUP("Ocean", "ocean_");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "ocean_enabled"), "set_ocean_enabled", "is_ocean_enabled");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "ocean_mesh_lods", PROPERTY_HINT_RANGE, "1,10,1"), "set_ocean_mesh_lods", "get_ocean_mesh_lods");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "ocean_tessellation_level", PROPERTY_HINT_RANGE, "0,6,1"), "set_ocean_tessellation_level", "get_ocean_tessellation_level");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "ocean_mesh_size", PROPERTY_HINT_RANGE, "8,256,2"), "set_ocean_mesh_size", "get_ocean_mesh_size");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "ocean_vertex_spacing", PROPERTY_HINT_RANGE, "0.25,10.0,0.05,or_greater"), "set_ocean_vertex_spacing", "get_ocean_vertex_spacing");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "ocean_cull_margin", PROPERTY_HINT_RANGE, "0.0,10000.0,.5,or_greater"), "set_ocean_cull_margin", "get_ocean_cull_margin");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "ocean_cast_shadows", PROPERTY_HINT_ENUM, "Off,On,Double-Sided,Shadows Only"), "set_ocean_cast_shadows", "get_ocean_cast_shadows");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "ocean_gi_mode", PROPERTY_HINT_ENUM, "Disabled,Static,Dynamic"), "set_ocean_gi_mode", "get_ocean_gi_mode");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "ocean_render_layers", PROPERTY_HINT_LAYERS_3D_RENDER), "set_ocean_render_layers", "get_ocean_render_layers");
-	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "ocean_material", PROPERTY_HINT_RESOURCE_TYPE, "ShaderMaterial,BaseMaterial3D"), "set_ocean_material", "get_ocean_material");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "ocean_level", PROPERTY_HINT_RANGE, "-1000,1000,0.01,or_less,or_greater,suffix:m"), "set_ocean_level", "get_ocean_level");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "ocean_material", PROPERTY_HINT_RESOURCE_TYPE, "Material"), "set_ocean_material", "get_ocean_material");
 
 	ADD_GROUP("Rendering", "");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "mouse_layer", PROPERTY_HINT_RANGE, "21, 32"), "set_mouse_layer", "get_mouse_layer");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "free_editor_textures"), "set_free_editor_textures", "get_free_editor_textures");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "instancer_mode", PROPERTY_HINT_ENUM, "Disabled,Normal"), "set_instancer_mode", "get_instancer_mode");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "occluders_enabled"), "set_occluders_enabled", "is_occluders_enabled");
 
 	ADD_GROUP("Overlays", "show_");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_region_grid"), "set_show_region_grid", "get_show_region_grid");

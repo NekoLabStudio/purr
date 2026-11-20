@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="WaterMaterial" inherits="Material" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Water for any mesh: waves, depth, foam, rain and flow.
+	</brief_description>
+	<description>
+		Give it to a lake's plane, a river's ribbon or a [Water3D]. Its waves are a few Gerstner waves rolling along [member wave_direction], or along a [Weather3D]'s wind with [member follow_wind], higher in a stronger wind. What's under the surface is seen through it, bent by the waves ([member refraction]) and fading into [member deep_color] the deeper it is: after [member clarity] meters, what's below is [member color] times as bright. Foam gathers along shores and on steep crests, rain ripples the surface, and with [member flow] the surface moves like a river's.
+		The waves stay put when [WorldOrigin] shifts the world. [method get_height_at] gives their height on the CPU, for boats and things that float. It needs the Forward+ or Mobile renderer, and draws in the transparent pass, after what's under it.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_height_at" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="map_position" type="Vector2" />
+			<description>
+				How far above (or below) the still surface the waves are at [param map_position] (a map position's x and z: global plus [member WorldOrigin.offset]), now, as the shader moves the surface there.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="choppiness" type="float" setter="set_choppiness" getter="get_choppiness" default="0.5">
+			How sharp the crests are, from [code]0[/code] (round swells) to [code]1[/code] (pointed crests, where foam gathers).
+		</member>
+		<member name="clarity" type="float" setter="set_clarity" getter="get_clarity" default="3.0">
+			How clear the water is: after this many meters, what's below is [member color] times as bright.
+		</member>
+		<member name="color" type="Color" setter="set_color" getter="get_color" default="Color(0.55, 0.82, 0.78, 1)">
+			What the water does to the light through it, after [member clarity] meters: a pale blue-green keeps the blues and greens and loses the reds.
+		</member>
+		<member name="deep_color" type="Color" setter="set_deep_color" getter="get_deep_color" default="Color(0.01, 0.05, 0.07, 1)">
+			The water's own color where it's deep, lit by the scene.
+		</member>
+		<member name="flow" type="Vector2" setter="set_flow" getter="get_flow" default="Vector2(0, 0)">
+			How fast the surface moves across the world, in meters a second, for rivers and streams.
+		</member>
+		<member name="foam" type="float" setter="set_foam" getter="get_foam" default="0.6">
+			How much foam gathers along shores and on crests, from [code]0[/code] to [code]1[/code].
+		</member>
+		<member name="follow_wind" type="bool" setter="set_follow_wind" getter="is_following_wind" default="true">
+			If [code]true[/code], the waves roll along a [Weather3D]'s wind and grow with it; otherwise along [member wave_direction] at [member wave_height].
+		</member>
+		<member name="refraction" type="float" setter="set_refraction" getter="get_refraction" default="0.03">
+			How much the waves bend what's seen through them.
+		</member>
+		<member name="roughness" type="float" setter="set_roughness" getter="get_roughness" default="0.03">
+			How rough the surface is: low values reflect the sky sharply.
+		</member>
+		<member name="wave_direction" type="Vector2" setter="set_wave_direction" getter="get_wave_direction" default="Vector2(1, 0.3)">
+			Which way the waves roll across the world (x east, y south), without [member follow_wind].
+		</member>
+		<member name="wave_height" type="float" setter="set_wave_height" getter="get_wave_height" default="0.3">
+			How high the highest waves are, crest to trough, in meters. With [member follow_wind], it's scaled by the wind's strength.
+		</member>
+		<member name="wave_length" type="float" setter="set_wave_length" getter="get_wave_length" default="10.0">
+			How far apart the longest waves' crests are, in meters.
+		</member>
+	</members>
+</class>

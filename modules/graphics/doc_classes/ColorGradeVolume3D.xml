@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="ColorGradeVolume3D" inherits="Node3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		A [ColorGrade] for a place, a time of day or a weather.
+	</brief_description>
+	<description>
+		Its [member grade] is blended into the camera's [Environment] (the camera's own, else the world's) while the camera is inside its box ([member size], centered on the node), fading in over [member blend_distance] as the camera comes in. A cave darker and colder, a market warmer, an underwater blue. A [member global] volume applies everywhere.
+		[member when] makes it follow the day and the weather: a [constant WHEN_NIGHT] grade fades in as a [TimeOfDay] turns to night, a [constant WHEN_RAINING] one as a [Weather3D]'s rain starts, so the look of a stormy night is just two global volumes. Where volumes overlap, higher [member priority] goes over lower, each by how much it applies. [member weight] fades it by hand, for a flashback or a cutscene.
+		The environment is given back as it was once the last volume goes. In the editor, it isn't touched.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_influence" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="camera" type="Vector3" />
+			<description>
+				How much of its grade applies with the camera at [param camera] now, from [code]0[/code] to [code]1[/code].
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="blend_distance" type="float" setter="set_blend_distance" getter="get_blend_distance" default="2.0">
+			How far outside its box the grade starts fading in, in meters.
+		</member>
+		<member name="global" type="bool" setter="set_global" getter="is_global" default="false">
+			If [code]true[/code], it applies wherever the camera is, without a box.
+		</member>
+		<member name="grade" type="ColorGrade" setter="set_grade" getter="get_grade">
+			The look it blends in.
+		</member>
+		<member name="priority" type="int" setter="set_priority" getter="get_priority" default="0">
+			Volumes of higher priority are blended over lower ones.
+		</member>
+		<member name="size" type="Vector3" setter="set_size" getter="get_size" default="Vector3(10, 10, 10)">
+			Its box, centered on the node and turned with it, in meters.
+		</member>
+		<member name="weight" type="float" setter="set_weight" getter="get_weight" default="1.0">
+			How much of its grade applies at most, from [code]0[/code] to [code]1[/code].
+		</member>
+		<member name="when" type="int" setter="set_when" getter="get_when" enum="ColorGradeVolume3D.When" default="0">
+			When it applies: always, or as much as it's day, night, dawn or dusk ([TimeOfDay]'s), or overcast, raining or snowing ([Weather3D]'s).
+		</member>
+	</members>
+	<constants>
+		<constant name="WHEN_ALWAYS" value="0" enum="When">
+			It always applies.
+		</constant>
+		<constant name="WHEN_DAY" value="1" enum="When">
+			As much as it's day.
+		</constant>
+		<constant name="WHEN_NIGHT" value="2" enum="When">
+			As much as it's night: [TimeOfDay]'s [code]time_of_day_night[/code].
+		</constant>
+		<constant name="WHEN_DAWN_AND_DUSK" value="3" enum="When">
+			While the sun is near the horizon, most when it's on it.
+		</constant>
+		<constant name="WHEN_OVERCAST" value="4" enum="When">
+			As much as a [Weather3D]'s sky is overcast.
+		</constant>
+		<constant name="WHEN_RAINING" value="5" enum="When">
+			As hard as a [Weather3D]'s rain falls.
+		</constant>
+		<constant name="WHEN_SNOWING" value="6" enum="When">
+			As hard as a [Weather3D]'s snow falls.
+		</constant>
+	</constants>
+</class>

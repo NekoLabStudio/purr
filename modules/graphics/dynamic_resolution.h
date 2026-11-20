@@ -59,6 +59,8 @@ public:
 	float get_max_scale() const;
 	float get_scale() const;
 	float get_frame_rate_target() const;
+	// Whether it's running and can still draw fewer pixels: FramePacing leaves late frames to it till then.
+	bool can_lower_resolution() const;
 
 	// The graphics benchmark measures fixed settings, so it holds dynamic resolution while it runs.
 	void set_paused(bool p_paused);

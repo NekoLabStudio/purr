@@ -8,7 +8,7 @@ godot/bin/
 .scons_cache/
 
 # Headers modules generate as they build
-modules/*/*.gen.h
+modules/**/*.gen.h
 
 # Cargo output of the VR streamer
 modules/vr_streamer/streamer/target/

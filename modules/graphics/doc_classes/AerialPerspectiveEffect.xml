@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="AerialPerspectiveEffect" inherits="CompositorEffect" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		The air between the camera and the scene.
+	</brief_description>
+	<description>
+		Far hills paler and bluer, a city's far end lost in haze, a low sun's air golden: the same air as an [AtmosphereSkyMaterial]'s, laid over the scene by each pixel's distance, so the scene and the sky meet at the horizon. Use it in place of the [Environment]'s fog. Without an [AtmosphereSkyMaterial] in use, it draws nothing.
+		Add it to a [Compositor]'s [member Compositor.compositor_effects], on a [WorldEnvironment] or [Camera3D]. It's drawn after the scene's see-through objects, before tonemapping, with the Forward+ renderer; with the others it draws nothing.
+	</description>
+	<tutorials>
+		<link title="Time of day and weather">https://oss.nekolab.studio/purr/modules/time-of-day/#the-sky</link>
+	</tutorials>
+	<members>
+		<member name="reach" type="float" setter="set_reach" getter="get_reach" default="4000.0">
+			How far out the air is worked out, in meters: past the camera's far plane. Beyond it, the air is as at its end.
+		</member>
+	</members>
+</class>

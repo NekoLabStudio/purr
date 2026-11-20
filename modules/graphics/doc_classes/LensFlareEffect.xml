@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="LensFlareEffect" inherits="CompositorEffect" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		The sun's light bouncing inside the camera's lens.
+	</brief_description>
+	<description>
+		A glare round the sun and colored ghosts along the line from it through the screen's center, with a faint halo, as the sun's light bouncing inside a camera's lens makes. The sun is the brightest [DirectionalLight3D] lighting the scene. The flare fades as the sun goes behind something or leaves the screen. Add it to a [Compositor]'s [member Compositor.compositor_effects], on a [WorldEnvironment] or [Camera3D]. It's drawn after the scene's see-through objects, before tonemapping, in each view (both eyes in VR), with the Forward+ renderer; with the others it draws nothing.
+	</description>
+	<tutorials>
+		<link title="Screen effects">https://oss.nekolab.studio/purr/modules/graphics/#screen-effects</link>
+	</tutorials>
+	<members>
+		<member name="color" type="Color" setter="set_color" getter="get_color" default="Color(1, 1, 1, 1)">
+			Tints the flare, on top of the sun's own color.
+		</member>
+		<member name="ghosts" type="float" setter="set_ghosts" getter="get_ghosts" default="1.0">
+			How bright the ghosts and halo are against the glare.
+		</member>
+		<member name="glare_size" type="float" setter="set_glare_size" getter="get_glare_size" default="0.15">
+			The size of the glare round the sun, in screen heights.
+		</member>
+		<member name="strength" type="float" setter="set_strength" getter="get_strength" default="0.2">
+			How bright the flare is, times the sun's color and energy.
+		</member>
+	</members>
+</class>

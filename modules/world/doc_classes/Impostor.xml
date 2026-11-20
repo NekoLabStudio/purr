@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Impostor" inherits="Resource" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		A node baked from many directions, drawn far away as a single quad.
+	</brief_description>
+	<description>
+		Far away, a tree's thousands of leaves cover a few pixels. An [Impostor] is the tree (or a rock, or a building) baked from many directions over the upper half of a sphere into one texture, and drawn as a single quad turned to the camera showing the view baked nearest its direction: a fraction of the cost, and from far away it looks the same.
+		Bake it with [method bake] from a node in the scene, in a tool script in the editor (then save it) or as the game loads, and give it to a [Scatter3D]'s [member Scatter3D.impostor], or draw [method get_mesh] yourself (with an [InstanceGroup3D] or a [MultiMeshInstance3D] past a visibility range).
+		[codeblock]
+		var impostor := Impostor.new()
+		var result: Dictionary = await impostor.bake($Oak)
+		if result.ok:
+		    ResourceSaver.save(impostor, "res://trees/oak_impostor.res")
+		[/codeblock]
+	</description>
+	<tutorials>
+		<link title="Scattering">https://oss.nekolab.studio/purr/modules/scattering/#far-away</link>
+	</tutorials>
+	<methods>
+		<method name="bake">
+			<return type="Signal" />
+			<param index="0" name="node" type="Node3D" />
+			<param index="1" name="grid" type="int" default="8" />
+			<param index="2" name="tile_size" type="int" default="128" />
+			<description>
+				Bakes [param node] and everything visible under it, as it looks unlit, from [param grid] by [param grid] directions, each [param tile_size] pixels square. It renders, a view a frame or two, so it takes a moment and doesn't work headless. Await the signal for a [Dictionary]: [code]ok[/code], or [code]error[/code] ([code]"not_in_tree"[/code], [code]"no_renderer"[/code], [code]"nothing_to_bake"[/code] or [code]"not_drawn"[/code]) and [code]message[/code].
+			</description>
+		</method>
+		<method name="get_mesh" qualifiers="const">
+			<return type="Mesh" />
+			<description>
+				The quad to draw the impostor with, with its [ImpostorMaterial] set up.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="center" type="Vector3" setter="set_center" getter="get_center" default="Vector3(0, 0, 0)">
+			The middle of what was baked, in the node's own space.
+		</member>
+		<member name="grid" type="int" setter="set_grid" getter="get_grid" default="8">
+			How many directions across and down the texture holds.
+		</member>
+		<member name="radius" type="float" setter="set_radius" getter="get_radius" default="1.0">
+			How far what was baked reaches from [member center].
+		</member>
+		<member name="texture" type="Texture2D" setter="set_texture" getter="get_texture">
+			The baked views.
+		</member>
+	</members>
+</class>

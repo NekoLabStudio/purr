@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Thu, 19 Nov 2026 16:48:24 +0000
+Subject: [PATCH] Particles: give the renderer a heightfield collider's texture
+
+A heightfield collider renders the depth of what's over its box from above.
+Rendering effects can read the same texture to know which surfaces are open
+to the sky, instead of rendering the scene from above a second time.
+---
+ .../rendering/renderer_rd/storage_rd/particles_storage.cpp  | 6 ++++++
+ .../rendering/renderer_rd/storage_rd/particles_storage.h    | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/godot/servers/rendering/renderer_rd/storage_rd/particles_storage.cpp b/godot/servers/rendering/renderer_rd/storage_rd/particles_storage.cpp
+index 3d2f26d4..d220456a 100644
+--- a/godot/servers/rendering/renderer_rd/storage_rd/particles_storage.cpp
++++ b/godot/servers/rendering/renderer_rd/storage_rd/particles_storage.cpp
+@@ -1904,6 +1904,12 @@ RID ParticlesStorage::particles_collision_get_heightfield_framebuffer(RID p_part
+ 	return particles_collision->heightfield_fb;
+ }
+ 
++RID ParticlesStorage::particles_collision_get_heightfield_texture(RID p_particles_collision) const {
++	// Quietly empty for a collider freed meanwhile: effects ask for it every frame.
++	const ParticlesCollision *particles_collision = particles_collision_owner.get_or_null(p_particles_collision);
++	return particles_collision != nullptr ? particles_collision->heightfield_texture : RID();
++}
++
+ void ParticlesStorage::particles_collision_set_collision_type(RID p_particles_collision, RSE::ParticlesCollisionType p_type) {
+ 	ParticlesCollision *particles_collision = particles_collision_owner.get_or_null(p_particles_collision);
+ 	ERR_FAIL_NULL(particles_collision);
+diff --git a/godot/servers/rendering/renderer_rd/storage_rd/particles_storage.h b/godot/servers/rendering/renderer_rd/storage_rd/particles_storage.h
+index b95b756a..9713bae5 100644
+--- a/godot/servers/rendering/renderer_rd/storage_rd/particles_storage.h
++++ b/godot/servers/rendering/renderer_rd/storage_rd/particles_storage.h
+@@ -598,6 +598,7 @@ public:
+ 	Vector3 particles_collision_get_extents(RID p_particles_collision) const;
+ 	virtual bool particles_collision_is_heightfield(RID p_particles_collision) const override;
+ 	RID particles_collision_get_heightfield_framebuffer(RID p_particles_collision) const;
++	RID particles_collision_get_heightfield_texture(RID p_particles_collision) const;
+ 	virtual uint32_t particles_collision_get_height_field_mask(RID p_particles_collision) const override;
+ 	virtual void particles_collision_set_height_field_mask(RID p_particles_collision, uint32_t p_heightfield_mask) override;
+ 	virtual uint32_t particles_collision_get_cull_mask(RID p_particles_collision) const override;
+-- 
+2.54.0 (Apple Git-157)
+

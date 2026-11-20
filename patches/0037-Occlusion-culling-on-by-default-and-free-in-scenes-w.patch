@@ -1,0 +1,77 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Thu, 19 Nov 2026 11:29:13 +0000
+Subject: [PATCH] Occlusion culling: on by default, and free in scenes without
+ occluders
+
+rendering/occlusion_culling/use_occlusion_culling now defaults to true, so
+occluders work as soon as a scene has them. A scenario with no occluders
+gets no occlusion buffer drawn and its objects aren't tested against one,
+so having it on costs nothing until then.
+---
+ godot/doc/classes/ProjectSettings.xml            |  4 ++--
+ godot/modules/raycast/raycast_occlusion_cull.cpp | 11 ++++++++++-
+ godot/scene/main/scene_tree.cpp                  |  2 +-
+ 3 files changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/godot/doc/classes/ProjectSettings.xml b/godot/doc/classes/ProjectSettings.xml
+index 1c295f85..d042f2f9 100644
+--- a/godot/doc/classes/ProjectSettings.xml
++++ b/godot/doc/classes/ProjectSettings.xml
+@@ -3302,9 +3302,9 @@
+ 			The number of occlusion rays traced per CPU thread. Higher values will result in more accurate occlusion culling, at the cost of higher CPU usage. The occlusion culling buffer's pixel count is roughly equal to [code]occlusion_rays_per_thread * number_of_logical_cpu_cores[/code], so it will depend on the system's CPU. Therefore, CPUs with fewer cores will use a lower resolution to attempt keeping performance costs even across devices. See also [member rendering/occlusion_culling/bvh_build_quality].
+ 			[b]Note:[/b] This property is only read when the project starts. To adjust the number of occlusion rays traced per thread at runtime, use [method RenderingServer.viewport_set_occlusion_rays_per_thread].
+ 		</member>
+-		<member name="rendering/occlusion_culling/use_occlusion_culling" type="bool" setter="" getter="" default="false">
++		<member name="rendering/occlusion_culling/use_occlusion_culling" type="bool" setter="" getter="" default="true">
+ 			If [code]true[/code], [OccluderInstance3D] nodes will be usable for occlusion culling in 3D in the root viewport. In custom viewports, [member Viewport.use_occlusion_culling] must be set to [code]true[/code] instead.
+-			[b]Note:[/b] Enabling occlusion culling has a cost on the CPU. Only enable occlusion culling if you actually plan to use it. Large open scenes with few or no objects blocking the view will generally not benefit much from occlusion culling. Large open scenes generally benefit more from mesh LOD and visibility ranges ([member GeometryInstance3D.visibility_range_begin] and [member GeometryInstance3D.visibility_range_end]) compared to occlusion culling.
++			[b]Note:[/b] Occlusion culling costs CPU time only in scenes that have occluders. Large open scenes with few or no objects blocking the view will generally not benefit much from occlusion culling. Large open scenes generally benefit more from mesh LOD and visibility ranges ([member GeometryInstance3D.visibility_range_begin] and [member GeometryInstance3D.visibility_range_end]) compared to occlusion culling.
+ 			[b]Note:[/b] Due to memory constraints, occlusion culling is not supported by default in Web export templates. It can be enabled by compiling custom Web export templates with [code]module_raycast_enabled=yes[/code].
+ 		</member>
+ 		<member name="rendering/reflections/reflection_atlas/reflection_count" type="int" setter="" getter="" default="64">
+diff --git a/godot/modules/raycast/raycast_occlusion_cull.cpp b/godot/modules/raycast/raycast_occlusion_cull.cpp
+index 1c402ad0..7d142a95 100644
+--- a/godot/modules/raycast/raycast_occlusion_cull.cpp
++++ b/godot/modules/raycast/raycast_occlusion_cull.cpp
+@@ -606,6 +606,9 @@ void RaycastOcclusionCull::buffer_update(RID p_buffer, const Transform3D &p_cam_
+ 
+ 	Scenario &scenario = scenarios[buffer.scenario_rid];
+ 	scenario.update();
++	if (scenario.instances.is_empty()) {
++		return; // Nothing to draw: buffer_get_ptr() leaves the scene's objects untested.
++	}
+ 
+ 	Rect2 vp_rect = _get_viewport_rect(p_cam_projection);
+ 	Vector2 bottom_left = vp_rect.position;
+@@ -623,7 +626,13 @@ RaycastOcclusionCull::HZBuffer *RaycastOcclusionCull::buffer_get_ptr(RID p_buffe
+ 	if (!buffers.has(p_buffer)) {
+ 		return nullptr;
+ 	}
+-	return &buffers[p_buffer];
++	RaycastHZBuffer &buffer = buffers[p_buffer];
++	// A scene without occluders has nothing to hide its objects: they aren't tested one by one.
++	const Scenario *scenario = scenarios.getptr(buffer.scenario_rid);
++	if (scenario == nullptr || scenario->instances.is_empty()) {
++		return nullptr;
++	}
++	return &buffer;
+ }
+ 
+ RID RaycastOcclusionCull::buffer_get_debug_texture(RID p_buffer) {
+diff --git a/godot/scene/main/scene_tree.cpp b/godot/scene/main/scene_tree.cpp
+index b755ff42..1364eb8a 100644
+--- a/godot/scene/main/scene_tree.cpp
++++ b/godot/scene/main/scene_tree.cpp
+@@ -2161,7 +2161,7 @@ SceneTree::SceneTree() {
+ 	const bool use_debanding = GLOBAL_GET("rendering/anti_aliasing/quality/use_debanding");
+ 	root->set_use_debanding(use_debanding);
+ 
+-	const bool use_occlusion_culling = GLOBAL_DEF("rendering/occlusion_culling/use_occlusion_culling", false);
++	const bool use_occlusion_culling = GLOBAL_DEF("rendering/occlusion_culling/use_occlusion_culling", true);
+ 	root->set_use_occlusion_culling(use_occlusion_culling);
+ 
+ 	float mesh_lod_threshold = GLOBAL_DEF(PropertyInfo(Variant::FLOAT, "rendering/mesh_lod/lod_change/threshold_pixels", PROPERTY_HINT_RANGE, "0,1024,0.1"), 1.0);
+-- 
+2.54.0 (Apple Git-157)
+

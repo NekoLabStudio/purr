@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="FoliageMaterial" inherits="Material" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		A material for grass, leaves and plants that sway in the wind.
+	</brief_description>
+	<description>
+		For grass, leaves and plants: drawn from both sides, cut out by the texture's alpha, and lit through from behind. Each copy leans with the wind, bending more the higher it is above its origin, catches gusts that roll across the world, and flutters a little on its own, so a field of grass or a wood never moves in step. It works on [MeshInstance3D], [MultiMeshInstance3D], [Scatter3D] and terrain's scattered meshes alike.
+		The wind is a [Weather3D]'s [member Weather3D.wind]: with none in the scene, a light breeze. It's the shader global [code]weather_wind[/code], so a game's own shaders can sway with it too. Plants bend away from [FoliageBender3D]s nearby and are pressed down under them, and a [Weather3D]'s snow settles on them.
+	</description>
+	<tutorials>
+		<link title="Time of day and weather">https://oss.nekolab.studio/purr/modules/time-of-day/</link>
+	</tutorials>
+	<members>
+		<member name="albedo_color" type="Color" setter="set_albedo_color" getter="get_albedo_color" default="Color(1, 1, 1, 1)">
+			Multiplies [member albedo_texture].
+		</member>
+		<member name="albedo_texture" type="Texture2D" setter="set_albedo_texture" getter="get_albedo_texture">
+			The plant's colors, with its alpha cutting out the shapes of leaves and blades.
+		</member>
+		<member name="alpha_scissor_threshold" type="float" setter="set_alpha_scissor_threshold" getter="get_alpha_scissor_threshold" default="0.5">
+			Where the texture's alpha is below this, nothing is drawn.
+		</member>
+		<member name="backlight" type="Color" setter="set_backlight" getter="get_backlight" default="Color(0.35, 0.45, 0.2, 1)">
+			The light that shows through leaves from behind, as when the sun is behind a tree.
+		</member>
+		<member name="normal_strength" type="float" setter="set_normal_strength" getter="get_normal_strength" default="1.0">
+			How strong [member normal_texture] is.
+		</member>
+		<member name="normal_texture" type="Texture2D" setter="set_normal_texture" getter="get_normal_texture">
+			A normal map for the leaves' and blades' detail.
+		</member>
+		<member name="roughness" type="float" setter="set_roughness" getter="get_roughness" default="0.8">
+			How rough the surface is: leaves are mostly rough, with a soft sheen.
+		</member>
+		<member name="stiffness" type="float" setter="set_stiffness" getter="get_stiffness" default="1.0">
+			How stiff the plant is: stiffer plants sway less and flutter more quickly. Grass suits [code]1[/code], branches higher values.
+		</member>
+		<member name="sway" type="float" setter="set_sway" getter="get_sway" default="1.0">
+			How far the plant moves in the wind. [code]0[/code] holds it still.
+		</member>
+		<member name="sway_height" type="float" setter="set_sway_height" getter="get_sway_height" default="1.0">
+			The height up the mesh, in meters from its origin, at which it sways fully: below it, it bends less, and at its origin not at all. Grass suits its own height, a tree its crown's.
+		</member>
+	</members>
+</class>

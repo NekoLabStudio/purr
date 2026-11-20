@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Weather3D" inherits="Node3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Clouds, rain, snow, fog and storms that change gradually, and the wet or snowy ground they leave.
+	</brief_description>
+	<description>
+		Set [member cloud_cover], [member rain], [member snow], [member fog] and [member lightning] to the weather you want: they ease towards it over [member change_time], cloud gathering over the sun before rain or snow falls, and the rain or snow stopping before the clouds clear. The ground's wetness follows the rain, getting wet over [member wetting_time] and drying over [member drying_time], so streets stay wet a while after a shower; snow settles over [member settling_time] and melts over [member melting_time].
+		Rain and snow fall round the viewport's camera, rain slanted and snow carried by the [member wind], and stop where they land, rain with a little splash. A height map of what's over the camera's surroundings, rendered from above as the camera moves while anything falls or lies on the ground, keeps them off the ground under roofs, bridges and trees, and [WetSurfacesEffect] keeps what's under them dry. Fog, and the haze rain and snow bring, thicken the world's [Environment]: its volumetric fog when that's on, else its plain fog, given back as it was when the weather goes. In a storm (rain and [member lightning]), lightning flashes now and then, lighting the clouds and the ground; [signal lightning_flashed] tells the game, for the thunder.
+		The wind also drifts the clouds of the skies ([CloudySkyMaterial], [AtmosphereSkyMaterial]) and sways [FoliageMaterial]. A [TimeOfDay] beside it (or at [member time_of_day]) has its sun and moon dimmed under overcast.
+		For the game's own shaders, it sets the shader globals [code]weather_cloud_cover[/code], [code]weather_overcast[/code], [code]weather_rain[/code], [code]weather_wetness[/code], [code]weather_snow[/code], [code]weather_snow_cover[/code] and [code]weather_lightning[/code], each from [code]0[/code] to [code]1[/code], with [code]weather_cloud_drift[/code] and [code]weather_wind[/code]. Declare them as [code]global uniform[/code] in a shader. In the editor, the weather is shown as set, without easing, rain, snow or fog.
+	</description>
+	<tutorials>
+		<link title="Time of day and weather">https://oss.nekolab.studio/purr/modules/time-of-day/</link>
+	</tutorials>
+	<methods>
+		<method name="flash">
+			<return type="void" />
+			<description>
+				Flashes lightning now, storm or not: for a scripted moment.
+			</description>
+		</method>
+		<method name="get_current_cloud_cover" qualifiers="const">
+			<return type="float" />
+			<description>
+				The cloud cover now, on its way to [member cloud_cover].
+			</description>
+		</method>
+		<method name="get_current_fog" qualifiers="const">
+			<return type="float" />
+			<description>
+				How foggy it is now, on its way to [member fog] (or the haze rain and snow bring, if that's more).
+			</description>
+		</method>
+		<method name="get_current_rain" qualifiers="const">
+			<return type="float" />
+			<description>
+				How hard it's raining now, on its way to [member rain].
+			</description>
+		</method>
+		<method name="get_current_snow" qualifiers="const">
+			<return type="float" />
+			<description>
+				How hard it's snowing now, on its way to [member snow].
+			</description>
+		</method>
+		<method name="get_overcast" qualifiers="const">
+			<return type="float" />
+			<description>
+				How much of the sky is a grey deck over the sun now, from [code]0[/code] to [code]1[/code].
+			</description>
+		</method>
+		<method name="get_snow_cover" qualifiers="const">
+			<return type="float" />
+			<description>
+				How much snow lies on open ground now, from [code]0[/code] to [code]1[/code].
+			</description>
+		</method>
+		<method name="get_wetness" qualifiers="const">
+			<return type="float" />
+			<description>
+				How wet the ground is now, from [code]0[/code] to [code]1[/code].
+			</description>
+		</method>
+		<method name="settle">
+			<return type="void" />
+			<description>
+				Jumps to the weather asked for at once, with the ground as wet as the rain: for the start of a level, or after loading a save.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="change_time" type="float" setter="set_change_time" getter="get_change_time" default="30.0">
+			Seconds the cloud cover takes to go from clear to overcast, or back. Rain starts and stops in half that.
+		</member>
+		<member name="cloud_cover" type="float" setter="set_cloud_cover" getter="get_cloud_cover" default="0.3">
+			The cloud cover wanted, from [code]0[/code] (clear) to [code]1[/code] (overcast). While it rains, the sky is overcast whatever this is.
+		</member>
+		<member name="drying_time" type="float" setter="set_drying_time" getter="get_drying_time" default="90.0">
+			Seconds the soaked ground takes to dry once the rain stops.
+		</member>
+		<member name="fog" type="float" setter="set_fog" getter="get_fog" default="0.0">
+			How foggy it should be, from [code]0[/code] to [code]1[/code], on top of the haze that rain and snow bring by themselves.
+		</member>
+		<member name="lightning" type="float" setter="set_lightning" getter="get_lightning" default="0.0">
+			How often lightning flashes in a storm, from [code]0[/code] (never) to [code]1[/code] (about every six seconds): it flashes only while it rains hard under overcast.
+		</member>
+		<member name="melting_time" type="float" setter="set_melting_time" getter="get_melting_time" default="300.0">
+			Seconds the snow takes to melt once it stops snowing.
+		</member>
+		<member name="rain" type="float" setter="set_rain" getter="get_rain" default="0.0">
+			How hard it should rain, from [code]0[/code] to [code]1[/code].
+		</member>
+		<member name="rain_amount" type="int" setter="set_rain_amount" getter="get_rain_amount" default="8000">
+			How many drops fall at once in heavy rain.
+		</member>
+		<member name="settling_time" type="float" setter="set_settling_time" getter="get_settling_time" default="120.0">
+			Seconds snow takes to cover open ground in heavy snow.
+		</member>
+		<member name="snow" type="float" setter="set_snow" getter="get_snow" default="0.0">
+			How hard it should snow, from [code]0[/code] to [code]1[/code]. It can snow and rain at once, for sleet.
+		</member>
+		<member name="snow_amount" type="int" setter="set_snow_amount" getter="get_snow_amount" default="6000">
+			How many flakes fall at once in heavy snow.
+		</member>
+		<member name="time_of_day" type="NodePath" setter="set_time_of_day" getter="get_time_of_day" default="NodePath(&quot;&quot;)">
+			The [TimeOfDay] whose sun and moon the clouds dim. If empty, the first [TimeOfDay] beside this node.
+		</member>
+		<member name="wetting_time" type="float" setter="set_wetting_time" getter="get_wetting_time" default="25.0">
+			Seconds the ground takes to get soaked in heavy rain.
+		</member>
+		<member name="wind" type="Vector2" setter="set_wind" getter="get_wind" default="Vector2(4, 1.5)">
+			The wind across the ground (x east, y south), in meters a second: it drifts the clouds and slants the rain.
+		</member>
+	</members>
+	<signals>
+		<signal name="lightning_flashed">
+			<param index="0" name="distance" type="float" />
+			<description>
+				Lightning flashed, [param distance] meters away: play the thunder that far behind it, as sound covers 343 meters a second.
+			</description>
+		</signal>
+	</signals>
+</class>

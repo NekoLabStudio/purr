@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="PhotoMode" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Lets the player stop the game and take pictures of it.
+	</brief_description>
+	<description>
+		Open it from the game's pause menu: the game stops, its HUD goes, and the player flies a camera round the scene from where the game's camera was, sets the field of view, roll, focus distance, background blur and exposure, adds a vignette or film grain, and takes photos. They're saved as PNG files in [code]photo_mode/photos_folder[/code] in Project Settings ([code]user://photos[/code] by default).
+		[codeblock]
+		func _on_photo_mode_pressed() -&gt; void:
+		    PhotoMode.open()
+		[/codeblock]
+		The camera sees as the game's did: its environment, layers and compositor effects. It stays within [code]photo_mode/max_distance[/code] (20 meters by default) of where it started, so players can't see past the level. With a mouse and keyboard: hold the right button to look, WASD to move, Q and E for down and up, Shift to go faster, H to hide the panel, Escape to close. With a controller: the sticks to move and look, the triggers for down and up, A takes a photo, Y hides the panel, B or Start closes.
+	</description>
+	<tutorials>
+		<link title="Cameras">https://oss.nekolab.studio/purr/modules/cameras/#photo-mode</link>
+	</tutorials>
+	<methods>
+		<method name="close">
+			<return type="void" />
+			<description>
+				Gives the game back: its camera, its HUD and its pause as they were before [method open].
+			</description>
+		</method>
+		<method name="is_open" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] while photo mode is open.
+			</description>
+		</method>
+		<method name="open">
+			<return type="bool" />
+			<description>
+				Stops the game and opens photo mode at its window's 3D camera. Returns [code]false[/code] if the window has no 3D camera.
+			</description>
+		</method>
+		<method name="take_photo">
+			<return type="Signal" />
+			<description>
+				Takes a photo without the panel in it, as the player's [b]Take photo[/b] button does. Await the signal for a [Dictionary]: [code]ok[/code], the saved file's [code]path[/code], or on failure [code]error[/code] ([code]"not_open"[/code], [code]"not_saved"[/code] or [code]"closed"[/code]) and [code]message[/code].
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="closed">
+			<description>
+				Emitted when photo mode closes and the game carries on.
+			</description>
+		</signal>
+		<signal name="opened">
+			<description>
+				Emitted when photo mode opens and the game stops.
+			</description>
+		</signal>
+		<signal name="photo_taken">
+			<param index="0" name="path" type="String" />
+			<description>
+				Emitted when a photo is saved, with the file it was saved to.
+			</description>
+		</signal>
+	</signals>
+</class>

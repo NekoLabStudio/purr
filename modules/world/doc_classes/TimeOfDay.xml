@@ -4,8 +4,11 @@
 		Moves a sun and a moon across the sky as the hours pass, and dims the sky at night.
 	</brief_description>
 	<description>
-		Add a [TimeOfDay] with two [DirectionalLight3D] children: the first is the sun and the second the moon (or set [member sun] and [member moon]). As [member time] passes, it points them from where they are in the sky, sets their energy and colour (warm and low at dawn and dusk, white at noon, a dim blue moon at night) and turns off whichever is below the horizon. In a running game it also dims the sky and ambient light of the world's [Environment] at night, down to [member night_sky_energy] of their own values.
+		Add a [TimeOfDay] with two [DirectionalLight3D] children: the first is the sun and the second the moon (or set [member sun] and [member moon]). As [member time] passes, it points them from where they are in the sky, sets their energy and color (warm and low at dawn and dusk, white at noon, a dim blue moon at night) and turns off whichever is below the horizon. In a running game it also dims the sky, the ambient light and the fog's light of the world's [Environment] at night, down to [member night_sky_energy] of their own values.
+		The moon goes through its phases as the days pass ([member moon_phase]): a full moon rises as the sun sets and lights the night, a new one is beside the sun and gives no light. The stars turn round the celestial pole with the hours. The skies ([CloudySkyMaterial], [AtmosphereSkyMaterial]) draw both.
+		Everything in the [code]night_lights[/code] group (street lamps, lit windows, a sign) is shown once it's dark and hidden again in daylight, each at a slightly different moment, the same one every time, so a street's lamps come on one by one. Under heavy cloud they come on sooner.
 		The sun rises in the node's +X direction and is due +Z at noon, so turn the node to set where north is. In the editor, changing [member time] shows that hour, but the clock only runs in a game.
+		For shaders, it sets the shader globals [code]time_of_day_sun_direction[/code], [code]time_of_day_moon_direction[/code], [code]time_of_day_star_rotation[/code] and [code]time_of_day_night[/code] ([code]0[/code] in daylight to [code]1[/code] at night, for windows that glow at night).
 	</description>
 	<tutorials>
 	</tutorials>
@@ -14,6 +17,24 @@
 			<return type="float" />
 			<description>
 				How much daylight there is: [code]1.0[/code] by day, [code]0.0[/code] at night, and in between round sunrise and sunset.
+			</description>
+		</method>
+		<method name="get_moon_direction" qualifiers="const">
+			<return type="Vector3" />
+			<description>
+				Towards the moon, in global space: as far behind the sun as its phase, so a full moon is opposite the sun.
+			</description>
+		</method>
+		<method name="get_moon_light" qualifiers="const">
+			<return type="float" />
+			<description>
+				How much of the moon's face is lit, from [code]0[/code] (new) to [code]1[/code] (full). The moon's light is this much of [member moon_energy].
+			</description>
+		</method>
+		<method name="get_star_rotation" qualifiers="const">
+			<return type="Basis" />
+			<description>
+				The rotation from the stars' own directions to where they are in the sky now, turning round the celestial pole with the hours.
 			</description>
 		</method>
 		<method name="get_sun_direction" qualifiers="const">
@@ -42,8 +63,14 @@
 		<member name="moon_energy" type="float" setter="set_moon_energy" getter="get_moon_energy" default="0.15">
 			The moon's energy when it's high in the sky.
 		</member>
+		<member name="moon_phase" type="float" setter="set_moon_phase" getter="get_moon_phase" default="0.5">
+			Where the moon is in its phases, from [code]0[/code] (new) through [code]0.5[/code] (full) back to [code]1[/code]. It moves on as the clock runs, a whole cycle every 29.5 days.
+		</member>
 		<member name="night_sky_energy" type="float" setter="set_night_sky_energy" getter="get_night_sky_energy" default="0.1">
 			How bright the sky and ambient light are at night, as a part of their own energies.
+		</member>
+		<member name="overcast" type="float" setter="set_overcast" getter="get_overcast" default="0.0">
+			How much cloud covers the sky, from [code]0[/code] to [code]1[/code]: at [code]1[/code], a fifth of the sun's and moon's light gets through. A [Weather3D] beside it sets this as the weather changes.
 		</member>
 		<member name="sun" type="NodePath" setter="set_sun" getter="get_sun" default="NodePath(&quot;&quot;)">
 			The light for the sun. When it's empty, the first [DirectionalLight3D] child is used.

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="LightShaftsEffect" inherits="CompositorEffect" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Shafts of sunlight through gaps, towards the sun on screen.
+	</brief_description>
+	<description>
+		Shafts of sunlight through the gaps between buildings, trees and clouds, spreading towards the viewer from the sun on screen, in the sun's color. The sun is the brightest [DirectionalLight3D] lighting the scene; with it off screen by more than [member spread], nothing is drawn. Each pixel marches towards the sun counting the open sky it passes, so the shafts follow whatever stands in front of the sky. Add it to a [Compositor]'s [member Compositor.compositor_effects], on a [WorldEnvironment] or [Camera3D]. It's drawn after the scene's see-through objects, before tonemapping, in each view (both eyes in VR), with the Forward+ renderer; with the others it draws nothing.
+	</description>
+	<tutorials>
+		<link title="Screen effects">https://oss.nekolab.studio/purr/modules/graphics/#screen-effects</link>
+	</tutorials>
+	<members>
+		<member name="color" type="Color" setter="set_color" getter="get_color" default="Color(1, 1, 1, 1)">
+			Tints the shafts, on top of the sun's own color.
+		</member>
+		<member name="decay" type="float" setter="set_decay" getter="get_decay" default="0.96">
+			How much each step towards the sun counts after the one before it: lower values make shorter shafts.
+		</member>
+		<member name="reach" type="float" setter="set_reach" getter="get_reach" default="0.8">
+			The share of the way to the sun each pixel marches.
+		</member>
+		<member name="samples" type="int" setter="set_samples" getter="get_samples" default="32">
+			How many steps each pixel takes towards the sun. More is smoother and costs more.
+		</member>
+		<member name="spread" type="float" setter="set_spread" getter="get_spread" default="0.9">
+			How far the shafts reach from the sun on screen, in screen heights.
+		</member>
+		<member name="strength" type="float" setter="set_strength" getter="get_strength" default="0.3">
+			How bright the shafts are, times the sun's color and energy.
+		</member>
+	</members>
+</class>

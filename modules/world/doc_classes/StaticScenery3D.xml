@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="StaticScenery3D" inherits="Node3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Draws the scenery under it that never moves as a few merged meshes.
+	</brief_description>
+	<description>
+		Put the parts of a scene that never move (buildings, rocks, walls, fences, props) under a [StaticScenery3D]. When the game runs, it merges the meshes of the [MeshInstance3D] and [MultiMeshInstance3D] nodes below it by material, within each [member chunk_size] cube of the world, so each chunk draws once for each material instead of once for each object. The merging happens in the background; the originals draw until it's done, and [signal merged] is emitted when the merged meshes take their place.
+		Each merged mesh has simpler versions that Godot draws as it gets smaller on screen (see [member generate_lods]), and each chunk an occluder made from its large pieces, which hides what's behind them (see [member occluders_enabled]).
+		The originals stay in the tree, hidden: their collision, scripts and child nodes work as before. Nodes that can't be merged keep drawing on their own: those with see-through materials (drawn in order of distance, which merging would lose), skinned or blend-shape meshes, material overlays, per-instance shader parameters or visibility ranges, MultiMeshes with colors or custom data, and MultiMeshes whose copies come to more than 65,536 vertices (grass, a forest), which draw faster instanced than merged.
+		The scenery isn't followed as it changes: call [method merge] after adding, removing or moving what's under it. Moving or hiding the [StaticScenery3D] itself moves or hides everything it draws. In the editor, nothing is merged.
+	</description>
+	<tutorials>
+		<link title="Large worlds">https://oss.nekolab.studio/purr/modules/world/</link>
+	</tutorials>
+	<methods>
+		<method name="get_merged_meshes" qualifiers="const">
+			<return type="ArrayMesh[]" />
+			<description>
+				The merged meshes being drawn, one for each material in each chunk. Empty until [signal merged].
+			</description>
+		</method>
+		<method name="is_merged" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] once the merged meshes are drawn in place of the originals.
+			</description>
+		</method>
+		<method name="merge">
+			<return type="void" />
+			<description>
+				Merges what's under the node again, for scenery that has changed. The originals draw until the new merged meshes are ready, then [signal merged] is emitted. Done by itself when the node is ready in a running game.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="chunk_size" type="float" setter="set_chunk_size" getter="get_chunk_size" default="64.0">
+			The size of the cubes the world is merged in, in meters. Each chunk is culled and given its detail on its own, so smaller chunks draw less of what's off screen, and larger ones draw fewer meshes. [code]0[/code] merges everything under the node together.
+		</member>
+		<member name="generate_lods" type="bool" setter="set_generate_lods" getter="is_generating_lods" default="true">
+			If [code]true[/code], each merged mesh is given simpler versions for distance, as Godot's scene importer does for meshes. Merging takes longer with them.
+		</member>
+		<member name="occluders_enabled" type="bool" setter="set_occluders_enabled" getter="is_occluders_enabled" default="true">
+			If [code]true[/code], pieces at least 2 meters long in two directions (walls, buildings, large rocks) become occluders, so they hide what's behind them from the renderer (see [member ProjectSettings.rendering/occlusion_culling/use_occlusion_culling]). See-through pieces never occlude.
+		</member>
+	</members>
+	<signals>
+		<signal name="merged">
+			<description>
+				Emitted when the merged meshes start drawing in place of the originals.
+			</description>
+		</signal>
+	</signals>
+</class>

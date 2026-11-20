@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GroundMarks3D" inherits="Node3D" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Marks left on the ground where it goes: tire tracks, footprints, ski tracks.
+	</brief_description>
+	<description>
+		While [member emitting], it lays a mark on the surface below it every [member spacing] it moves: a continuous strip with [constant MODE_STRIP] (tire tracks, ski tracks), or separate stamps with [constant MODE_STAMPS] (footprints, hoof prints). Each lies on the ground found by a ray down [member ground_distance], turned along the way it moves, and fades out over the end of its [member lifetime]. Off the ground, the strip breaks. The body it's on isn't counted as ground.
+		Turn [member emitting] on when the marks should be left: a car's wheel while it skids, a foot while it's planted. Draw them with a [member material] whose texture is the mark (a tire's tread, a footprint), with its albedo from vertex color so they fade; without one, they're plain dark marks. They stay put when [WorldOrigin] shifts the world.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="clear">
+			<return type="void" />
+			<description>
+				Takes all its marks away at once.
+			</description>
+		</method>
+		<method name="get_mark_count" qualifiers="const">
+			<return type="int" />
+			<description>
+				How many marks it has down now.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="collision_mask" type="int" setter="set_collision_mask" getter="get_collision_mask" default="1">
+			The physics layers the ground is found on.
+		</member>
+		<member name="emitting" type="bool" setter="set_emitting" getter="is_emitting" default="false">
+			If [code]true[/code], it leaves marks as it moves.
+		</member>
+		<member name="ground_distance" type="float" setter="set_ground_distance" getter="get_ground_distance" default="1.0">
+			How far below it the ground is looked for, in meters.
+		</member>
+		<member name="length" type="float" setter="set_length" getter="get_length" default="0.3">
+			A stamp's length along the way it goes, in meters.
+		</member>
+		<member name="lifetime" type="float" setter="set_lifetime" getter="get_lifetime" default="30.0">
+			Seconds a mark lasts, fading over the last part of it.
+		</member>
+		<member name="material" type="Material" setter="set_material" getter="get_material">
+			What the marks are drawn with: UVs run across a strip and along it once per [member width], or across each stamp. Use albedo from vertex color for them to fade. Without one, plain dark marks.
+		</member>
+		<member name="max_marks" type="int" setter="set_max_marks" getter="get_max_marks" default="512">
+			The most marks there are at once: past it, the oldest go first.
+		</member>
+		<member name="mode" type="int" setter="set_mode" getter="get_mode" enum="GroundMarks3D.Mode" default="0">
+			Whether it leaves a strip or stamps.
+		</member>
+		<member name="spacing" type="float" setter="set_spacing" getter="get_spacing" default="0.25">
+			How far it moves between marks, in meters.
+		</member>
+		<member name="width" type="float" setter="set_width" getter="get_width" default="0.25">
+			How wide a mark is, in meters.
+		</member>
+	</members>
+	<constants>
+		<constant name="MODE_STRIP" value="0" enum="Mode">
+			A continuous strip: tire tracks, ski tracks, a sledge's runners.
+		</constant>
+		<constant name="MODE_STAMPS" value="1" enum="Mode">
+			Separate stamps along the way: footprints, hoof prints.
+		</constant>
+	</constants>
+</class>

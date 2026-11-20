@@ -1,0 +1,236 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Thu, 19 Nov 2026 12:32:52 +0000
+Subject: [PATCH] Occlusion culling: cull each eye of a stereo camera from
+ where it is
+
+A stereo camera's occlusion buffer was drawn from one place between the eyes,
+so what one eye saw past an occluder's edge was culled and popped in and out
+as the head moved. Each eye now has its own buffer, drawn from its own
+transform and projection, and an object is culled only if both hide it.
+---
+ .../raycast/raycast_occlusion_cull.cpp        | 42 ++++++++++++++++---
+ .../modules/raycast/raycast_occlusion_cull.h  |  5 +++
+ .../servers/rendering/renderer_scene_cull.cpp | 39 ++++++++++++++---
+ godot/servers/rendering/renderer_scene_cull.h |  4 ++
+ .../rendering/renderer_scene_occlusion_cull.h |  4 ++
+ 5 files changed, 82 insertions(+), 12 deletions(-)
+
+diff --git a/godot/modules/raycast/raycast_occlusion_cull.cpp b/godot/modules/raycast/raycast_occlusion_cull.cpp
+index 7d142a95..c40aaff8 100644
+--- a/godot/modules/raycast/raycast_occlusion_cull.cpp
++++ b/godot/modules/raycast/raycast_occlusion_cull.cpp
+@@ -515,17 +515,24 @@ void RaycastOcclusionCull::add_buffer(RID p_buffer) {
+ void RaycastOcclusionCull::remove_buffer(RID p_buffer) {
+ 	ERR_FAIL_COND(!buffers.has(p_buffer));
+ 	buffers.erase(p_buffer);
++	second_eye_buffers.erase(p_buffer);
+ }
+ 
+ void RaycastOcclusionCull::buffer_set_scenario(RID p_buffer, RID p_scenario) {
+ 	ERR_FAIL_COND(!buffers.has(p_buffer));
+ 	ERR_FAIL_COND(p_scenario.is_valid() && !scenarios.has(p_scenario));
+ 	buffers[p_buffer].scenario_rid = p_scenario;
++	if (second_eye_buffers.has(p_buffer)) {
++		second_eye_buffers[p_buffer].scenario_rid = p_scenario;
++	}
+ }
+ 
+ void RaycastOcclusionCull::buffer_set_size(RID p_buffer, const Vector2i &p_size) {
+ 	ERR_FAIL_COND(!buffers.has(p_buffer));
+ 	buffers[p_buffer].resize(p_size);
++	if (second_eye_buffers.has(p_buffer)) {
++		second_eye_buffers[p_buffer].resize(p_size);
++	}
+ }
+ 
+ Vector2 RaycastOcclusionCull::_get_jitter(const Rect2 &p_viewport_rect, const Size2i &p_buffer_size) {
+@@ -597,9 +604,22 @@ void RaycastOcclusionCull::buffer_update(RID p_buffer, const Transform3D &p_cam_
+ 	if (!buffers.has(p_buffer)) {
+ 		return;
+ 	}
++	_buffer_update(buffers[p_buffer], p_cam_transform, p_cam_projection, p_cam_orthogonal);
++}
+ 
+-	RaycastHZBuffer &buffer = buffers[p_buffer];
++void RaycastOcclusionCull::buffer_update_second_eye(RID p_buffer, const Transform3D &p_cam_transform, const Projection &p_cam_projection, bool p_cam_orthogonal) {
++	if (!buffers.has(p_buffer)) {
++		return;
++	}
++	if (!second_eye_buffers.has(p_buffer)) {
++		second_eye_buffers[p_buffer] = RaycastHZBuffer();
++		second_eye_buffers[p_buffer].scenario_rid = buffers[p_buffer].scenario_rid;
++		second_eye_buffers[p_buffer].resize(buffers[p_buffer].get_occlusion_buffer_size());
++	}
++	_buffer_update(second_eye_buffers[p_buffer], p_cam_transform, p_cam_projection, p_cam_orthogonal);
++}
+ 
++void RaycastOcclusionCull::_buffer_update(RaycastHZBuffer &buffer, const Transform3D &p_cam_transform, const Projection &p_cam_projection, bool p_cam_orthogonal) {
+ 	if (buffer.is_empty() || !scenarios.has(buffer.scenario_rid)) {
+ 		return;
+ 	}
+@@ -622,17 +642,27 @@ void RaycastOcclusionCull::buffer_update(RID p_buffer, const Transform3D &p_cam_
+ 	buffer.update_mips();
+ }
+ 
++RaycastOcclusionCull::HZBuffer *RaycastOcclusionCull::_usable(RaycastHZBuffer &p_buffer) {
++	// A scene without occluders has nothing to hide its objects: they aren't tested one by one.
++	const Scenario *scenario = scenarios.getptr(p_buffer.scenario_rid);
++	if (scenario == nullptr || scenario->instances.is_empty()) {
++		return nullptr;
++	}
++	return &p_buffer;
++}
++
+ RaycastOcclusionCull::HZBuffer *RaycastOcclusionCull::buffer_get_ptr(RID p_buffer) {
+ 	if (!buffers.has(p_buffer)) {
+ 		return nullptr;
+ 	}
+-	RaycastHZBuffer &buffer = buffers[p_buffer];
+-	// A scene without occluders has nothing to hide its objects: they aren't tested one by one.
+-	const Scenario *scenario = scenarios.getptr(buffer.scenario_rid);
+-	if (scenario == nullptr || scenario->instances.is_empty()) {
++	return _usable(buffers[p_buffer]);
++}
++
++RaycastOcclusionCull::HZBuffer *RaycastOcclusionCull::buffer_get_second_eye_ptr(RID p_buffer) {
++	if (!second_eye_buffers.has(p_buffer)) {
+ 		return nullptr;
+ 	}
+-	return &buffer;
++	return _usable(second_eye_buffers[p_buffer]);
+ }
+ 
+ RID RaycastOcclusionCull::buffer_get_debug_texture(RID p_buffer) {
+diff --git a/godot/modules/raycast/raycast_occlusion_cull.h b/godot/modules/raycast/raycast_occlusion_cull.h
+index 4dae3e92..79b61c91 100644
+--- a/godot/modules/raycast/raycast_occlusion_cull.h
++++ b/godot/modules/raycast/raycast_occlusion_cull.h
+@@ -159,11 +159,14 @@ private:
+ 	RID_PtrOwner<Occluder> occluder_owner;
+ 	HashMap<RID, Scenario> scenarios;
+ 	HashMap<RID, RaycastHZBuffer> buffers;
++	HashMap<RID, RaycastHZBuffer> second_eye_buffers; // A stereo camera's second eye, made when first needed.
+ 	RSE::ViewportOcclusionCullingBuildQuality build_quality;
+ 	bool _jitter_enabled = false;
+ 
+ 	void _init_embree();
+ 	Vector2 _get_jitter(const Rect2 &p_viewport_rect, const Size2i &p_buffer_size);
++	void _buffer_update(RaycastHZBuffer &r_buffer, const Transform3D &p_cam_transform, const Projection &p_cam_projection, bool p_cam_orthogonal);
++	HZBuffer *_usable(RaycastHZBuffer &p_buffer);
+ 
+ public:
+ 	virtual bool is_occluder(RID p_rid) override;
+@@ -183,6 +186,8 @@ public:
+ 	virtual void buffer_set_scenario(RID p_buffer, RID p_scenario) override;
+ 	virtual void buffer_set_size(RID p_buffer, const Vector2i &p_size) override;
+ 	virtual void buffer_update(RID p_buffer, const Transform3D &p_cam_transform, const Projection &p_cam_projection, bool p_cam_orthogonal) override;
++	virtual void buffer_update_second_eye(RID p_buffer, const Transform3D &p_cam_transform, const Projection &p_cam_projection, bool p_cam_orthogonal) override;
++	virtual HZBuffer *buffer_get_second_eye_ptr(RID p_buffer) override;
+ 
+ 	virtual RID buffer_get_debug_texture(RID p_buffer) override;
+ 
+diff --git a/godot/servers/rendering/renderer_scene_cull.cpp b/godot/servers/rendering/renderer_scene_cull.cpp
+index 43e51caa..09015807 100644
+--- a/godot/servers/rendering/renderer_scene_cull.cpp
++++ b/godot/servers/rendering/renderer_scene_cull.cpp
+@@ -2943,8 +2943,14 @@ void RendererSceneCull::render_camera(const Ref<RenderSceneBuffers> &p_render_bu
+ 
+ 	RENDER_TIMESTAMP("Update Occlusion Buffer")
+ 
+-	// For now just cull on the first camera
+-	RendererSceneOcclusionCull::get_singleton()->buffer_update(p_viewport, camera_data.main_transform, camera_data.main_projection, camera_data.is_orthogonal);
++	// A stereo camera's eyes each have their own buffer, drawn from where the eye is: from one place
++	// between them, what one eye saw past an occluder's edge would be culled.
++	if (camera_data.view_count == 2) {
++		RendererSceneOcclusionCull::get_singleton()->buffer_update(p_viewport, transform * camera->offsets[0], camera->projections[0], camera_data.is_orthogonal);
++		RendererSceneOcclusionCull::get_singleton()->buffer_update_second_eye(p_viewport, transform * camera->offsets[1], camera->projections[1], camera_data.is_orthogonal);
++	} else {
++		RendererSceneOcclusionCull::get_singleton()->buffer_update(p_viewport, camera_data.main_transform, camera_data.main_projection, camera_data.is_orthogonal);
++	}
+ 
+ 	_render_scene(&camera_data, p_render_buffers, environment, camera->attributes, compositor, camera->visible_layers, p_scenario, p_viewport, p_shadow_atlas, RID(), -1, p_screen_mesh_lod_threshold, p_window_output_max_value, true, r_render_info);
+ #endif
+@@ -3073,9 +3079,12 @@ void RendererSceneCull::_scene_cull(CullData &cull_data, InstanceCullResult &cul
+ 	uint32_t max_lights_per_mesh = scene_render->get_max_lights_per_mesh();
+ 	uint32_t max_lights_total = scene_render->get_max_lights_total();
+ 
+-	Transform3D inv_cam_transform = cull_data.cam_transform.inverse();
+-	float z_near = cull_data.camera_matrix->get_z_near();
+-	bool is_orthogonal = cull_data.camera_matrix->is_orthogonal();
++	// What the occlusion buffers were drawn from: the camera, or each eye of a stereo camera.
++	Transform3D inv_cam_transform = cull_data.occlusion_transforms[0].inverse();
++	float z_near = cull_data.occlusion_projections[0]->get_z_near();
++	bool is_orthogonal = cull_data.occlusion_projections[0]->is_orthogonal();
++	Transform3D inv_second_eye_transform = cull_data.second_eye_occlusion_buffer != nullptr ? cull_data.occlusion_transforms[1].inverse() : Transform3D();
++	float second_eye_z_near = cull_data.second_eye_occlusion_buffer != nullptr ? cull_data.occlusion_projections[1]->get_z_near() : 0.0f;
+ 
+ 	for (uint64_t i = p_from; i < p_to; i++) {
+ 		bool mesh_visible = false;
+@@ -3090,7 +3099,8 @@ void RendererSceneCull::_scene_cull(CullData &cull_data, InstanceCullResult &cul
+ #define VIS_RANGE_CHECK ((idata.visibility_index == -1) || _visibility_range_check<false>(cull_data.scenario->instance_visibility[idata.visibility_index], cull_data.cam_transform.origin, cull_data.visibility_viewport_mask) == 0)
+ #define VIS_PARENT_CHECK (_visibility_parent_check(cull_data, idata))
+ #define VIS_CHECK (visibility_check < 0 ? (visibility_check = (visibility_flags != InstanceData::FLAG_VISIBILITY_DEPENDENCY_NEEDS_CHECK || (VIS_RANGE_CHECK && VIS_PARENT_CHECK))) : visibility_check)
+-#define OCCLUSION_CULLED (cull_data.occlusion_buffer != nullptr && (cull_data.scenario->instance_data[i].flags & InstanceData::FLAG_IGNORE_OCCLUSION_CULLING) == 0 && cull_data.occlusion_buffer->is_occluded(cull_data.scenario->instance_aabbs[i].bounds, cull_data.cam_transform.origin, inv_cam_transform, *cull_data.camera_matrix, z_near, is_orthogonal, cull_data.scenario->instance_data[i].occlusion_timeout))
++#define OCCLUSION_CULLED (cull_data.occlusion_buffer != nullptr && (cull_data.scenario->instance_data[i].flags & InstanceData::FLAG_IGNORE_OCCLUSION_CULLING) == 0 && cull_data.occlusion_buffer->is_occluded(cull_data.scenario->instance_aabbs[i].bounds, cull_data.occlusion_transforms[0].origin, inv_cam_transform, *cull_data.occlusion_projections[0], z_near, is_orthogonal, cull_data.scenario->instance_data[i].occlusion_timeout) && \
++		(cull_data.second_eye_occlusion_buffer == nullptr || cull_data.second_eye_occlusion_buffer->is_occluded(cull_data.scenario->instance_aabbs[i].bounds, cull_data.occlusion_transforms[1].origin, inv_second_eye_transform, *cull_data.occlusion_projections[1], second_eye_z_near, is_orthogonal, cull_data.scenario->instance_data[i].occlusion_timeout)))
+ 
+ 		if (!HIDDEN_BY_VISIBILITY_CHECKS) {
+ 			if ((LAYER_CHECK && IN_FRUSTUM(cull_data.cull->frustum) && VIS_CHECK && !OCCLUSION_CULLED) || (cull_data.scenario->instance_data[i].flags & InstanceData::FLAG_IGNORE_ALL_CULLING)) {
+@@ -3600,6 +3610,23 @@ void RendererSceneCull::_render_scene(const RendererSceneRender::CameraData *p_c
+ 		cull_data.render_reflection_probe = render_reflection_probe;
+ 		cull_data.occlusion_buffer = RendererSceneOcclusionCull::get_singleton()->buffer_get_ptr(p_viewport);
+ 		cull_data.camera_matrix = &p_camera_data->main_projection;
++		cull_data.occlusion_transforms[0] = p_camera_data->main_transform;
++		cull_data.occlusion_projections[0] = &p_camera_data->main_projection;
++		cull_data.second_eye_occlusion_buffer = nullptr;
++		Projection eye_projections[2];
++		if (p_camera_data->view_count == 2 && cull_data.occlusion_buffer != nullptr) {
++			// Each eye's buffer, as render_camera() drew them: an object is culled only if both hide it.
++			cull_data.second_eye_occlusion_buffer = RendererSceneOcclusionCull::get_singleton()->buffer_get_second_eye_ptr(p_viewport);
++			if (cull_data.second_eye_occlusion_buffer != nullptr) {
++				for (int eye = 0; eye < 2; eye++) {
++					cull_data.occlusion_transforms[eye] = p_camera_data->main_transform * p_camera_data->view_offset[eye];
++					eye_projections[eye] = p_camera_data->view_projection[eye] * Projection(p_camera_data->view_offset[eye]);
++					cull_data.occlusion_projections[eye] = &eye_projections[eye];
++				}
++			} else {
++				cull_data.occlusion_buffer = nullptr; // The second eye's isn't drawn yet: cull neither.
++			}
++		}
+ 		cull_data.visibility_viewport_mask = scenario->viewport_visibility_masks.has(p_viewport) ? scenario->viewport_visibility_masks[p_viewport] : 0;
+ #ifdef DEBUG_CULL_TIME
+ 		uint64_t time_from = OS::get_singleton()->get_ticks_usec();
+diff --git a/godot/servers/rendering/renderer_scene_cull.h b/godot/servers/rendering/renderer_scene_cull.h
+index 11b35390..67a4dd9c 100644
+--- a/godot/servers/rendering/renderer_scene_cull.h
++++ b/godot/servers/rendering/renderer_scene_cull.h
+@@ -1180,6 +1180,10 @@ public:
+ 		Instance *render_reflection_probe = nullptr;
+ 		const RendererSceneOcclusionCull::HZBuffer *occlusion_buffer;
+ 		const Projection *camera_matrix;
++		// What the occlusion buffers were drawn from: the camera, or a stereo camera's two eyes.
++		const RendererSceneOcclusionCull::HZBuffer *second_eye_occlusion_buffer = nullptr;
++		Transform3D occlusion_transforms[2];
++		const Projection *occlusion_projections[2] = { nullptr, nullptr };
+ 		uint64_t visibility_viewport_mask;
+ 	};
+ 
+diff --git a/godot/servers/rendering/renderer_scene_occlusion_cull.h b/godot/servers/rendering/renderer_scene_occlusion_cull.h
+index 675a80f4..3f029aa7 100644
+--- a/godot/servers/rendering/renderer_scene_occlusion_cull.h
++++ b/godot/servers/rendering/renderer_scene_occlusion_cull.h
+@@ -230,6 +230,10 @@ public:
+ 	virtual void buffer_set_scenario(RID p_buffer, RID p_scenario) { _print_warning(); }
+ 	virtual void buffer_set_size(RID p_buffer, const Vector2i &p_size) { _print_warning(); }
+ 	virtual void buffer_update(RID p_buffer, const Transform3D &p_cam_transform, const Projection &p_cam_projection, bool p_cam_orthogonal) {}
++	// A stereo camera's second eye has a buffer of its own, drawn from where that eye is: culled from
++	// one place between the eyes, what one eye saw past an occluder's edge would pop in and out.
++	virtual void buffer_update_second_eye(RID p_buffer, const Transform3D &p_cam_transform, const Projection &p_cam_projection, bool p_cam_orthogonal) {}
++	virtual HZBuffer *buffer_get_second_eye_ptr(RID p_buffer) { return nullptr; }
+ 
+ 	virtual RID buffer_get_debug_texture(RID p_buffer) {
+ 		_print_warning();
+-- 
+2.54.0 (Apple Git-157)
+
