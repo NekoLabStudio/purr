@@ -5,25 +5,4 @@ The notes for the next release: everything below is in `main` and ships
 together when the version is tagged.
 <!-- unreleased-intro-end -->
 
-## What's new
-
-- `Store`: DLC, expansions and anything else the player buys once and keeps, the same on Steam, the App Store and Google Play. List the items in the new Store tab of Project Settings. In the editor, `store/owned_in_editor` says what's owned and purchases always succeed. See [DLC and expansions](/api/store/).
-- Games can play online only for players who bought them, when their Trill instance checks (`check_ownership`), from the copy the player uses: Steam's ticket, the App Store's AppTransaction or Google Play's Play Integrity. `Account.not_owned` tells the game when a player is turned away. See [Ownership](https://oss.nekolab.studio/trill/ownership/).
-- Connections relayed through TURN move onto new credentials before theirs end, without a break (`WebRTCNativePeerConnection.renew_ice_servers()`, which Purr's lobbies call for you).
-- Without the online services, Steam lobbies do everything crossplay lobbies do: removing players, blocking, host migration, matchmaking and ranked ratings, and checks and flags, decided by the players' games together. See [Lobbies](/api/lobbies/#without-the-online-services) and [Ranked play](/api/ranked/#without-the-online-services).
-- Game Center has lobbies of its own without the online services: Game Center matches, through `GameCenterMultiplayerPeer`, with invites, matchmaking and, with `game_center/party_activity`, codes to join with. See [Lobbies](/api/lobbies/#game-center).
-- `Friends` lists the player's Game Center and Play Games friends (`GameCenter.load_friends()`, `PlayGames.load_friends()`), once they agree to share them, and `Friends.invite()` works on Game Center.
-
-## Changes to check
-
-- Purr's online services are now [Trill](https://oss.nekolab.studio/trill/), a project of their own, with their own releases and docs; `online/` is gone from Purr's repository. This Purr speaks Trill's protocol and needs Trill 1.0 or later: it can't talk to Purr 0.3.0's online services (`Account` emits `service_outdated`), and games built with Purr 0.3.0 can't talk to Trill. Update your instance and your games together: an instance set up from Purr's online services moves to Trill once, by hand ([Trill's upgrade notes](https://oss.nekolab.studio/trill/upgrading/) say how). New instances are set up with `curl -fsSL https://oss.nekolab.studio/trill/setup.sh | sh`.
-- Steam sign-in tickets for the online services are now for the identity `trill` (they were for `purr-online`).
-- The online services' settings are now `trill/url` and `trill/game` (they were `online/url` and `online/game`). Move both values in Project Settings, or rename the `[online]` section of `project.godot` to `[trill]`: Purr no longer reads the old ones, so a project that keeps them plays without the online services.
-- Games now send the copy's proof of purchase when they sign in to the online services (Apple's AppTransaction, or a Play Integrity token when `google_play/cloud_project_number` is set). On an App Store copy this waits up to 10 seconds for StoreKit the first time.
-- Purr's Android library now goes into Gradle exports for items sold on Google Play too, not only for Play Games, and brings Play Billing and Play Integrity with it.
-- Apple builds link StoreKit, and iOS, Apple TV and visionOS exports add StoreKit.framework to the Xcode project. Selling on the App Store also needs the export preset's In-App Purchase capability.
-- `Lobbies.is_available()` and `Lobbies.can_matchmake()` are now true on Steam and Game Center without the online services, and `Friends.is_available()` on Game Center and Play Games. A game that showed ranked play or friends only with the online services can now show them there too.
-- Players' ratings and blocks without the online services are kept in a save slot of Purr's own (`purr_multiplayer`), synced like the game's saves. `Saves.get_slots()` leaves it out.
-- A Game Center invite without a player group (one to a Game Center match) now starts `GameCenter.match_invite_accepted` instead of `invite_accepted`, and Purr joins the match as a lobby.
-- iOS, Apple TV and visionOS exports add a reason for Game Center's friends prompt to the Info.plist (`NSGKFriendListUsageDescription`). On macOS, add it yourself if the game lists friends (see [Apple platforms](/platforms/apple/#game-center)).
-- `SteamMultiplayerPeer.connect_to_lobby()` takes the peer ID to reconnect with, for host migration.
+Nothing yet.
