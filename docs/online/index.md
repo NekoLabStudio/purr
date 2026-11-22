@@ -12,4 +12,4 @@ Trill's documentation covers the rest: [setting it up](https://oss.nekolab.studi
 
 ## Versions
 
-Each Purr release speaks one version of Trill's protocol, and Trill says which it speaks on every answer. When an instance is too old for the game, `Account` emits `service_outdated` and online features stop for the session (see [Versions](../api/index.md#versions)). Update the instance with `npm run update` in its folder. This Purr needs Trill 1.0 or later.
+Each Purr release speaks one version of Trill's protocol, and Trill says which it speaks on every answer. When an instance is too old for the game, `Account` emits `service_outdated` and online features stop for the session (see [Versions](../api/index.md#versions)). Update the instance with `npm run update` in its folder. This Purr needs Trill 0.1.0 or later.
