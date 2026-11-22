@@ -17,6 +17,7 @@
 #include <condition_variable>
 #include <deque>
 #include <functional>
+#include <map>
 #include <mutex>
 #include <vector>
 
@@ -68,8 +69,10 @@ public:
     std::optional<Bytes> read_feature(std::uint8_t id, std::size_t length) override;
     std::optional<Bytes> next_input(std::chrono::milliseconds timeout) override;
 
-    // The newest input report, while listening (report ID first when numbered).
-    std::optional<Bytes> latest_input();
+    // The newest input report with this report ID (0 on a device whose reports aren't numbered),
+    // while listening; report ID first when numbered. Kept per ID: a wheel answering its force
+    // feedback with reports of another ID doesn't hide its steering.
+    std::optional<Bytes> latest_input(std::uint8_t report_id);
 
     // Reports sent since it opened.
     std::uint64_t sent() const { return sent_; }
@@ -87,6 +90,6 @@ private:
     std::mutex inputs_mutex_;
     std::condition_variable input_arrived_;
     std::deque<Bytes> inputs_;
-    Bytes latest_;
+    std::map<std::uint32_t, Bytes> latest_;
     std::atomic<std::uint64_t> sent_{0};
 };

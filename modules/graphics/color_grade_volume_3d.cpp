@@ -182,6 +182,18 @@ void ColorGradeVolume3D::_restore() {
 	grading->lut_made_from = String();
 }
 
+void ColorGradeVolume3D::_capture(const Ref<Environment> &p_environment) {
+	if (p_environment.is_null()) {
+		return;
+	}
+	grading->adjustment_enabled = p_environment->is_adjustment_enabled();
+	grading->brightness = p_environment->get_adjustment_brightness();
+	grading->contrast = p_environment->get_adjustment_contrast();
+	grading->saturation = p_environment->get_adjustment_saturation();
+	grading->color_correction = p_environment->get_adjustment_color_correction();
+	grading->exposure = p_environment->get_tonemap_exposure();
+}
+
 void ColorGradeVolume3D::_apply(Viewport *p_viewport) {
 	const Camera3D *camera = p_viewport != nullptr ? p_viewport->get_camera_3d() : nullptr;
 	if (camera == nullptr) {
@@ -197,14 +209,7 @@ void ColorGradeVolume3D::_apply(Viewport *p_viewport) {
 	if (environment != grading->environment) {
 		_restore();
 		grading->environment = environment;
-		if (environment.is_valid()) {
-			grading->adjustment_enabled = environment->is_adjustment_enabled();
-			grading->brightness = environment->get_adjustment_brightness();
-			grading->contrast = environment->get_adjustment_contrast();
-			grading->saturation = environment->get_adjustment_saturation();
-			grading->color_correction = environment->get_adjustment_color_correction();
-			grading->exposure = environment->get_tonemap_exposure();
-		}
+		_capture(environment);
 	}
 	if (environment.is_null()) {
 		return;
@@ -256,6 +261,9 @@ void ColorGradeVolume3D::_apply(Viewport *p_viewport) {
 			grading->environment = environment; // Still watched, as it was.
 			grading->lut_made_from = "own";
 		}
+		// With no volume applying, the environment's values are the game's own, which it may change
+		// meanwhile (a brightness option, the time of day): the blend starts from them next time.
+		_capture(environment);
 		return;
 	}
 	environment->set_adjustment_enabled(true);

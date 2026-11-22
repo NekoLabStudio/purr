@@ -101,7 +101,7 @@ public:
         if (!device_ || !steering_) {
             return std::nullopt;
         }
-        const std::optional<Bytes> report = device_->latest_input();
+        const std::optional<Bytes> report = device_->latest_input(steering_->numbered ? steering_->report_id : 0);
         return report ? read_steering(*steering_, *report) : std::nullopt;
     }
     OutputCounts counts() const override {

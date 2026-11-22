@@ -282,7 +282,7 @@ void Options::_ensure_audio() {
 	}
 	if (!audio_defined) {
 		audio_defined = true;
-		audio->connect("bus_layout_changed", callable_mp(this, &Options::_ensure_audio));
+		audio->connect("bus_layout_changed", callable_mp(this, &Options::_bus_layout_changed));
 	}
 	Dictionary info;
 	info["min"] = 0.0;
@@ -291,6 +291,16 @@ void Options::_ensure_audio() {
 		const String key = AUDIO_PREFIX + audio->get_bus_name(i).to_snake_case() + VOLUME_SUFFIX;
 		if (!options.has(key)) {
 			define(key, double(audio->get_bus_volume_linear(i)), info);
+		}
+	}
+}
+
+// A new bus layout has the volumes it was made with: the player's are put back on its buses.
+void Options::_bus_layout_changed() {
+	_ensure_audio();
+	for (const String &key : order) {
+		if (key.begins_with(AUDIO_PREFIX) && key.ends_with(VOLUME_SUFFIX) && saved.has(key)) {
+			_apply(key);
 		}
 	}
 }

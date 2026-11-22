@@ -55,10 +55,17 @@ BehaviorTask::Status BehaviorTreePlayer::update(double p_delta) {
 	if (running.is_null()) {
 		return BehaviorTask::IDLE;
 	}
-	running->advance_clock(p_delta);
-	last_status = running->execute(p_delta);
+	// Held while it runs: a task may restart the tree, or give the player another tree, agent or
+	// blackboard, which starts afresh and drops this one.
+	const Ref<BehaviorTask> root = running;
+	root->advance_clock(p_delta);
+	const BehaviorTask::Status status = root->execute(p_delta);
+	if (running != root) {
+		return last_status;
+	}
+	last_status = status;
 #ifdef DEBUG_ENABLED
-	if (BehaviorTreeDebugger::is_watching(behavior_tree->get_path())) {
+	if (behavior_tree.is_valid() && BehaviorTreeDebugger::is_watching(behavior_tree->get_path())) {
 		const uint64_t now = OS::get_singleton()->get_ticks_usec();
 		if (now - last_report_usec > REPORT_EVERY_USEC) {
 			last_report_usec = now;

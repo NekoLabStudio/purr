@@ -5,4 +5,62 @@ The notes for the next release: everything below is in `main` and ships
 together when the version is tagged.
 <!-- unreleased-intro-end -->
 
-Nothing yet.
+## Fixed
+
+- After a `WorldOrigin` shift, meshes already loaded with a visibility range (`visibility_range_end`) were culled as if they were still where they had been, so details and props vanished once a shift was longer than their range.
+- A shift no longer smears the whole frame in motion blur, TAA and FSR2: the camera's last frame moves with the world.
+- `Terrain3D` collision made again after a shift (as streaming does when regions load) is where the ground is. With Godot Physics, terrain collision didn't move with a shift at all.
+- A joint holding a body to the world (one with no second body) holds it where it is after a shift, rather than pulling it back the whole shift.
+- `Trail3D` trails, `GPUParticles3D` emitter speed and Doppler tracking (`Camera3D`, `AudioListener3D`, `AudioStreamPlayer3D`) no longer take a shift for movement.
+- `DebugDraw` draws where it's asked after a shift. It was drawing everything as far off as all the shifts so far.
+- Nodes outside `WorldOrigin.world` with renderer instances, bodies or joints of their own (`InstanceGroup3D`, `StaticScenery3D`, `GridMap`) stay where they are through a shift. They were moved with the world.
+- A `Terrain3D` made before `WorldOrigin.reset()` (in a new world loading after a shift) is placed again for the cleared offset: its collision, instances and occluders were left where the old offset put them.
+- A matched ranked lobby connects when the host joins it after the other players. Their connection to the host was lost then, though `matchmake()` succeeded.
+- Online requests no longer hold up threaded resource loading and world streaming while they wait on the network.
+- A Steam lobby whose multiplayer peer couldn't start fails the call, rather than reporting the player joined.
+- Saves no longer crash when the player signs out of iCloud while the game runs. They stay on the device until iCloud is back.
+- A save the online services have an older version of than the device (restored from a backup) goes up, rather than being sent again and again.
+- A crash report longer than the online services take (64 KiB) is sent shortened, and one they refuse no longer holds up the reports after it.
+- A Game Center match invite accepted as the game launches is joined once signing in finishes. It could be lost.
+- Force feedback on wheels that answer it with reports of their own (Logitech's G920 and G923) keeps the wheel's position. Damping, springs and the column lock dropped out on the ticks where an answer was the newest report.
+- A behaviour tree task can restart the tree it runs in, or give the player another tree, agent or blackboard, without the running tasks being freed under it.
+- Leaving VR, or quitting, no longer hangs while a process the game started since VR began is still running.
+- Play Games saves tell a missing saved game apart from one that couldn't be reached: deleting one offline fails rather than reporting it gone, and loading one reports `load_failed`.
+- A graphics tier applied while `DynamicResolution` runs no longer fights it over the 3D scale, and the tier's upscaler and scale are what's left when dynamic resolution stops.
+- `Terrain3DInstancer.append_location()` and `append_region()` no longer crash when given fewer colours than transforms (the rest are white).
+- The MCP server's connection file, which holds the token for the running game, is readable only by the user who started the editor.
+- A controller plugged in alongside a force feedback wheel is no longer taken for a wheel too, which dropped it from gamepad bindings and the UI's actions.
+- On Apple TV, the Siri Remote's touch surface is a connected joypad (device `-3`), so `InputBindings` and the UI's actions hear it, and it gives where the finger rests rather than how far it moved.
+- On Apple TV, the Menu key is always released, even when `quit_on_go_back` changes during the press.
+- On Windows, all of a wheel's force feedback comes back after DirectInput takes the wheel away and gives it back, with the wheel's own centring off again.
+- Undoing a terrain edit applies it to the terrain it was made on, not whichever terrain is selected.
+- `ColorGradeVolume3D` keeps changes the game makes to the environment while no volume applies (a brightness option, the time of day), rather than putting back what it had when a volume first saw it.
+- `VirtualCamera2D`'s `group_margin` is in pixels on screen, whatever the zoom, as documented.
+- Two photos taken in the same second no longer overwrite each other: the second is numbered.
+- The player's audio volumes stay in effect after the game loads another bus layout with `AudioServer.set_bus_layout()`, which now emits `bus_layout_changed`.
+- A 16-bit heightmap too large to import is refused, rather than crashing the editor.
+- On macOS, VR audio in the headset is the game's own when another program runs the streamer (`PURR_VR_STREAMER=external`, with `--game <pid>`).
+- On Windows, the VR runtime picks the first GPU where DXGI can't say which is the fastest, copies the right layer of swapchains with several mip levels, and leaves no frames file behind after a crash.
+
+## Changes to check
+
+- The online services are Purr's again: Trill is back in Purr's repository as `online/`, released with Purr, with its docs in [Online services](/online/). This Purr can't talk to an instance still on Trill (`Account` emits `service_outdated`), and games built with Purr 0.3.1 can't talk to an instance on this release's online services: update your instance and your games together.
+- The settings are `online/url` and `online/game` again (they were `trill/url` and `trill/game`). Move both values in Project Settings, or rename the `[trill]` section of `project.godot` to `[online]`: Purr no longer reads the old ones, so a project that keeps them plays without the online services.
+- Steam sign-in tickets for the online services are for the identity `purr-online` again (they were for `trill`). The protocol's headers are `X-Purr-Game` and `X-Purr-Protocol` again, and the protocol is 3.
+- An instance set up from Trill moves back once, by hand. In the instance's folder, with your changes committed:
+
+  ```sh
+  mkdir -p /tmp/purr-online-release
+  curl -fsSL https://github.com/NekoLabStudio/purr/releases/latest/download/purr-online.tar.gz | tar -xz -C /tmp/purr-online-release
+  (cd /tmp/purr-online-release && npm ci)
+  cp -R .trill-upstream .purr-upstream
+  node /tmp/purr-online-release/scripts/update.mjs
+  rm -rf .trill-upstream .trill-version
+  ```
+
+  It updates the instance as `npm run update` does: it keeps your settings (including the Worker, database and bucket names you have) and email templates, applies the database migrations and offers to deploy. Commit the changes afterwards. From then on, `npm run update` brings in Purr's releases. New instances are set up with `curl -fsSL https://oss.nekolab.studio/purr/online/setup.sh | sh` (`PURR_VERSION` picks a release).
+- The online services' game setting `device_accounts` is going in a later release. To keep out players who didn't buy the game, turn on `check_ownership` with `other_stores` `false`.
+
+- A `Lobbies.create()`, `join()` or `matchmake()` still waiting when the game calls `Lobbies.leave()`, or asks for another lobby, now completes with `error` `"cancelled"`. It never completed before, so code awaiting it now carries on.
+- `SteeringWheel.close()` puts the wheel back to its widest rotation if the game changed it, as it always did: the docs said it restored the player's own, which wheels can't report.
+- On macOS, `ICloud.is_available()` is false unless the game's entitlements give it the `icloud/container` container, as in a game run from the editor. CloudKit ended the process there.

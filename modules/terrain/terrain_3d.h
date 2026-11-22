@@ -256,6 +256,10 @@ public:
 	bool is_occluders_enabled() const { return _occluders_enabled; }
 	void _occluder_regions_changed() { _occluders.mark_regions_changed(); }
 	void _occluders_edited(const AABB &p_area);
+	// The map offset what's on the servers is placed for.
+	Vector3 _placed_offset;
+	void _shifted(const Vector3 &p_by);
+	void _map_offset_changed();
 	void set_ocean_enabled(const bool p_enabled);
 	bool is_ocean_enabled() const { return _ocean_enabled; }
 	void set_ocean_level(const real_t p_level);

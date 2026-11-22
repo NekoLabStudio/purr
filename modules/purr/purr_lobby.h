@@ -25,14 +25,16 @@ class PurrLobby : public RefCounted {
 
 	String matchmaking_mode;
 	bool matchmade = false;
+	uint64_t attempt = 0; // Which create() a made lobby is for: any leave() since makes it stale.
 
 	// Completes the waiting call with this failure and leaves.
 	void fail(const String &p_error, const String &p_message);
 	void matched(const String &p_code);
 	void matchmaking_closed();
-	Error start_peer();
+	Error start_peer(bool p_host_here);
+	Error offer_to_host();
 	void disconnect_matchmaking();
-	void lobby_created(const Dictionary &p_result, const Ref<RefCounted> &p_call);
+	void lobby_created(const Dictionary &p_result, const Ref<RefCounted> &p_call, uint64_t p_attempt);
 	void enter(const String &p_code, const Ref<RefCounted> &p_call);
 	void connect_signals();
 	void disconnect_signals();

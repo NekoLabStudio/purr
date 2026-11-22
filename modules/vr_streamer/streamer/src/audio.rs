@@ -128,9 +128,9 @@ fn output_only_device_uid() -> Result<CFRetained<CFString>> {
     device_uid(*device)
 }
 
-/// Core Audio's object for the game: the process that started this one.
-fn game_process_object() -> Option<AudioObjectID> {
-    let game = unsafe { libc::getppid() };
+/// Core Audio's object for the game: the process given (`--game`), or the one that started this one.
+fn game_process_object(game: Option<i32>) -> Option<AudioObjectID> {
+    let game: libc::pid_t = game.unwrap_or_else(|| unsafe { libc::getppid() });
     let mut address = AudioObjectPropertyAddress {
         mSelector: kAudioHardwarePropertyTranslatePIDToProcessObject,
         mScope: kAudioObjectPropertyScopeGlobal,
@@ -154,7 +154,7 @@ fn game_process_object() -> Option<AudioObjectID> {
 impl GameAudioCapture {
     /// `mute_locally` silences the Mac's own output while the tap is being
     /// read, so the game is heard in the headset only.
-    pub fn start(mute_locally: bool) -> Result<Self> {
+    pub fn start(mute_locally: bool, game: Option<i32>) -> Result<Self> {
         // The recording side opens only the aggregate's first input stream, so
         // the tap must be the only one: anchor on a device with no inputs.
         let output_uid = output_only_device_uid()?;
@@ -163,7 +163,7 @@ impl GameAudioCapture {
         // the player's other sounds stay where they are. Should Core Audio not
         // know the game yet, everything is tapped instead, as this process
         // plays nothing itself.
-        let description: Retained<CATapDescription> = match game_process_object() {
+        let description: Retained<CATapDescription> = match game_process_object(game) {
             Some(game) => {
                 let included: Retained<NSArray<NSNumber>> = NSArray::from_slice(&[&*NSNumber::new_u32(game)]);
                 unsafe { CATapDescription::initStereoMixdownOfProcesses(CATapDescription::alloc(), &included) }

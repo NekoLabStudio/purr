@@ -21,6 +21,8 @@ Object *steam() {
 	return Engine::get_singleton()->has_singleton("Steam") ? Engine::get_singleton()->get_singleton_object("Steam") : nullptr;
 }
 
+// Asked each time: it goes away when the player signs out of it while the game runs, and saves
+// then stay on this device, dirty, until it's back.
 Object *cloud_store() {
 	return Purr::get_singleton() ? Purr::get_singleton()->cloud_store() : nullptr;
 }
@@ -218,6 +220,9 @@ void PlayerSaves::upload(const String &p_slot) {
 void PlayerSaves::uploaded(const Dictionary &p_result, const String &p_slot, int64_t p_edits_sent) {
 	uploading.erase(p_slot);
 	Dictionary meta = read_meta(p_slot);
+	const Variant data = p_result.get("data", Variant());
+	// The version the service has, on a conflict.
+	const int64_t current_version = data.get_type() == Variant::DICTIONARY ? (int64_t)Dictionary(data).get("current_version", -1) : -1;
 	if (p_result.get("ok", false)) {
 		meta["version"] = Dictionary(p_result["data"]).get("version", 0);
 		// A save made while this one was on its way stays dirty, and goes up now.
@@ -229,6 +234,12 @@ void PlayerSaves::uploaded(const Dictionary &p_result, const String &p_slot, int
 		} else {
 			emit_signal(SNAME("synced"), p_slot);
 		}
+	} else if (p_result.get("error", "") == "version_conflict" && current_version >= 0 && current_version < (int64_t)meta.get("version", 0)) {
+		// The service has an older version than this device last saw (its copy was restored or
+		// removed): this device's save is the newest, and replaces what's there.
+		meta["version"] = current_version;
+		write_meta(p_slot, meta);
+		upload(p_slot);
 	} else if (p_result.get("error", "") == "version_conflict") {
 		// Another device saved since: offer both, with the other one's summary.
 		Signal listed_signal = PurrOnline::get_singleton()->list_saves(token);
@@ -242,8 +253,10 @@ void PlayerSaves::uploaded(const Dictionary &p_result, const String &p_slot, int
 
 void PlayerSaves::sync() {
 	if (backend == BACKEND_PLATFORM && cloud) {
-		Signal listed_signal = cloud_store()->call("list_files");
-		listed_signal.connect(callable_mp(this, &PlayerSaves::cloud_listed), CONNECT_ONE_SHOT);
+		if (Object *cloud_object = cloud_store()) {
+			Signal listed_signal = cloud_object->call("list_files");
+			listed_signal.connect(callable_mp(this, &PlayerSaves::cloud_listed), CONNECT_ONE_SHOT);
+		}
 	} else if (backend == BACKEND_PLATFORM && steam()) {
 		// Steam Cloud has already brought down the latest at launch: refresh the local copies
 		// that have no changes of their own.
@@ -371,14 +384,15 @@ void PlayerSaves::resolve_conflict(const String &p_slot, bool p_keep_local) {
 // device last had the same save, so a newer one there means another device saved.
 
 void PlayerSaves::cloud_upload(const String &p_slot) {
-	if (uploading.has(p_slot)) {
-		return; // Goes up when this upload is done (it's still dirty).
+	Object *cloud_object = cloud_store();
+	if (uploading.has(p_slot) || cloud_object == nullptr) {
+		return; // Goes up when this upload is done, or the store is back (it's still dirty).
 	}
 	const Dictionary meta = read_meta(p_slot);
 	Dictionary file_details;
 	file_details["summary"] = meta.get("summary", Dictionary());
 	uploading.insert(p_slot);
-	Signal done = cloud_store()->call("save_file", steam_file(owner, p_slot), read_local(p_slot), file_details);
+	Signal done = cloud_object->call("save_file", steam_file(owner, p_slot), read_local(p_slot), file_details);
 	done.connect(callable_mp(this, &PlayerSaves::cloud_uploaded).bind(p_slot, meta.get("edits", 0)), CONNECT_ONE_SHOT);
 }
 
@@ -436,7 +450,11 @@ void PlayerSaves::cloud_listed(const Dictionary &p_result) {
 }
 
 void PlayerSaves::cloud_download(const String &p_slot) {
-	Signal loaded = cloud_store()->call("load_file", steam_file(owner, p_slot));
+	Object *cloud_object = cloud_store();
+	if (cloud_object == nullptr) {
+		return;
+	}
+	Signal loaded = cloud_object->call("load_file", steam_file(owner, p_slot));
 	loaded.connect(callable_mp(this, &PlayerSaves::cloud_downloaded).bind(p_slot, read_meta(p_slot).get("edits", 0)), CONNECT_ONE_SHOT);
 }
 
@@ -538,7 +556,9 @@ void PlayerSaves::delete_all() {
 
 void PlayerSaves::delete_slot(const String &p_slot) {
 	if (backend == BACKEND_PLATFORM && cloud) {
-		cloud_store()->call("delete_file", steam_file(owner, p_slot));
+		if (Object *cloud_object = cloud_store()) {
+			cloud_object->call("delete_file", steam_file(owner, p_slot));
+		}
 	} else if (backend == BACKEND_PLATFORM && steam()) {
 		steam()->call("fileDelete", steam_file(owner, p_slot));
 	}

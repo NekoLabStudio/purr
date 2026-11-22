@@ -22,4 +22,4 @@ Keep Steam running and set the App ID, and the game signs in with Steam when you
 
 ## Sign-in for the online services
 
-To sign Steam players in to the online services, the service needs to know the game's Steam App ID and a publisher Web API key. See [the online services](../online/index.md). The same key lets the service check that the player owns the game, for games that only play online for players who bought them (see [Ownership](https://oss.nekolab.studio/trill/ownership/)). A Playtest has an app ID of its own: list it in the game's `extra_steam_app_ids` so its players count too.
+To sign Steam players in to the online services, the service needs to know the game's Steam App ID and a publisher Web API key. See [the online services](../online/index.md). The same key lets the service check that the player owns the game, for games that only play online for players who bought them (see [Ownership](../online/ownership.md)). A Playtest has an app ID of its own: list it in the game's `extra_steam_app_ids` so its players count too.

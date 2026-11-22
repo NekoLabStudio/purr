@@ -17,8 +17,8 @@ void PurrOnlineCall::_bind_methods() {
 
 PurrOnline::PurrOnline() {
 	singleton = this;
-	GLOBAL_DEF_BASIC(PropertyInfo(Variant::STRING, "trill/url", PROPERTY_HINT_PLACEHOLDER_TEXT, "https://trill.example.workers.dev"), "");
-	GLOBAL_DEF_BASIC("trill/game", "");
+	GLOBAL_DEF_BASIC(PropertyInfo(Variant::STRING, "online/url", PROPERTY_HINT_PLACEHOLDER_TEXT, "https://purr-online.example.workers.dev"), "");
+	GLOBAL_DEF_BASIC("online/game", "");
 }
 
 PurrOnline::~PurrOnline() {
@@ -43,11 +43,11 @@ bool PurrOnline::is_secure() const {
 }
 
 String PurrOnline::get_url() const {
-	return String(GLOBAL_GET("trill/url")).strip_edges().trim_suffix("/");
+	return String(GLOBAL_GET("online/url")).strip_edges().trim_suffix("/");
 }
 
 String PurrOnline::get_game() const {
-	return GLOBAL_GET("trill/game");
+	return GLOBAL_GET("online/game");
 }
 
 void PurrOnline::set_session(const String &p_token, const String &p_account_id) {
@@ -94,7 +94,7 @@ Signal PurrOnline::call(HTTPClient::Method p_method, const String &p_path, const
 	if (!is_configured() || !is_secure()) {
 		Dictionary response;
 		response["status"] = 0;
-		response["error"] = is_configured() ? "The online service must be reached over https (plain http only for this computer)." : "The online service isn't set up (trill/url).";
+		response["error"] = is_configured() ? "The online service must be reached over https (plain http only for this computer)." : "The online service isn't set up (online/url).";
 		callable_mp(this, &PurrOnline::finish).call_deferred(response, pending_call, p_binary_answer, false);
 		return completed;
 	}
@@ -104,7 +104,7 @@ Signal PurrOnline::call(HTTPClient::Method p_method, const String &p_path, const
 		Dictionary response;
 		response["status"] = 0;
 		response["error_code"] = blocked;
-		response["error"] = blocked == "service_outdated" ? "The online service (Trill) is too old for this version of Purr." : blocked == "not_owned" ? "This game only plays online for players who bought it." : "This version of the game can't play online: update it.";
+		response["error"] = blocked == "service_outdated" ? "The online service is too old for this version of Purr." : blocked == "not_owned" ? "This game only plays online for players who bought it." : "This version of the game can't play online: update it.";
 		callable_mp(this, &PurrOnline::finish).call_deferred(response, pending_call, p_binary_answer, false);
 		return completed;
 	}
@@ -153,11 +153,11 @@ void PurrOnline::finish(const Dictionary &p_response, const Ref<PurrOnlineCall> 
 	pending.erase(p_call);
 }
 
-// What every request says about the game: its ID and version, which Trill can require a minimum
-// or maximum of.
+// What every request says about the game: its ID and version, which the service can require a
+// minimum or maximum of.
 Vector<String> PurrOnline::game_headers() const {
 	Vector<String> headers;
-	headers.push_back("X-Trill-Game: " + get_game());
+	headers.push_back("X-Purr-Game: " + get_game());
 	const String version = String(GLOBAL_GET("application/config/version")).strip_edges();
 	if (!version.is_empty()) {
 		headers.push_back("X-Game-Version: " + version);
@@ -186,9 +186,9 @@ void PurrOnline::check_versions(const Dictionary &p_result) {
 		emit_signal(SNAME("update_required"), data.get("min_version", Variant()), data.get("max_version", Variant()));
 		return;
 	}
-	// Purr's own online services before they became Trill say so with their old header.
+	// An instance still on Trill (the online services' name for a while) says so with its own header.
 	const Dictionary headers = p_result.get("headers", Dictionary());
-	if ((headers.has("x-trill-protocol") && String(headers["x-trill-protocol"]).to_int() < PROTOCOL) || headers.has("x-purr-protocol")) {
+	if ((headers.has("x-purr-protocol") && String(headers["x-purr-protocol"]).to_int() < PROTOCOL) || headers.has("x-trill-protocol")) {
 		blocked = "service_outdated";
 		emit_signal(SNAME("service_outdated"));
 	}
@@ -330,7 +330,7 @@ Signal PurrOnline::create_lobby() {
 
 // A WebSocket to the service, signed in, polled every frame by p_poll.
 Error PurrOnline::open_socket(Ref<WebSocketPeer> &r_socket, const String &p_path, const Callable &p_poll) {
-	ERR_FAIL_COND_V_MSG(!is_configured(), ERR_UNCONFIGURED, "The online service isn't set up (trill/url).");
+	ERR_FAIL_COND_V_MSG(!is_configured(), ERR_UNCONFIGURED, "The online service isn't set up (online/url).");
 	ERR_FAIL_COND_V_MSG(token.is_empty(), ERR_UNAUTHORIZED, "Sign in first.");
 	ERR_FAIL_COND_V_MSG(!is_secure(), ERR_UNAUTHORIZED, "The online service must be reached over https (plain http only for this computer).");
 	ERR_FAIL_COND_V_MSG(!blocked.is_empty(), ERR_UNAVAILABLE, "Online play is off for this session: " + blocked + ".");

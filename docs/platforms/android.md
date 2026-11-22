@@ -15,7 +15,7 @@ Play Games is off until the game sets `play_games/app_id` to its application ID:
 
 The `PlayGames` singleton has what Purr uses and a little more, such as showing Play Games' own achievements and leaderboards screens: see [PlayGames](../reference/PlayGames.md).
 
-To sign Play Games players in to the online services, create an OAuth web client for the game in the same Google Cloud project as its Play Games credentials. Set `play_games/server_client_id` to its client ID, and give the service the client ID and secret in `PLAY_GAMES_CLIENTS` (see [Settings](https://oss.nekolab.studio/trill/settings/)). Play Games player IDs are per game, so a player is a different Play Games player in each of a developer's games.
+To sign Play Games players in to the online services, create an OAuth web client for the game in the same Google Cloud project as its Play Games credentials. Set `play_games/server_client_id` to its client ID, and give the service the client ID and secret in `PLAY_GAMES_CLIENTS` (see [Settings](../online/settings.md)). Play Games player IDs are per game, so a player is a different Play Games player in each of a developer's games.
 
 ## Saved games
 
@@ -29,4 +29,4 @@ Saves go there only while the player is signed in to Play Games. When two device
 
 To test purchases, add your Google account as a license tester in the Play Console and install the game from a testing track.
 
-For games that only play online for players who bought them (see [Ownership](https://oss.nekolab.studio/trill/ownership/)), Purr shows the online services the copy came from Google Play with Play Integrity. Link a Google Cloud project to the game in the Play Console (under App integrity), turn on the Play Integrity API there, and set `google_play/cloud_project_number` in Project Settings to the project's number. The service needs a service account from the same project (see [Ownership](https://oss.nekolab.studio/trill/ownership/)).
+For games that only play online for players who bought them (see [Ownership](../online/ownership.md)), Purr shows the online services the copy came from Google Play with Play Integrity. Link a Google Cloud project to the game in the Play Console (under App integrity), turn on the Play Integrity API there, and set `google_play/cloud_project_number` in Project Settings to the project's number. The service needs a service account from the same project (see [Ownership](../online/ownership.md)).

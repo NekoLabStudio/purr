@@ -17,14 +17,19 @@ offset to every instance's transform and bounds, moves the culling
 trees' volumes as they are (DynamicBVH::shift()), keeps omni and spot
 shadows and light pairings, moves reflection probes without
 recapturing them (reflection_probe_instance_shift()), and resets
-geometry's motion vectors as a teleport does. Instances already queued
+geometry's motion vectors as a teleport does (the Mobile renderer now
+does that too). Where visibility ranges are measured from moves with
+everything, and so does each viewport's last frame of the camera, when
+the camera moved with the scenario, so motion vectors and temporal
+effects don't see the whole shift as movement. Instances already queued
 for a full update are left to it.
 
 No upstream issue yet.
 
 Test: in a window, meshes under a world shifted by (-1000, 0, 0) are
 found by instances_cull_aabb() 1 km away and not where they were, and
-those outside it where they stayed (Purr's samples/world). On a city of
+those outside it where they stayed, and a mesh with a visibility range
+is still drawn (Purr's samples/world). On a city of
 about 32,000 nodes, a shift's renderer setup fell from about 22 ms to
 1.5 ms.
 ---
@@ -34,16 +39,20 @@ about 32,000 nodes, a shift's renderer setup fell from about 22 ms to
  godot/drivers/gles3/storage/light_storage.cpp |  7 ++
  godot/drivers/gles3/storage/light_storage.h   |  1 +
  .../rendering/dummy/storage/light_storage.h   |  1 +
+ .../forward_mobile/render_forward_mobile.cpp  |  4 +
+ .../forward_mobile/render_forward_mobile.h    |  1 +
  .../renderer_rd/storage_rd/light_storage.cpp  |  7 ++
  .../renderer_rd/storage_rd/light_storage.h    |  1 +
- .../servers/rendering/renderer_scene_cull.cpp | 83 +++++++++++++++++++
+ .../servers/rendering/renderer_scene_cull.cpp | 92 ++++++++++++++++++-
  godot/servers/rendering/renderer_scene_cull.h |  1 +
+ godot/servers/rendering/renderer_viewport.cpp | 23 ++++-
+ godot/servers/rendering/renderer_viewport.h   |  4 +-
  godot/servers/rendering/rendering_method.h    |  1 +
  godot/servers/rendering/rendering_server.cpp  |  1 +
  godot/servers/rendering/rendering_server.h    |  1 +
  .../rendering/rendering_server_default.h      |  1 +
  .../servers/rendering/storage/light_storage.h |  2 +
- 15 files changed, 135 insertions(+)
+ 19 files changed, 172 insertions(+), 4 deletions(-)
 
 diff --git a/godot/core/math/dynamic_bvh.cpp b/godot/core/math/dynamic_bvh.cpp
 index 10753146..f3af43d3 100644
@@ -145,6 +154,33 @@ index 6be1c0b1..01ed1729 100644
  	virtual bool reflection_probe_has_atlas_index(RID p_instance) override { return false; }
  	virtual void reflection_probe_release_atlas_index(RID p_instance) override {}
  	virtual bool reflection_probe_instance_needs_redraw(RID p_instance) override { return false; }
+diff --git a/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp b/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
+index 8909445b..b90e5b5c 100644
+--- a/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
++++ b/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
+@@ -2785,6 +2785,10 @@ void RendererSceneRenderImplementation::RenderForwardMobile::GeometryInstanceFor
+ 	RenderGeometryInstanceBase::set_transform(p_transform, p_aabb, p_transformed_aabb);
+ }
+ 
++void RendererSceneRenderImplementation::RenderForwardMobile::GeometryInstanceForwardMobile::reset_motion_vectors() {
++	prev_transform = transform;
++}
++
+ void RenderForwardMobile::GeometryInstanceForwardMobile::set_use_lightmap(RID p_lightmap_instance, const Rect2 &p_lightmap_uv_scale, int p_lightmap_slice_index) {
+ 	lightmap_instance = p_lightmap_instance;
+ 	lightmap_uv_scale = p_lightmap_uv_scale;
+diff --git a/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.h b/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.h
+index 50ca1b63..c6ed96c5 100644
+--- a/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.h
++++ b/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.h
+@@ -580,6 +580,7 @@ protected:
+ 		virtual void _mark_dirty() override;
+ 
+ 		virtual void set_transform(const Transform3D &p_transform, const AABB &p_aabb, const AABB &p_transformed_aabb) override;
++		virtual void reset_motion_vectors() override;
+ 		virtual void set_use_lightmap(RID p_lightmap_instance, const Rect2 &p_lightmap_uv_scale, int p_lightmap_slice_index) override;
+ 		virtual void set_lightmap_capture(const Color *p_sh9) override;
+ 
 diff --git a/godot/servers/rendering/renderer_rd/storage_rd/light_storage.cpp b/godot/servers/rendering/renderer_rd/storage_rd/light_storage.cpp
 index 9904926b..08d838eb 100644
 --- a/godot/servers/rendering/renderer_rd/storage_rd/light_storage.cpp
@@ -176,10 +212,10 @@ index 8df2444a..2a52edb0 100644
  	virtual void reflection_probe_release_atlas_index(RID p_instance) override;
  	virtual bool reflection_probe_instance_needs_redraw(RID p_instance) override;
 diff --git a/godot/servers/rendering/renderer_scene_cull.cpp b/godot/servers/rendering/renderer_scene_cull.cpp
-index 1b887997..1c35dcb4 100644
+index 1b887997..bd36eb53 100644
 --- a/godot/servers/rendering/renderer_scene_cull.cpp
 +++ b/godot/servers/rendering/renderer_scene_cull.cpp
-@@ -509,6 +509,89 @@ void RendererSceneCull::scenario_set_fallback_environment(RID p_scenario, RID p_
+@@ -509,6 +509,96 @@ void RendererSceneCull::scenario_set_fallback_environment(RID p_scenario, RID p_
  	scenario->fallback_environment = p_environment;
  }
  
@@ -259,16 +295,32 @@ index 1b887997..1c35dcb4 100644
 +		if (instance->array_index >= 0) {
 +			scenario->instance_aabbs[instance->array_index] = InstanceBounds(instance->transformed_aabb);
 +		}
++		// Visibility ranges are measured from here: left, everything with one is culled as if still where it was.
++		if (instance->visibility_index != -1) {
++			scenario->instance_visibility[instance->visibility_index].position = instance->transformed_aabb.get_center();
++		}
 +	}
 +
 +	for (int i = 0; i < Scenario::INDEXER_MAX; i++) {
 +		scenario->indexers[i].shift(p_by);
 +	}
++
++	// The cameras' last frames, which motion vectors and temporal effects compare with.
++	RSG::viewport->scenario_shifted(p_scenario, p_by);
 +}
 +
  void RendererSceneCull::scenario_set_reflection_atlas_size(RID p_scenario, int p_reflection_size, int p_reflection_count) {
  	Scenario *scenario = scenario_owner.get_or_null(p_scenario);
  	ERR_FAIL_NULL(scenario);
+@@ -3727,7 +3817,7 @@ void RendererSceneCull::_render_scene(const RendererSceneRender::CameraData *p_c
+ 	const RendererSceneRender::CameraData *prev_camera_data = p_camera_data;
+ 	if (p_viewport.is_valid()) {
+ 		occluders_tex = RSG::viewport->viewport_get_occluder_debug_texture(p_viewport);
+-		prev_camera_data = RSG::viewport->viewport_get_prev_camera_data(p_viewport);
++		prev_camera_data = RSG::viewport->viewport_get_prev_camera_data(p_viewport, p_camera_data->main_transform.origin);
+ 	}
+ 
+ 	RENDER_TIMESTAMP("Render 3D Scene");
 diff --git a/godot/servers/rendering/renderer_scene_cull.h b/godot/servers/rendering/renderer_scene_cull.h
 index 1037554d..41663755 100644
 --- a/godot/servers/rendering/renderer_scene_cull.h
@@ -281,6 +333,69 @@ index 1037554d..41663755 100644
  	virtual void scenario_set_compositor(RID p_scenario, RID p_compositor);
  	virtual void scenario_set_reflection_atlas_size(RID p_scenario, int p_reflection_size, int p_reflection_count);
  	virtual bool is_scenario(RID p_scenario) const;
+diff --git a/godot/servers/rendering/renderer_viewport.cpp b/godot/servers/rendering/renderer_viewport.cpp
+index d8649e8d..e25425cb 100644
+--- a/godot/servers/rendering/renderer_viewport.cpp
++++ b/godot/servers/rendering/renderer_viewport.cpp
+@@ -1275,15 +1275,34 @@ void RendererViewport::viewport_set_prev_camera_data(RID p_viewport, const Rende
+ 	if (viewport->prev_camera_data_frame != frame) {
+ 		viewport->prev_camera_data = *p_camera_data;
+ 		viewport->prev_camera_data_frame = frame;
++		viewport->prev_camera_shift = Vector3();
+ 	}
+ }
+ 
+-const RendererSceneRender::CameraData *RendererViewport::viewport_get_prev_camera_data(RID p_viewport) {
+-	const Viewport *viewport = viewport_owner.get_or_null(p_viewport);
++// After a shift of the scenario, the last frame's camera moves with it when the camera did (it's then
++// nearer where the camera is now): otherwise everything on screen would seem to have moved the whole shift.
++const RendererSceneRender::CameraData *RendererViewport::viewport_get_prev_camera_data(RID p_viewport, const Vector3 &p_camera_origin) {
++	Viewport *viewport = viewport_owner.get_or_null(p_viewport);
+ 	ERR_FAIL_NULL_V(viewport, nullptr);
++	if (viewport->prev_camera_shift != Vector3()) {
++		const Vector3 was = viewport->prev_camera_data.main_transform.origin;
++		if (p_camera_origin.distance_squared_to(was + viewport->prev_camera_shift) < p_camera_origin.distance_squared_to(was)) {
++			viewport->prev_camera_data.main_transform.origin += viewport->prev_camera_shift;
++		}
++		viewport->prev_camera_shift = Vector3();
++	}
+ 	return &viewport->prev_camera_data;
+ }
+ 
++void RendererViewport::scenario_shifted(RID p_scenario, const Vector3 &p_by) {
++	for (const RID &rid : viewport_owner.get_owned_list()) {
++		Viewport *viewport = viewport_owner.get_or_null(rid);
++		if (viewport->scenario == p_scenario) {
++			viewport->prev_camera_shift += p_by;
++		}
++	}
++}
++
+ void RendererViewport::viewport_set_disable_2d(RID p_viewport, bool p_disable) {
+ 	Viewport *viewport = viewport_owner.get_or_null(p_viewport);
+ 	ERR_FAIL_NULL(viewport);
+diff --git a/godot/servers/rendering/renderer_viewport.h b/godot/servers/rendering/renderer_viewport.h
+index 2c70de5e..2fe069ba 100644
+--- a/godot/servers/rendering/renderer_viewport.h
++++ b/godot/servers/rendering/renderer_viewport.h
+@@ -76,6 +76,7 @@ public:
+ 
+ 		RendererSceneRender::CameraData prev_camera_data;
+ 		uint64_t prev_camera_data_frame = 0;
++		Vector3 prev_camera_shift; // Its scenario's shifts since then (RenderingServer::scenario_shift()).
+ 
+ 		bool use_occlusion_culling = false;
+ 		bool occlusion_buffer_dirty = false;
+@@ -249,7 +250,8 @@ public:
+ 	RID viewport_get_occluder_debug_texture(RID p_viewport) const;
+ 
+ 	void viewport_set_prev_camera_data(RID p_viewport, const RendererSceneRender::CameraData *p_camera_data);
+-	const RendererSceneRender::CameraData *viewport_get_prev_camera_data(RID p_viewport);
++	const RendererSceneRender::CameraData *viewport_get_prev_camera_data(RID p_viewport, const Vector3 &p_camera_origin);
++	void scenario_shifted(RID p_scenario, const Vector3 &p_by);
+ 
+ 	void viewport_set_disable_2d(RID p_viewport, bool p_disable);
+ 	void viewport_set_environment_mode(RID p_viewport, RSE::ViewportEnvironmentMode p_mode);
 diff --git a/godot/servers/rendering/rendering_method.h b/godot/servers/rendering/rendering_method.h
 index 2360c6e1..b9c4f558 100644
 --- a/godot/servers/rendering/rendering_method.h

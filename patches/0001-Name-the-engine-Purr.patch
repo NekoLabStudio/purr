@@ -16,6 +16,9 @@ Without it, Purr and stock Godot of the same version would share one
 export_templates folder and overwrite each other's templates. Games'
 user:// folders move to the Purr folder too.
 
+The build's module search knows the renamed tree as an engine too, so
+a custom_modules path that holds one isn't searched as modules.
+
 Test: start the editor; its title, the startup header and --version say
 Purr, and it keeps its settings in Application Support/Purr (or the
 platform's equivalent).
@@ -23,8 +26,9 @@ platform's equivalent).
 Not for upstream. Policy: https://godotengine.org/trademark/
 ---
  godot/core/config/project_settings.cpp | 2 +-
+ godot/methods.py                       | 6 ++++--
  godot/version.py                       | 6 +++---
- 2 files changed, 4 insertions(+), 4 deletions(-)
+ 3 files changed, 8 insertions(+), 6 deletions(-)
 
 diff --git a/godot/core/config/project_settings.cpp b/godot/core/config/project_settings.cpp
 index 4cf864f9..9d8267cd 100644
@@ -39,6 +43,23 @@ index 4cf864f9..9d8267cd 100644
  	GLOBAL_DEF_RST(PropertyInfo(Variant::INT, "rendering/occlusion_culling/bvh_build_quality", PROPERTY_HINT_ENUM, "Low,Medium,High"), 2);
  	GLOBAL_DEF_RST("rendering/occlusion_culling/jitter_projection", true);
  
+diff --git a/godot/methods.py b/godot/methods.py
+index 3dca5ad6..af8e87ad 100644
+--- a/godot/methods.py
++++ b/godot/methods.py
+@@ -264,8 +264,10 @@ def detect_modules(search_path, recursive=False):
+         version_path = os.path.join(path, "version.py")
+         if os.path.exists(version_path):
+             with open(version_path, "r", encoding="utf-8") as f:
+-                if 'short_name = "godot"' in f.read():
+-                    return True
++                version = f.read()
++            # Purr's own tree as well as Godot's.
++            if 'short_name = "godot"' in version or 'short_name = "purr"' in version:
++                return True
+         return False
+ 
+     def get_files(path):
 diff --git a/godot/version.py b/godot/version.py
 index 6569e62c..b9f237b9 100644
 --- a/godot/version.py

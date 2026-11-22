@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 22 Nov 2026 21:24:59 +0000
+Subject: [PATCH] Audio: set_bus_layout() announces the new layout
+
+AudioServer emits bus_layout_changed when a bus is added, removed or
+moved, but not when set_bus_layout() replaces them all, so anything
+that follows the buses (Purr's Options, which keeps the player's
+volume for each) never hears of a layout a game loads at run time.
+The new layout keeps its own volumes then, whatever the player chose.
+
+set_bus_layout() now emits bus_layout_changed once the new buses are
+in place.
+
+No upstream issue yet.
+
+Test: after AudioServer.set_bus_layout() at run time, the player's
+saved bus volume is in effect again (Purr's samples/options).
+---
+ godot/servers/audio/audio_server.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/godot/servers/audio/audio_server.cpp b/godot/servers/audio/audio_server.cpp
+index d5f542b0..e642ca12 100644
+--- a/godot/servers/audio/audio_server.cpp
++++ b/godot/servers/audio/audio_server.cpp
+@@ -1648,6 +1648,9 @@ void AudioServer::set_bus_layout(const Ref<AudioBusLayout> &p_bus_layout) {
+ 	unlock();
+ 
+ 	// Samples bus sync.
++
++	// Like adding, removing or moving a bus, a whole new layout is announced.
++	emit_signal(SNAME("bus_layout_changed"));
+ }
+ 
+ Ref<AudioBusLayout> AudioServer::generate_bus_layout() const {
+-- 
+2.54.0 (Apple Git-157)
+

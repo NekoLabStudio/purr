@@ -2,15 +2,17 @@
 
 #include "core/crypto/crypto.h"
 #include "core/object/callable_mp.h"
-#include "core/object/worker_thread_pool.h"
 #include "core/os/os.h"
+#include "core/os/thread.h"
 
 namespace {
 
 // Gives up on a request taking longer than this.
 constexpr uint64_t TIMEOUT_MSEC = 30000;
 
-// A request in flight. It holds a reference to itself until it finishes on the main thread.
+// A request in flight, on a thread of its own: it waits on the network, and in the worker pool it
+// would hold up threaded loading and streaming (a slow service takes up to TIMEOUT_MSEC). It holds
+// a reference to itself until it finishes on the main thread.
 class PurrHttpTask : public RefCounted {
 	GDSOFTCLASS(PurrHttpTask, RefCounted);
 
@@ -20,13 +22,12 @@ public:
 	Vector<String> headers;
 	PackedByteArray body;
 	Callable done;
-	WorkerThreadPool::TaskID task = WorkerThreadPool::INVALID_TASK_ID;
+	Thread thread;
 	Ref<PurrHttpTask> self;
 
-	// On the main thread: the pool keeps a finished task until it's waited for, so it's waited
-	// for here (it returns at once), then the result goes to the caller.
+	// On the main thread, once the request's thread is done with it (it ends straight after).
 	void finish(const Dictionary &p_result) {
-		WorkerThreadPool::get_singleton()->wait_for_task_completion(task);
+		thread.wait_to_finish();
 		done.call(p_result);
 		self.unref();
 	}
@@ -140,6 +141,6 @@ void purr_http_request(HTTPClient::Method p_method, const String &p_url, const V
 	request->body = p_body;
 	request->done = p_done;
 	request->self = request;
-	// Set before finish() can run: that's deferred to the main thread, which is here.
-	request->task = WorkerThreadPool::get_singleton()->add_native_task(&run, request.ptr(), false, "Purr HTTP request");
+	// finish() can't run before this returns: it's deferred to the main thread, which is here.
+	request->thread.start(&run, request.ptr());
 }

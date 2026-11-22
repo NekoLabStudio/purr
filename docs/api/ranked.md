@@ -40,4 +40,4 @@ A rating kept on the player's device is only as safe as the device: a player who
 
 ## Limits
 
-[Checks](checks.md) can catch a player whose game reports something wrong during the match, and a failed check stops the result from counting. Agreement stops one player from faking a result, but players who team up can still agree on a false one, and a player who leaves before reporting doesn't count towards the majority. [Reports and bans](https://oss.nekolab.studio/trill/moderation/) are there for players who abuse ranked play. A game that must have results nobody can fake needs a server that runs the match itself, which Purr doesn't provide.
+[Checks](checks.md) can catch a player whose game reports something wrong during the match, and a failed check stops the result from counting. Agreement stops one player from faking a result, but players who team up can still agree on a false one, and a player who leaves before reporting doesn't count towards the majority. [Reports and bans](../online/moderation.md) are there for players who abuse ranked play. A game that must have results nobody can fake needs a server that runs the match itself, which Purr doesn't provide.

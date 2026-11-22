@@ -5,7 +5,7 @@
 
 namespace {
 
-// The online service's elo constant (Trill's src/ratings.ts).
+// The online service's elo constant (online/src/ratings.ts).
 const double K = 32;
 
 bool valid_identifier(const std::string &p_text, size_t p_max_length) {

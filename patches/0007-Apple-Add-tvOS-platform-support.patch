@@ -1311,10 +1311,10 @@ index 255242ef..f959b42d 100644
  	GLOBAL_DEF_NOVAL(PropertyInfo(Variant::STRING, "display/display_server/driver.macos", PROPERTY_HINT_ENUM, "default,macos,headless"), "default");
  
 diff --git a/godot/methods.py b/godot/methods.py
-index 3dca5ad6..6e86810e 100644
+index af8e87ad..c89f50d9 100644
 --- a/godot/methods.py
 +++ b/godot/methods.py
-@@ -644,6 +644,14 @@ def detect_darwin_sdk_path(platform, env):
+@@ -646,6 +646,14 @@ def detect_darwin_sdk_path(platform, env):
          sdk_name = "xrsimulator"
          var_name = "APPLE_SDK_PATH"
  
@@ -1329,7 +1329,7 @@ index 3dca5ad6..6e86810e 100644
      else:
          raise Exception("Invalid platform argument passed to detect_darwin_sdk_path")
  
-@@ -660,7 +668,7 @@ def detect_darwin_sdk_path(platform, env):
+@@ -662,7 +670,7 @@ def detect_darwin_sdk_path(platform, env):
  def is_apple_clang(env):
      import shlex
  

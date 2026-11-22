@@ -19,7 +19,7 @@
 		<method name="close">
 			<return type="void" />
 			<description>
-				Stops force feedback and releases the wheel, restoring the rotation it had before [method set_rotation].
+				Stops force feedback and releases the wheel. If [method set_rotation] changed its rotation, the wheel goes back to its widest (wheels can't say what they were set to before).
 			</description>
 		</method>
 		<method name="ease_in">
@@ -106,7 +106,7 @@
 			<return type="int" />
 			<param index="0" name="degrees" type="int" />
 			<description>
-				Sets the wheel's rotation, lock to lock in degrees, as near as the wheel allows. Returns what it was set to, or [code]0[/code] if the rotation can't be set from here (keep the player's own setting then). The previous rotation is restored on [method close].
+				Sets the wheel's rotation, lock to lock in degrees, as near as the wheel allows. Returns what it was set to, or [code]0[/code] if the rotation can't be set from here (keep the player's own setting then). On [method close], the wheel goes back to its widest rotation, not the one it had before: wheels can't say what that was.
 			</description>
 		</method>
 		<method name="set_spring">
@@ -126,7 +126,7 @@
 			<param index="0" name="stiffness" type="float" />
 			<param index="1" name="lag" type="float" />
 			<description>
-				Sets a centring spring played on the force feedback thread from the wheel's own position, with this [param stiffness], following the game's centre with this [param lag] in seconds.
+				Corrects the steady force ([member force]) by how far the wheel has turned since the game read it, on the force feedback thread from the wheel's own fresh readings, so a force the game works out from the steering (the tyres' centring) isn't played late. [param stiffness] is how much that force changes as the wheel turns (a share of the wheel's strongest per unit of the steering axis, signed as the damping is), and [param lag] is how long ago, in seconds, the game read the wheel it worked the force out for. Call it each time [member force] is set. Only works where [method reads_position] is [code]true[/code].
 			</description>
 		</method>
 		<method name="set_texture">

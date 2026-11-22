@@ -42,34 +42,47 @@ Ref<Image> read_16_bit_png(const String &p_path) {
 	if (file.size() < 8 || png_sig_cmp(file.ptr(), 0, 8) != 0) {
 		return Ref<Image>();
 	}
-	// Everything libpng's error jump could skip past is made before it.
+	// Everything libpng's error jump could skip past is made before it. What's filled in after it
+	// lives on the heap, behind a pointer set before it: locals changed between setjmp() and the
+	// jump are indeterminate after it.
 	PngBytes bytes{ file.ptr(), size_t(file.size()), 0 };
 	png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
 	png_infop info = png != nullptr ? png_create_info_struct(png) : nullptr;
-	Vector<uint8_t> row;
-	Vector<float> heights;
-	int width = 0;
-	int height = 0;
+	struct Read {
+		Vector<uint8_t> row;
+		Vector<float> heights;
+		int width = 0;
+		int height = 0;
+	};
+	Read *const read = memnew(Read);
 	if (png == nullptr || info == nullptr || setjmp(png_jmpbuf(png))) {
 		png_destroy_read_struct(&png, &info, nullptr);
+		memdelete(read);
 		return Ref<Image>();
 	}
 	png_set_read_fn(png, &bytes, read_png_bytes);
 	png_read_info(png, info);
-	if (png_get_bit_depth(png, info) != 16 || png_get_interlace_type(png, info) != PNG_INTERLACE_NONE) {
+	const uint32_t png_width = png_get_image_width(png, info);
+	const uint32_t png_height = png_get_image_height(png, info);
+	// Far more than any terrain (16 regions of 2048 a side), and what an int can count.
+	constexpr uint32_t MAX_SIDE = 32768;
+	constexpr uint64_t MAX_PIXELS = uint64_t(16384) * 16384;
+	if (png_get_bit_depth(png, info) != 16 || png_get_interlace_type(png, info) != PNG_INTERLACE_NONE ||
+			png_width > MAX_SIDE || png_height > MAX_SIDE || uint64_t(png_width) * png_height > MAX_PIXELS) {
 		png_destroy_read_struct(&png, &info, nullptr);
+		memdelete(read);
 		return Ref<Image>();
 	}
-	width = int(png_get_image_width(png, info));
-	height = int(png_get_image_height(png, info));
+	read->width = int(png_width);
+	read->height = int(png_height);
 	const int channels = png_get_channels(png, info);
-	row.resize(png_get_rowbytes(png, info));
-	heights.resize(width * height);
-	float *out = heights.ptrw();
-	for (int y = 0; y < height; y++) {
-		png_read_row(png, row.ptrw(), nullptr);
-		const uint8_t *samples = row.ptr();
-		for (int x = 0; x < width; x++) {
+	read->row.resize(png_get_rowbytes(png, info));
+	read->heights.resize(read->width * read->height);
+	float *out = read->heights.ptrw();
+	for (int y = 0; y < read->height; y++) {
+		png_read_row(png, read->row.ptrw(), nullptr);
+		const uint8_t *samples = read->row.ptr();
+		for (int x = 0; x < read->width; x++) {
 			const uint8_t *sample = samples + x * channels * 2; // Big-endian, as PNG stores them.
 			*out++ = float((sample[0] << 8) | sample[1]) / 65535.0f;
 		}
@@ -77,8 +90,11 @@ Ref<Image> read_16_bit_png(const String &p_path) {
 	png_destroy_read_struct(&png, &info, nullptr);
 
 	Vector<uint8_t> data;
-	data.resize(heights.size() * sizeof(float));
-	memcpy(data.ptrw(), heights.ptr(), data.size());
+	data.resize(read->heights.size() * sizeof(float));
+	memcpy(data.ptrw(), read->heights.ptr(), data.size());
+	const int width = read->width;
+	const int height = read->height;
+	memdelete(read);
 	return Image::create_from_data(width, height, false, Image::FORMAT_RF, data);
 }
 

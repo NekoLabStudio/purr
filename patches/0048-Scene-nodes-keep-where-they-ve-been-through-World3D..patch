@@ -1,0 +1,286 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 22 Nov 2026 17:04:48 +0000
+Subject: [PATCH] Scene: nodes keep where they've been through World3D.shift()
+
+A floating origin moves a world and every node in it at once
+(World3D::shift()). Some nodes keep global positions outside their
+transforms, which the shift left behind: a Trail3D's points (it was
+drawn stretched back to where it had been), GPUParticles3D's last
+position (its emitter speed was the whole shift for a frame), the
+places Camera3D, AudioListener3D and AudioStreamPlayer3D track for
+the Doppler effect (the same, in pitch), and a joint holding a body to
+the world (the world end stayed behind and pulled the body back where
+the physics engine couldn't shift its space).
+
+Node3D::world_shifted() is called by whatever shifted the world on the
+nodes that moved with it, and these move what they keep, or make the
+joint again where it now is. A one-body joint that didn't move with the
+world is made again too (Joint3D::update_server_transform()), as a
+physics engine that shifts its whole space moved its world end.
+
+No upstream issue yet.
+
+Test: after a shift of the world, a Trail3D's length and a Camera3D's
+tracked Doppler speed are what they were, and a body hanging from a
+joint with no second body stays where it hangs, inside the shifted
+world or outside it (Purr's samples/world).
+---
+ godot/scene/3d/audio_listener_3d.cpp       |  9 +++++++++
+ godot/scene/3d/audio_listener_3d.h         |  1 +
+ godot/scene/3d/audio_stream_player_3d.cpp  |  9 +++++++++
+ godot/scene/3d/audio_stream_player_3d.h    |  2 ++
+ godot/scene/3d/camera_3d.cpp               |  9 +++++++++
+ godot/scene/3d/camera_3d.h                 |  1 +
+ godot/scene/3d/gpu_particles_3d.cpp        |  5 +++++
+ godot/scene/3d/gpu_particles_3d.h          |  1 +
+ godot/scene/3d/node_3d.h                   |  4 ++++
+ godot/scene/3d/physics/joints/joint_3d.cpp | 13 +++++++++++++
+ godot/scene/3d/physics/joints/joint_3d.h   |  2 ++
+ godot/scene/3d/trail_3d.cpp                |  9 +++++++++
+ godot/scene/3d/trail_3d.h                  |  1 +
+ godot/scene/3d/velocity_tracker_3d.cpp     |  6 ++++++
+ godot/scene/3d/velocity_tracker_3d.h       |  1 +
+ 15 files changed, 73 insertions(+)
+
+diff --git a/godot/scene/3d/audio_listener_3d.cpp b/godot/scene/3d/audio_listener_3d.cpp
+index ae109ab8..45633d7c 100644
+--- a/godot/scene/3d/audio_listener_3d.cpp
++++ b/godot/scene/3d/audio_listener_3d.cpp
+@@ -177,6 +177,15 @@ void AudioListener3D::_bind_methods() {
+ 	BIND_ENUM_CONSTANT(DOPPLER_TRACKING_PHYSICS_STEP);
+ }
+ 
++// Its speed for the Doppler effect comes from where it was: those places moved with it. Where it is
++// now was noted as it moved, already shifted, so it's noted again.
++void AudioListener3D::world_shifted(const Vector3 &p_by) {
++	velocity_tracker->shift(p_by);
++	if (doppler_tracking != DOPPLER_TRACKING_DISABLED) {
++		velocity_tracker->update_position(get_global_transform().origin);
++	}
++}
++
+ Vector3 AudioListener3D::get_doppler_tracked_velocity() const {
+ 	if (doppler_tracking != DOPPLER_TRACKING_DISABLED) {
+ 		return velocity_tracker->get_tracked_linear_velocity();
+diff --git a/godot/scene/3d/audio_listener_3d.h b/godot/scene/3d/audio_listener_3d.h
+index 3c93ed58..72aa8778 100644
+--- a/godot/scene/3d/audio_listener_3d.h
++++ b/godot/scene/3d/audio_listener_3d.h
+@@ -53,6 +53,7 @@ public:
+ 	DopplerTracking get_doppler_tracking() const;
+ 
+ 	Vector3 get_doppler_tracked_velocity() const;
++	virtual void world_shifted(const Vector3 &p_by) override;
+ 
+ 	AudioListener3D();
+ 	~AudioListener3D();
+diff --git a/godot/scene/3d/audio_stream_player_3d.cpp b/godot/scene/3d/audio_stream_player_3d.cpp
+index 8cdcd3f2..9d79e708 100644
+--- a/godot/scene/3d/audio_stream_player_3d.cpp
++++ b/godot/scene/3d/audio_stream_player_3d.cpp
+@@ -779,6 +779,15 @@ AudioStreamPlayer3D::AttenuationModel AudioStreamPlayer3D::get_attenuation_model
+ 	return attenuation_model;
+ }
+ 
++// Its speed for the Doppler effect comes from where it was: those places moved with it. Where it is
++// now was noted as it moved, already shifted, so it's noted again.
++void AudioStreamPlayer3D::world_shifted(const Vector3 &p_by) {
++	velocity_tracker->shift(p_by);
++	if (doppler_tracking != DOPPLER_TRACKING_DISABLED) {
++		velocity_tracker->update_position(get_global_transform().origin);
++	}
++}
++
+ void AudioStreamPlayer3D::set_doppler_tracking(DopplerTracking p_tracking) {
+ 	if (doppler_tracking == p_tracking) {
+ 		return;
+diff --git a/godot/scene/3d/audio_stream_player_3d.h b/godot/scene/3d/audio_stream_player_3d.h
+index 63cf4dc2..5a4e4f03 100644
+--- a/godot/scene/3d/audio_stream_player_3d.h
++++ b/godot/scene/3d/audio_stream_player_3d.h
+@@ -143,6 +143,8 @@ protected:
+ #endif // DISABLE_DEPRECATED
+ 
+ public:
++	virtual void world_shifted(const Vector3 &p_by) override;
++
+ 	void set_stream(Ref<AudioStream> p_stream);
+ 	Ref<AudioStream> get_stream() const;
+ 
+diff --git a/godot/scene/3d/camera_3d.cpp b/godot/scene/3d/camera_3d.cpp
+index 819ecfce..e91f458d 100644
+--- a/godot/scene/3d/camera_3d.cpp
++++ b/godot/scene/3d/camera_3d.cpp
+@@ -889,6 +889,15 @@ real_t Camera3D::get_h_offset() const {
+ 	return h_offset;
+ }
+ 
++// Its speed for the Doppler effect comes from where it was: those places moved with it. Where it is
++// now was noted as it moved, already shifted, so it's noted again.
++void Camera3D::world_shifted(const Vector3 &p_by) {
++	velocity_tracker->shift(p_by);
++	if (doppler_tracking != DOPPLER_TRACKING_DISABLED) {
++		velocity_tracker->update_position(get_global_transform().origin);
++	}
++}
++
+ Vector3 Camera3D::get_doppler_tracked_velocity() const {
+ 	if (doppler_tracking != DOPPLER_TRACKING_DISABLED) {
+ 		return velocity_tracker->get_tracked_linear_velocity();
+diff --git a/godot/scene/3d/camera_3d.h b/godot/scene/3d/camera_3d.h
+index 25f0d6a0..a3e01db7 100644
+--- a/godot/scene/3d/camera_3d.h
++++ b/godot/scene/3d/camera_3d.h
+@@ -206,6 +206,7 @@ public:
+ 	DopplerTracking get_doppler_tracking() const;
+ 
+ 	Vector3 get_doppler_tracked_velocity() const;
++	virtual void world_shifted(const Vector3 &p_by) override;
+ 
+ #ifndef PHYSICS_3D_DISABLED
+ 	RID get_pyramid_shape_rid();
+diff --git a/godot/scene/3d/gpu_particles_3d.cpp b/godot/scene/3d/gpu_particles_3d.cpp
+index 5f49a3d3..38ce8d63 100644
+--- a/godot/scene/3d/gpu_particles_3d.cpp
++++ b/godot/scene/3d/gpu_particles_3d.cpp
+@@ -439,6 +439,11 @@ PackedStringArray GPUParticles3D::get_configuration_warnings() const {
+ 	return warnings;
+ }
+ 
++// The emitter's speed comes from where it last was, which moved with it.
++void GPUParticles3D::world_shifted(const Vector3 &p_by) {
++	previous_position += p_by;
++}
++
+ void GPUParticles3D::restart(bool p_keep_seed) {
+ 	if (!p_keep_seed && !use_fixed_seed) {
+ 		set_seed(Math::rand());
+diff --git a/godot/scene/3d/gpu_particles_3d.h b/godot/scene/3d/gpu_particles_3d.h
+index 12940fa9..013b01a4 100644
+--- a/godot/scene/3d/gpu_particles_3d.h
++++ b/godot/scene/3d/gpu_particles_3d.h
+@@ -122,6 +122,7 @@ protected:
+ 
+ public:
+ 	AABB get_aabb() const override;
++	virtual void world_shifted(const Vector3 &p_by) override;
+ 
+ 	void set_emitting(bool p_emitting);
+ 	void set_amount(int p_amount);
+diff --git a/godot/scene/3d/node_3d.h b/godot/scene/3d/node_3d.h
+index 9f77c699..450dd7e7 100644
+--- a/godot/scene/3d/node_3d.h
++++ b/godot/scene/3d/node_3d.h
+@@ -243,6 +243,10 @@ public:
+ 
+ 	Ref<World3D> get_world_3d() const;
+ 
++	// A floating origin moved the world this node is in by p_by, all of it at once (World3D::shift()), and the
++	// node with it: positions it keeps in global space, outside its transform, move by p_by too.
++	virtual void world_shifted(const Vector3 &p_by) {}
++
+ 	void set_position(const Vector3 &p_position);
+ 
+ 	void set_rotation_edit_mode(RotationEditMode p_mode);
+diff --git a/godot/scene/3d/physics/joints/joint_3d.cpp b/godot/scene/3d/physics/joints/joint_3d.cpp
+index 0f09afa1..6218d246 100644
+--- a/godot/scene/3d/physics/joints/joint_3d.cpp
++++ b/godot/scene/3d/physics/joints/joint_3d.cpp
+@@ -203,6 +203,19 @@ bool Joint3D::get_exclude_nodes_from_collision() const {
+ 	return exclude_from_collision;
+ }
+ 
++// A joint with one body holds it to a place in the world, kept in global space by the physics server: made
++// again, it holds it where the joint now is, whether a shift of the server's whole space moved that place
++// and the joint was put back, or the joint moved with the world and the server couldn't shift.
++void Joint3D::update_server_transform() {
++	if (configured && (!ba.is_valid() || !bb.is_valid())) {
++		_update_joint();
++	}
++}
++
++void Joint3D::world_shifted(const Vector3 &p_by) {
++	update_server_transform();
++}
++
+ PackedStringArray Joint3D::get_configuration_warnings() const {
+ 	PackedStringArray warnings = Node3D::get_configuration_warnings();
+ 
+diff --git a/godot/scene/3d/physics/joints/joint_3d.h b/godot/scene/3d/physics/joints/joint_3d.h
+index 313e659a..277bdaaf 100644
+--- a/godot/scene/3d/physics/joints/joint_3d.h
++++ b/godot/scene/3d/physics/joints/joint_3d.h
+@@ -63,6 +63,8 @@ protected:
+ 
+ public:
+ 	virtual PackedStringArray get_configuration_warnings() const override;
++	virtual void world_shifted(const Vector3 &p_by) override;
++	void update_server_transform();
+ 
+ 	void set_node_a(const NodePath &p_node_a);
+ 	NodePath get_node_a() const;
+diff --git a/godot/scene/3d/trail_3d.cpp b/godot/scene/3d/trail_3d.cpp
+index 4329a326..34244730 100644
+--- a/godot/scene/3d/trail_3d.cpp
++++ b/godot/scene/3d/trail_3d.cpp
+@@ -414,6 +414,15 @@ real_t Trail3D::_calc_current_length() const {
+ 	return length;
+ }
+ 
++// The trail's points are where it has been, in global space: they moved with it.
++void Trail3D::world_shifted(const Vector3 &p_by) {
++	Vector3 *w = points.ptrw();
++	for (int i = 0; i < points.size(); i++) {
++		w[i] += p_by;
++	}
++	_previous_position += p_by;
++}
++
+ real_t Trail3D::get_current_length() const {
+ 	return _calc_current_length();
+ }
+diff --git a/godot/scene/3d/trail_3d.h b/godot/scene/3d/trail_3d.h
+index e4147113..64758aa3 100644
+--- a/godot/scene/3d/trail_3d.h
++++ b/godot/scene/3d/trail_3d.h
+@@ -110,6 +110,7 @@ public:
+ 	real_t get_current_length() const;
+ 
+ 	PackedStringArray get_configuration_warnings() const override;
++	virtual void world_shifted(const Vector3 &p_by) override;
+ 
+ private:
+ 	// Ribbon
+diff --git a/godot/scene/3d/velocity_tracker_3d.cpp b/godot/scene/3d/velocity_tracker_3d.cpp
+index ca837683..7d2706dd 100644
+--- a/godot/scene/3d/velocity_tracker_3d.cpp
++++ b/godot/scene/3d/velocity_tracker_3d.cpp
+@@ -104,6 +104,12 @@ Vector3 VelocityTracker3D::get_tracked_linear_velocity() const {
+ 	return linear_velocity;
+ }
+ 
++void VelocityTracker3D::shift(const Vector3 &p_by) {
++	for (int i = 0; i < position_history_len; i++) {
++		position_history.write[i].position += p_by;
++	}
++}
++
+ void VelocityTracker3D::reset(const Vector3 &p_new_pos) {
+ 	PositionHistory ph;
+ 	ph.position = p_new_pos;
+diff --git a/godot/scene/3d/velocity_tracker_3d.h b/godot/scene/3d/velocity_tracker_3d.h
+index 0c7908ac..7bb807ea 100644
+--- a/godot/scene/3d/velocity_tracker_3d.h
++++ b/godot/scene/3d/velocity_tracker_3d.h
+@@ -50,6 +50,7 @@ public:
+ 	bool is_tracking_physics_step() const;
+ 	void update_position(const Vector3 &p_position);
+ 	Vector3 get_tracked_linear_velocity() const;
++	void shift(const Vector3 &p_by); // Everything it tracked moved by p_by at once: its speed stays.
+ 
+ 	VelocityTracker3D();
+ };
+-- 
+2.54.0 (Apple Git-157)
+

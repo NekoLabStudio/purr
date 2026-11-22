@@ -48,4 +48,4 @@ Only a copy from the App Store or TestFlight can buy anything. On a Mac, a copy 
 
 To test purchases before release, use a sandbox account (App Store Connect, under Users and Access) on a TestFlight build. A build run from Xcode can buy with a sandbox account too, but it can't prove to the online services that it was bought, since Apple doesn't sign it.
 
-The same proof of purchase, StoreKit's AppTransaction, is what Purr sends to the online services for games that only play online for players who bought them (see [Ownership](https://oss.nekolab.studio/trill/ownership/)). TestFlight copies count unless the game's `test_builds` is `false`.
+The same proof of purchase, StoreKit's AppTransaction, is what Purr sends to the online services for games that only play online for players who bought them (see [Ownership](../online/ownership.md)). TestFlight copies count unless the game's `test_builds` is `false`.

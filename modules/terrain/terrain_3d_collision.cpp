@@ -228,8 +228,21 @@ void Terrain3DCollision::build() {
 		}
 	}
 
+	place_body();
+
 	_initialized = true;
 	update();
+}
+
+// The shapes are placed at map positions, so the body sits at minus WorldOrigin's offset, where they
+// are global ones.
+void Terrain3DCollision::place_body() {
+	const Transform3D at(Basis(), -Terrain3D::get_map_offset());
+	if (_static_body != nullptr) {
+		_static_body->set_global_transform(at); // Top-level.
+	} else if (_static_body_rid.is_valid()) {
+		PhysicsServer3D::get_singleton()->body_set_state(_static_body_rid, PhysicsServer3DEnums::BODY_STATE_TRANSFORM, at);
+	}
 }
 
 void Terrain3DCollision::update(const Vector2i &p_region_loc, const bool p_rebuild) {

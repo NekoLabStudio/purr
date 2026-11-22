@@ -82,6 +82,14 @@ jobs:
           gh release create "$GITHUB_REF_NAME" --draft $prerelease --verify-tag \
             --title "Purr ${GITHUB_REF_NAME#v}" --notes-file release-notes.md
 
+      # The online services on their own, for their setup and update scripts (which download
+      # the latest release's purr-online.tar.gz), with the version they're from.
+      - name: Package the online services
+        run: |
+          echo "$GITHUB_REF_NAME" > online/.purr-version
+          tar -czf purr-online.tar.gz -C online --exclude node_modules --exclude .wrangler --exclude .dev.vars .
+          gh release upload "$GITHUB_REF_NAME" purr-online.tar.gz
+
   # The macOS editor, its templates and the iOS, Apple TV and Vision Pro templates build in
   # parallel; apple-templates packs the templates into one Apple templates download.
   macos:

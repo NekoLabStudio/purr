@@ -14,12 +14,10 @@ const int DUALSENSE = 0x0CE6;
 const int DUALSENSE_EDGE = 0x0DF2;
 const int STEAM_DECK_PRODUCT = 0x1205;
 
-const Dictionary &wheel_data() {
-	static Dictionary data;
-	if (data.is_empty()) {
-		data = JSON::parse_string(String::utf8(WHEEL_LAYOUTS_JSON));
-	}
-	return data;
+// Read when a joypad is plugged in (it's small), never kept in a static: Variants can't outlive
+// the engine.
+Dictionary wheel_data() {
+	return JSON::parse_string(String::utf8(WHEEL_LAYOUTS_JSON));
 }
 
 } // namespace
@@ -108,12 +106,13 @@ String usb_key(int p_vendor_id, int p_product_id) {
 }
 
 Dictionary wheel_layout(int p_vendor_id, int p_product_id) {
-	const Dictionary wheels = wheel_data().get("wheels", Dictionary());
+	const Dictionary data = wheel_data();
+	const Dictionary wheels = data.get("wheels", Dictionary());
 	const Dictionary wheel = wheels.get(usb_key(p_vendor_id, p_product_id), Dictionary());
 	if (wheel.is_empty()) {
 		return Dictionary();
 	}
-	Dictionary layout = Dictionary(Dictionary(wheel_data().get("layouts", Dictionary())).get(wheel.get("layout", ""), Dictionary())).duplicate();
+	Dictionary layout = Dictionary(Dictionary(data.get("layouts", Dictionary())).get(wheel.get("layout", ""), Dictionary()));
 	layout["name"] = wheel.get("name", "");
 	return layout;
 }

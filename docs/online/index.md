@@ -1,15 +1,15 @@
 # Online services
 
-Purr's online features (accounts that follow players across platforms, cloud saves, crossplay lobbies, matchmaking and ratings, moderation and crash reports) use [Trill](https://oss.nekolab.studio/trill/), NekoLab's online services for games. You run your own instance on your Cloudflare account; setting one up takes one command:
+Purr's online services keep player accounts, cloud saves and ratings, and run lobbies, matchmaking, moderation and crash reports. They store no email addresses, passwords or raw platform IDs.
 
-```sh
-curl -fsSL https://oss.nekolab.studio/trill/setup.sh | sh
-```
+Players sign in through their platform (Steam, Game Center, Google Play Games, or a device account) without seeing an account at all. To bring their progress to another platform, they add their email address: the service emails them a 6-digit code, and every platform signed in with that address shares one account. Until then, their saves stay in the platform's own cloud and the service keeps none.
 
-It prints your instance's address. Put it in Project Settings as `trill/url`, and the game's ID from your instance's `GAMES` as `trill/game`. From then on, `Account`, `Saves`, `Lobbies` and the rest use Trill whenever the player is signed in to it (see [the API](../api/index.md#with-or-without-the-online-services)). Without `trill/url`, everything works through each platform instead.
+You run your own instance, on your own Cloudflare account. It's a Cloudflare Worker, with D1 for its database, R2 for saves and Durable Objects for lobbies, so there are no servers to look after. Small games fit the Workers Free plan with the `smtp2go` email driver; Cloudflare's own email sending needs Workers Paid. The relays players use when they can't connect directly ([TURN](turn.md)) are the one part billed by the gigabyte.
 
-Trill's documentation covers the rest: [setting it up](https://oss.nekolab.studio/trill/getting-started/), [connecting games](https://oss.nekolab.studio/trill/connecting/), [settings](https://oss.nekolab.studio/trill/settings/), [TURN](https://oss.nekolab.studio/trill/turn/), [checking players own the game](https://oss.nekolab.studio/trill/ownership/), [moderation](https://oss.nekolab.studio/trill/moderation/), [crash reports](https://oss.nekolab.studio/trill/crash-reports/) and [privacy](https://oss.nekolab.studio/trill/privacy/).
+`Account`, `Saves`, `Lobbies` and the rest use the online services when a game sets `online/url` (see [the API](../api/index.md#with-or-without-the-online-services)). Without it, everything works through each platform instead. The service's code is in `online/` in Purr's repository, and each Purr release has it on its own.
+
+To set up an instance and connect a game to it, start with [Getting started](getting-started.md).
 
 ## Versions
 
-Each Purr release speaks one version of Trill's protocol, and Trill says which it speaks on every answer. When an instance is too old for the game, `Account` emits `service_outdated` and online features stop for the session (see [Versions](../api/index.md#versions)). Update the instance with `npm run update` in its folder. This Purr needs Trill 0.1.0 or later.
+Each Purr release comes with its online services, and speaks their protocol. When an instance is older than the game needs, `Account` emits `service_outdated` and online features stop for the session (see [Versions](../api/index.md#versions)). Update the instance to the game's Purr release with `npm run update` in its folder (see [Updating](updating.md)).

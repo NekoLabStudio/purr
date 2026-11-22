@@ -4,7 +4,7 @@
 		The player's account: signing in, their name and the email that takes their progress to other platforms.
 	</brief_description>
 	<description>
-		Sign in first, before saves, achievements or lobbies: [method sign_in] uses Steam when Steam is running, Game Center on Apple platforms and Play Games on Android, and the online services (Trill) when [code]trill/url[/code] is set in Project Settings (otherwise each platform directly, or this device alone).
+		Sign in first, before saves, achievements or lobbies: [method sign_in] uses Steam when Steam is running, Game Center on Apple platforms and Play Games on Android, and Purr's online services when [code]online/url[/code] is set in Project Settings (otherwise each platform directly, or this device alone).
 		To take their progress to another platform, a player adds their email address: [method link_email] sends them a code and [method confirm_email] checks it. From then on, every platform signed in with that address shares one account and one set of saves. The same two calls change the address later.
 		[codeblock]
 		var result = await Account.sign_in()

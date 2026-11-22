@@ -369,7 +369,7 @@ index bb7e81d3..bb7c55e1 100644
  #ifdef IOS_ENABLED
  - (void)propagateUIPreferencesToRootViewController;
 diff --git a/godot/drivers/apple_embedded/godot_view_controller.mm b/godot/drivers/apple_embedded/godot_view_controller.mm
-index 228c8bb0..02fc154f 100644
+index d2f974a2..fe327d8d 100644
 --- a/godot/drivers/apple_embedded/godot_view_controller.mm
 +++ b/godot/drivers/apple_embedded/godot_view_controller.mm
 @@ -34,7 +34,11 @@
@@ -384,7 +384,7 @@ index 228c8bb0..02fc154f 100644
  #import "drivers/apple_embedded/godot_view_apple_embedded.h"
  #import "drivers/apple_embedded/godot_view_renderer.h"
  #import "drivers/apple_embedded/key_mapping_apple_embedded.h"
-@@ -57,7 +61,11 @@ @interface GDTViewController () <GDTViewDelegate> {
+@@ -63,7 +67,11 @@ @interface GDTViewController () <GDTViewDelegate> {
  }
  
  @property(strong, nonatomic) GDTViewRenderer *renderer;
@@ -396,7 +396,7 @@ index 228c8bb0..02fc154f 100644
  
  @property(strong, nonatomic) UIView *godotLoadingOverlay;
  
-@@ -376,9 +384,7 @@ - (void)didReceiveMemoryWarning {
+@@ -406,9 +414,7 @@ - (void)didReceiveMemoryWarning {
  - (void)viewDidLoad {
  	[super viewDidLoad];
  
@@ -406,7 +406,7 @@ index 228c8bb0..02fc154f 100644
  #ifdef TVOS_ENABLED
  	[self godot_setupRemoteStick];
  #endif
-@@ -402,9 +408,15 @@ - (void)viewDidDisappear:(BOOL)animated {
+@@ -432,9 +438,15 @@ - (void)viewDidDisappear:(BOOL)animated {
  	[super viewDidDisappear:animated];
  }
  
@@ -423,7 +423,7 @@ index 228c8bb0..02fc154f 100644
  	self.keyboardView = [GDTKeyboardInputView new];
  	[self.view addSubview:self.keyboardView];
  
-@@ -419,8 +431,8 @@ - (void)observeKeyboard {
+@@ -449,8 +461,8 @@ - (void)observeKeyboard {
  			   selector:@selector(keyboardHidden:)
  				   name:UIKeyboardDidHideNotification
  				 object:nil];

@@ -107,11 +107,7 @@ void DynamicResolution::_start() {
 	running = true;
 	original_mode = viewport->get_scaling_3d_mode();
 	original_scale = viewport->get_scaling_3d_scale();
-	// Below full size it needs an upscaler: the platform's, if the game hasn't chosen one.
-	if (original_mode == Viewport::SCALING_3D_MODE_BILINEAR || original_mode == Viewport::SCALING_3D_MODE_NEAREST) {
-		bool taa = viewport->is_using_taa() && !viewport->is_using_xr() && OS::get_singleton()->get_current_rendering_method() == "forward_plus";
-		viewport->set_scaling_3d_mode(RecommendedGraphics::upscaler_for(taa, min_scale));
-	}
+	_use_mode(viewport, original_mode);
 	RenderingServer::get_singleton()->viewport_set_measure_render_time(viewport->get_viewport_rid(), true);
 	headroom = HEADROOM;
 	calm_seconds = 0.0;
@@ -122,6 +118,32 @@ void DynamicResolution::_start() {
 	budget_ms = 1000.0 / get_frame_rate_target();
 	_set_scale(max_scale);
 	SceneTree::get_singleton()->connect(SNAME("process_frame"), callable_mp(this, &DynamicResolution::_frame));
+}
+
+// Below full size it needs an upscaler: the platform's, if the game hasn't chosen one.
+void DynamicResolution::_use_mode(Viewport *p_viewport, Viewport::Scaling3DMode p_mode) {
+	if (p_mode == Viewport::SCALING_3D_MODE_BILINEAR || p_mode == Viewport::SCALING_3D_MODE_NEAREST) {
+		const bool taa = p_viewport->is_using_taa() && !p_viewport->is_using_xr() && OS::get_singleton()->get_current_rendering_method() == "forward_plus";
+		p_viewport->set_scaling_3d_mode(RecommendedGraphics::upscaler_for(taa, min_scale));
+	} else {
+		p_viewport->set_scaling_3d_mode(p_mode);
+	}
+}
+
+bool DynamicResolution::take_scaling(Viewport *p_viewport, const String &p_property, const Variant &p_value) {
+	if (!running || p_viewport == nullptr || p_viewport != _viewport()) {
+		return false;
+	}
+	if (p_property == "scaling_3d_mode") {
+		original_mode = Viewport::Scaling3DMode(int(p_value));
+		_use_mode(p_viewport, original_mode);
+		return true;
+	}
+	if (p_property == "scaling_3d_scale") {
+		original_scale = p_value;
+		return true;
+	}
+	return false;
 }
 
 void DynamicResolution::_stop() {

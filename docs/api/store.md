@@ -58,11 +58,11 @@ There's no store when you run the game from the editor, so `Store` pretends: the
 
 ## Only players who bought the game play online
 
-With the [online services](../online/index.md) (Trill), a game can let only players who bought it play online: saves synced to the service, lobbies, matchmaking and relayed connections. The service checks it at every sign-in, from the copy of the game the player is using: Steam's ticket, the App Store's signed proof of purchase, or Google Play's integrity check. Purr sends the proof itself, so there's nothing to add to your game but a message for players who are turned away:
+With the [online services](../online/index.md), a game can let only players who bought it play online: saves synced to the service, lobbies, matchmaking and relayed connections. The service checks it at every sign-in, from the copy of the game the player is using: Steam's ticket, the App Store's signed proof of purchase, or Google Play's integrity check. Purr sends the proof itself, so there's nothing to add to your game but a message for players who are turned away:
 
 ```gdscript
 func _ready():
 	Account.not_owned.connect(func(): show_message("Buy the game to play online."))
 ```
 
-You turn it on for the game on the online service: see [Ownership](https://oss.nekolab.studio/trill/ownership/).
+You turn it on for the game on the online service: see [Ownership](../online/ownership.md).

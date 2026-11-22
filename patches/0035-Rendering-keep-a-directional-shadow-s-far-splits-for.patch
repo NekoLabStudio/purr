@@ -9,8 +9,8 @@ default) draws the third of four splits every other frame and the fourth
 every fourth frame (the second of two every other frame), on frames of their
 own, instead of all of them every frame. A kept split is drawn with 5% more
 room and drawn again at once when the camera leaves it, the light turns more
-than half a degree, the shadow's size or split count changes, or another
-view draws over the atlas. Each drawn split clears its own part of the atlas
+than half a degree, the shadow's size or split count changes, another
+view draws over the atlas, or the scenario shifts (scenario_shift()). Each drawn split clears its own part of the atlas
 rather than the whole atlas being cleared first.
 
 In a large city scene this drew a third fewer shadow primitives and saved
@@ -21,9 +21,9 @@ about 8% of the GPU's frame.
  godot/drivers/gles3/storage/light_storage.cpp | 17 ++---
  .../render_forward_clustered.cpp              |  6 +-
  .../forward_mobile/render_forward_mobile.cpp  |  6 +-
- .../servers/rendering/renderer_scene_cull.cpp | 66 ++++++++++++++++++-
- godot/servers/rendering/renderer_scene_cull.h | 31 ++++++++-
- 7 files changed, 115 insertions(+), 20 deletions(-)
+ .../servers/rendering/renderer_scene_cull.cpp | 70 ++++++++++++++++++-
+ godot/servers/rendering/renderer_scene_cull.h | 31 +++++++-
+ 7 files changed, 119 insertions(+), 20 deletions(-)
 
 diff --git a/godot/doc/classes/ProjectSettings.xml b/godot/doc/classes/ProjectSettings.xml
 index d99a5d94..1c295f85 100644
@@ -111,7 +111,7 @@ index 12eb2537..9cdb882b 100644
  		//render positional shadows
  		for (uint32_t i = 0; i < p_render_data->shadows.size(); i++) {
 diff --git a/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp b/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
-index 8909445b..cf41a823 100644
+index b90e5b5c..bb6846ea 100644
 --- a/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
 +++ b/godot/servers/rendering/renderer_rd/forward_mobile/render_forward_mobile.cpp
 @@ -829,10 +829,8 @@ void RenderForwardMobile::_pre_opaque_render(RenderDataRD *p_render_data) {
@@ -136,10 +136,21 @@ index 8909445b..cf41a823 100644
  		//render positional shadows
  		for (uint32_t i = 0; i < p_render_data->shadows.size(); i++) {
 diff --git a/godot/servers/rendering/renderer_scene_cull.cpp b/godot/servers/rendering/renderer_scene_cull.cpp
-index 1c35dcb4..43e51caa 100644
+index bd36eb53..28f324a6 100644
 --- a/godot/servers/rendering/renderer_scene_cull.cpp
 +++ b/godot/servers/rendering/renderer_scene_cull.cpp
-@@ -2258,7 +2258,7 @@ void RendererSceneCull::_update_instance_lightmap_captures(Instance *p_instance)
+@@ -535,6 +535,10 @@ void RendererSceneCull::scenario_shift(RID p_scenario, const Vector3 &p_by) {
+ 				InstanceLightData *light = static_cast<InstanceLightData *>(instance->base_data);
+ 				RSG::light_storage->light_instance_set_transform(light->instance, xform);
+ 				RSG::light_storage->light_instance_set_aabb(light->instance, xform.xform(instance->aabb));
++				// Splits kept from earlier frames show the world where it was.
++				for (DirectionalShadowCache::Cascade &cascade : light->directional_shadow_cache.cascades) {
++					cascade.valid = false;
++				}
+ 			} break;
+ 			case RSE::INSTANCE_REFLECTION_PROBE: {
+ 				InstanceReflectionProbeData *reflection_probe = static_cast<InstanceReflectionProbeData *>(instance->base_data);
+@@ -2265,7 +2269,7 @@ void RendererSceneCull::_update_instance_lightmap_captures(Instance *p_instance)
  	geom->geometry_instance->set_lightmap_capture(p_instance->lightmap_sh.ptr());
  }
  
@@ -148,7 +159,7 @@ index 1c35dcb4..43e51caa 100644
  	// For later tight culling, the light culler needs to know the details of the directional light.
  	light_culler->prepare_directional_light_begin(p_instance, p_shadow_index);
  
-@@ -2310,6 +2310,28 @@ void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_in
+@@ -2317,6 +2321,28 @@ void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_in
  	cull.shadows[p_shadow_index].light_instance = light->instance;
  	cull.shadows[p_shadow_index].caster_mask = RSG::light_storage->light_get_shadow_caster_mask(p_instance->base);
  
@@ -177,7 +188,7 @@ index 1c35dcb4..43e51caa 100644
  	for (int i = 0; i < splits; i++) {
  		RENDER_TIMESTAMP("Cull DirectionalLight3D, Split " + itos(i));
  
-@@ -2411,6 +2433,31 @@ void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_in
+@@ -2418,6 +2444,31 @@ void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_in
  
  			radius *= texture_size / (texture_size - 2.0); //add a texel by each side
  
@@ -209,7 +220,7 @@ index 1c35dcb4..43e51caa 100644
  			z_min_cam = z_vec.dot(center) - radius;
  
  			{
-@@ -2478,6 +2525,15 @@ void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_in
+@@ -2485,6 +2536,15 @@ void RendererSceneCull::_light_instance_setup_directional_shadow(int p_shadow_in
  			cull.shadows[p_shadow_index].cascades[i].bias_scale = (z_max - z_min_cam);
  			cull.shadows[p_shadow_index].cascades[i].range_begin = z_max - z_vec.dot(p_cam_transform.origin);
  			cull.shadows[p_shadow_index].cascades[i].uv_scale = uv_scale;
@@ -225,7 +236,7 @@ index 1c35dcb4..43e51caa 100644
  		}
  	}
  }
-@@ -3349,6 +3405,9 @@ void RendererSceneCull::_scene_cull(CullData &cull_data, InstanceCullResult &cul
+@@ -3356,6 +3416,9 @@ void RendererSceneCull::_scene_cull(CullData &cull_data, InstanceCullResult &cul
  
  			for (uint32_t j = 0; j < cull_data.cull->shadow_count; j++) {
  				for (uint32_t k = 0; k < cull_data.cull->shadows[j].cascade_count; k++) {
@@ -235,7 +246,7 @@ index 1c35dcb4..43e51caa 100644
  					if (!light_culler->cull_directional_light(cull_data.scenario->instance_aabbs[i], j, k)) { // pass the cascade index
  						continue;
  					}
-@@ -3495,7 +3554,7 @@ void RendererSceneCull::_render_scene(const RendererSceneRender::CameraData *p_c
+@@ -3502,7 +3565,7 @@ void RendererSceneCull::_render_scene(const RendererSceneRender::CameraData *p_c
  		RSG::light_storage->set_directional_shadow_count(lights_with_shadow.size());
  
  		for (int i = 0; i < lights_with_shadow.size(); i++) {
@@ -244,7 +255,7 @@ index 1c35dcb4..43e51caa 100644
  		}
  	}
  
-@@ -3593,7 +3652,7 @@ void RendererSceneCull::_render_scene(const RendererSceneRender::CameraData *p_c
+@@ -3600,7 +3663,7 @@ void RendererSceneCull::_render_scene(const RendererSceneRender::CameraData *p_c
  				const Cull::Shadow::Cascade &c = cull.shadows[i].cascades[j];
  				//			print_line("shadow " + itos(i) + " cascade " + itos(j) + " elements: " + itos(c.cull_result.size()));
  				RSG::light_storage->light_instance_set_shadow_transform(cull.shadows[i].light_instance, c.projection, c.transform, c.zfar, c.split, j, c.shadow_texel_size, c.bias_scale, c.range_begin, c.uv_scale);
@@ -253,7 +264,7 @@ index 1c35dcb4..43e51caa 100644
  					continue;
  				}
  				render_shadow_data[max_shadows_used].light = cull.shadows[i].light_instance;
-@@ -4632,6 +4691,7 @@ RendererSceneCull::RendererSceneCull() {
+@@ -4639,6 +4702,7 @@ RendererSceneCull::RendererSceneCull() {
  
  	light_culler = memnew(RenderingLightCuller);
  

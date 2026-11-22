@@ -120,6 +120,9 @@ void McpEditorPlugin::_listen() {
 	DirAccess::make_dir_recursive_absolute(McpBridge::file_path().get_base_dir());
 	Ref<FileAccess> out = FileAccess::open(McpBridge::file_path(), FileAccess::WRITE);
 	if (out.is_valid()) {
+		// The token lets a process run code in the game: readable by this user only (where the
+		// system has Unix permissions), before it's written.
+		FileAccess::set_unix_permissions(McpBridge::file_path(), FileAccess::UNIX_READ_OWNER | FileAccess::UNIX_WRITE_OWNER);
 		out->store_string(JSON::stringify(file));
 	}
 }

@@ -12,10 +12,10 @@ end.
  1 file changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/godot/servers/rendering/renderer_scene_cull.cpp b/godot/servers/rendering/renderer_scene_cull.cpp
-index 09015807..bb075239 100644
+index 5b650861..376f22ee 100644
 --- a/godot/servers/rendering/renderer_scene_cull.cpp
 +++ b/godot/servers/rendering/renderer_scene_cull.cpp
-@@ -789,7 +789,8 @@ void RendererSceneCull::instance_set_base(RID p_instance, RID p_base) {
+@@ -800,7 +800,8 @@ void RendererSceneCull::instance_set_base(RID p_instance, RID p_base) {
  
  			} break;
  			case RSE::INSTANCE_OCCLUDER: {
@@ -25,7 +25,7 @@ index 09015807..bb075239 100644
  					RendererSceneOcclusionCull::get_singleton()->scenario_remove_instance(instance->scenario->self, p_instance);
  				}
  			} break;
-@@ -992,9 +993,8 @@ void RendererSceneCull::instance_set_scenario(RID p_instance, RID p_scenario) {
+@@ -1003,9 +1004,8 @@ void RendererSceneCull::instance_set_scenario(RID p_instance, RID p_scenario) {
  				}
  			} break;
  			case RSE::INSTANCE_OCCLUDER: {

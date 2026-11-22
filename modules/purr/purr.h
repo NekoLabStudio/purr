@@ -4,7 +4,7 @@
 // lobbies, friends, local players and the store), the same on every platform, behind the singletons
 // games use (Account, LocalPlayers, Saves, Achievements, Leaderboards, Lobbies, Friends, Store). Underneath it
 // picks the platform (Steam where it's running, Game Center, Play Games, otherwise a device
-// account) and Purr's online services when trill/url is set; without them, each platform
+// account) and Purr's online services when online/url is set; without them, each platform
 // directly, lobbies included (PurrPlatformLobby). Internal: games never see this class.
 
 #include "purr_achievements.h"
@@ -51,6 +51,7 @@ class Purr : public Object {
 	// Friends, and invites accepted before signing in finished (joined once it has).
 	Ref<PurrFriends> friends;
 	String invited_code;
+	String invited_match_sender; // A Game Center match invite's sender.
 	bool command_line_read = false; // An invite on the command line is joined once, not at every sign-in.
 	void join_steam_lobby(uint64_t p_lobby_id);
 

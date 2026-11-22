@@ -1,6 +1,6 @@
 # Accounts, saves and play together
 
-Every game needs the same few things: signing in, saves, achievements, leaderboards, lobbies, friends, local players and, for many, something to buy. Purr has a singleton for each, and the same game code works on Steam, Game Center, Play Games, a device without a platform and, when you run them, the [online services](../online/index.md) (Trill):
+Every game needs the same few things: signing in, saves, achievements, leaderboards, lobbies, friends, local players and, for many, something to buy. Purr has a singleton for each, and the same game code works on Steam, Game Center, Play Games, a device without a platform and, when you run them, the [online services](../online/index.md):
 
 | Singleton | What it does |
 |---|---|
@@ -35,11 +35,11 @@ if Account.needs_display_name():
 	var saved = await Account.set_display_name(name)  # 1 to 24 characters
 ```
 
-A chosen name is kept on the player's account and stays theirs on every platform they sign in with later, instead of the platform's. Other players see it in lobbies, so they can report a name that breaks your rules (see [Moderation](https://oss.nekolab.studio/trill/moderation/)).
+A chosen name is kept on the player's account and stays theirs on every platform they sign in with later, instead of the platform's. Other players see it in lobbies, so they can report a name that breaks your rules (see [Moderation](../online/moderation.md)).
 
 ## With or without the online services
 
-Purr works without the online services. When `trill/url` is empty in Project Settings, the platform account is the player's identity, saves go to the platform's cloud, and lobbies, matchmaking, invites and friends are the platform's own: Steam lobbies, or Game Center matches on Apple platforms (see [Lobbies](lobbies.md#without-the-online-services)). The same calls work either way. Set the URL, and the game in `trill/game`, to add crossplay lobbies, progress that follows the player to other platforms (by [email](email.md)) and guests who bring their own profile.
+Purr works without the online services. When `online/url` is empty in Project Settings, the platform account is the player's identity, saves go to the platform's cloud, and lobbies, matchmaking, invites and friends are the platform's own: Steam lobbies, or Game Center matches on Apple platforms (see [Lobbies](lobbies.md#without-the-online-services)). The same calls work either way. Set the URL, and the game in `online/game`, to add crossplay lobbies, progress that follows the player to other platforms (by [email](email.md)) and guests who bring their own profile.
 
 ## What works where
 
@@ -62,7 +62,7 @@ Stores ask games with accounts to let players delete them. `Account.delete_accou
 
 ## Versions
 
-Every request to the online services says which game it's from and its version, from `application/config/version` in Project Settings. The service's operator can set a minimum and a maximum version for each game (see [Settings](https://oss.nekolab.studio/trill/settings/)); without them, every version can play online. When the service turns a version away, `Account` emits `update_required` with the allowed range, and online features stop for the session. Ask the player to update; their saves keep working on the device and in the platform's cloud.
+Every request to the online services says which game it's from and its version, from `application/config/version` in Project Settings. The service's operator can set a minimum and a maximum version for each game (see [Settings](../online/settings.md)); without them, every version can play online. When the service turns a version away, `Account` emits `update_required` with the allowed range, and online features stop for the session. Ask the player to update; their saves keep working on the device and in the platform's cloud.
 
 ```gdscript
 Account.update_required.connect(func(min_version, max_version): show_update_prompt())

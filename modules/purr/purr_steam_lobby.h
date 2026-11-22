@@ -43,8 +43,8 @@ class PurrSteamLobby : public PurrPlatformLobby {
 	uint64_t own_id() const;
 	PackedStringArray lobby_members() const;
 	void listen(bool p_listen);
-	void start_session();
-	void start_peer(bool p_host, int64_t p_peer_id);
+	bool start_session();
+	bool start_peer(bool p_host, int64_t p_peer_id);
 	void owner_left();
 
 	void lobby_created(int64_t p_connect, int64_t p_lobby_id);

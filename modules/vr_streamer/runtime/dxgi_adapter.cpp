@@ -6,16 +6,26 @@
 // The interface IDs, which MinGW's headers leave out (as Godot's Direct3D 12 driver includes it).
 #include <dxguids/dxguids.h>
 
+// The high-performance GPU where DXGI can say which that is (IDXGIFactory6), otherwise the first.
 bool dxgi_high_performance_adapter(LUID& luid) {
-    IDXGIFactory6* factory = nullptr;
-    if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory)))) {
-        return false;
-    }
     IDXGIAdapter1* adapter = nullptr;
-    const HRESULT found = factory->EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter));
-    factory->Release();
-    if (FAILED(found)) {
-        return false;
+    IDXGIFactory6* factory6 = nullptr;
+    if (SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(&factory6)))) {
+        if (FAILED(factory6->EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter)))) {
+            adapter = nullptr;
+        }
+        factory6->Release();
+    }
+    if (!adapter) {
+        IDXGIFactory1* factory = nullptr;
+        if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory)))) {
+            return false;
+        }
+        const HRESULT found = factory->EnumAdapters1(0, &adapter);
+        factory->Release();
+        if (FAILED(found)) {
+            return false;
+        }
     }
     DXGI_ADAPTER_DESC1 description{};
     adapter->GetDesc1(&description);

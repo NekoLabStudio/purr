@@ -5,7 +5,7 @@
 	</brief_description>
 	<description>
 		Signs the player in to Play Games, reports achievements and leaderboard scores, and lists the player's friends. It can also keep files in the player's Play Games saved games. Most games use [Purr], which uses this on Android; it's here for anything [Purr] doesn't cover.
-		It's off unless [code]play_games/app_id[/code] in Project Settings is the game's application ID from the Play Console. Export with the Android preset's Gradle Build > Use Gradle Build on; Purr adds Play Games to the build. For the online services (Trill), set [code]play_games/server_client_id[/code] to the OAuth web client ID the service uses. For saves in Play Games, turn on saved games for the game in the Play Console and [code]play_games/saved_games[/code] in Project Settings.
+		It's off unless [code]play_games/app_id[/code] in Project Settings is the game's application ID from the Play Console. Export with the Android preset's Gradle Build > Use Gradle Build on; Purr adds Play Games to the build. For Purr's online services, set [code]play_games/server_client_id[/code] to the OAuth web client ID the service uses. For saves in Play Games, turn on saved games for the game in the Play Console and [code]play_games/saved_games[/code] in Project Settings.
 		Each asynchronous call returns a signal that fires once with a [Dictionary] with [code]ok[/code] and, when it failed, [code]error[/code].
 		[codeblock]
 		var signed_in = await PlayGames.authenticate()

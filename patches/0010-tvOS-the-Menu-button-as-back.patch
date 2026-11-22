@@ -24,14 +24,24 @@ NOTIFICATION_WM_GO_BACK_REQUEST and KEY_MENU press and release.
 
 Upstream: https://github.com/godotengine/godot/pull/123885
 ---
- .../apple_embedded/godot_view_controller.mm   | 44 +++++++++++++++++--
- 1 file changed, 41 insertions(+), 3 deletions(-)
+ .../apple_embedded/godot_view_controller.mm   | 54 +++++++++++++++++--
+ 1 file changed, 49 insertions(+), 5 deletions(-)
 
 diff --git a/godot/drivers/apple_embedded/godot_view_controller.mm b/godot/drivers/apple_embedded/godot_view_controller.mm
-index bf83fb23..228c8bb0 100644
+index 55cc267c..d2f974a2 100644
 --- a/godot/drivers/apple_embedded/godot_view_controller.mm
 +++ b/godot/drivers/apple_embedded/godot_view_controller.mm
-@@ -100,6 +100,28 @@ - (GDTView *)godotView {
+@@ -56,6 +56,9 @@ @interface GDTViewController () <GDTViewDelegate> {
+ 	// Whether a remote is attached, and Input told the stick's device is connected.
+ 	bool _stick_attached;
+ 	bool _stick_connected;
++	// Whether the game holds the Menu press going on (quit_on_go_back was off when it began),
++	// so it ends the way it began whatever the setting is by then.
++	bool _menu_held;
+ #endif
+ }
+ 
+@@ -103,6 +106,29 @@ - (GDTView *)godotView {
  - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
  	// [super pressesBegan:presses withEvent:event];
  
@@ -45,7 +55,8 @@ index bf83fb23..228c8bb0 100644
 +	for (UIPress *press in presses) {
 +		if (press.type == UIPressTypeMenu) {
 +			SceneTree *scene = SceneTree::get_singleton();
-+			if (scene && scene->is_quit_on_go_back()) {
++			_menu_held = !(scene && scene->is_quit_on_go_back());
++			if (!_menu_held) {
 +				[super pressesBegan:presses withEvent:event];
 +				return;
 +			}
@@ -60,7 +71,7 @@ index bf83fb23..228c8bb0 100644
  	if (!DisplayServerAppleEmbedded::get_singleton() || DisplayServerAppleEmbedded::get_singleton()->is_keyboard_active()) {
  		return;
  	}
-@@ -122,6 +144,12 @@ - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
+@@ -125,6 +151,12 @@ - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
  #endif
  	if (@available(iOS 13.4, *)) {
  		for (UIPress *press in presses) {
@@ -73,7 +84,15 @@ index bf83fb23..228c8bb0 100644
  			String u32lbl = String::utf8([press.key.charactersIgnoringModifiers UTF8String]);
  			String u32text = String::utf8([press.key.characters UTF8String]);
  			Key key = KeyMappingAppleEmbedded::remap_key(press.key.keyCode);
-@@ -160,6 +188,7 @@ - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
+@@ -158,11 +190,13 @@ - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
+ #ifdef TVOS_ENABLED
+ 	for (UIPress *press in presses) {
+ 		if (press.type == UIPressTypeMenu) {
+-			SceneTree *scene = SceneTree::get_singleton();
+-			if (scene && scene->is_quit_on_go_back()) {
++			const bool held = _menu_held;
++			_menu_held = false;
++			if (!held) {
  				// Let UIKit process the event.
  				[super pressesEnded:presses withEvent:event];
  			} else if (DisplayServerAppleEmbedded::get_singleton()) {
@@ -81,7 +100,7 @@ index bf83fb23..228c8bb0 100644
  				DisplayServerAppleEmbedded::get_singleton()->send_window_event(DisplayServerEnums::WINDOW_EVENT_GO_BACK_REQUEST);
  			}
  			return;
-@@ -183,6 +212,12 @@ - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
+@@ -186,6 +220,12 @@ - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
  #endif
  	if (@available(iOS 13.4, *)) {
  		for (UIPress *press in presses) {
@@ -94,7 +113,11 @@ index bf83fb23..228c8bb0 100644
  			String u32lbl = String::utf8([press.key.charactersIgnoringModifiers UTF8String]);
  			Key key = KeyMappingAppleEmbedded::remap_key(press.key.keyCode);
  
-@@ -209,7 +244,7 @@ - (void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *
+@@ -209,10 +249,11 @@ - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
+ - (void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+ 	// The system took the presses (Siri, Control Center, the app resigning),
+ 	// so no pressesEnded follows: release every key the remote could hold.
++	_menu_held = false;
  	if (!DisplayServerAppleEmbedded::get_singleton()) {
  		return;
  	}
@@ -103,7 +126,7 @@ index bf83fb23..228c8bb0 100644
  	for (const Key key : keys) {
  		DisplayServerAppleEmbedded::get_singleton()->key(key, 0, key, key, 0, false, KeyLocation::UNSPECIFIED);
  	}
-@@ -325,8 +360,11 @@ - (instancetype)initWithCoder:(NSCoder *)coder {
+@@ -349,8 +390,11 @@ - (instancetype)initWithCoder:(NSCoder *)coder {
  - (void)godot_commonInit {
  	// Initialize view controller values.
  #ifdef TVOS_ENABLED

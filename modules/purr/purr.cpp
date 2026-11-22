@@ -259,8 +259,12 @@ void Purr::sign_in_proven(const Dictionary &p_proof, const Ref<RefCounted> &p_ca
 }
 
 void Purr::sign_in_platform(const Ref<RefCounted> &p_call) {
-	// Game Center on Apple platforms.
+	// Game Center on Apple platforms. Listened to first: GameKit hands over an invite accepted at
+	// launch as soon as the player is authenticated, before signing in finishes.
 	if (game_center()) {
+		if (!game_center()->is_connected(SNAME("match_invite_accepted"), callable_mp(this, &Purr::game_center_match_invite_accepted))) {
+			game_center()->connect(SNAME("match_invite_accepted"), callable_mp(this, &Purr::game_center_match_invite_accepted));
+		}
 		Signal authenticated = game_center()->call("authenticate");
 		authenticated.connect(callable_mp(this, &Purr::game_center_authenticated).bind(p_call), CONNECT_ONE_SHOT);
 		return;
@@ -356,7 +360,7 @@ void Purr::play_games_code_received(const Dictionary &p_result, const Ref<RefCou
 
 void Purr::sign_in_steam_online(const Ref<RefCounted> &p_call) {
 	steam()->connect(SNAME("get_ticket_for_web_api"), callable_mp(this, &Purr::steam_ticket).bind(p_call), CONNECT_ONE_SHOT);
-	steam()->call("getAuthTicketForWebApi", "trill");
+	steam()->call("getAuthTicketForWebApi", "purr-online");
 }
 
 void Purr::steam_ticket(int64_t p_auth_ticket, int64_t p_result, int64_t p_size, const PackedByteArray &p_ticket, const Ref<RefCounted> &p_call) {
@@ -425,9 +429,6 @@ void Purr::finish_sign_in(bool p_online, const String &p_account_id, const Strin
 		steam()->connect(SNAME("join_requested"), callable_mp(this, &Purr::steam_join_requested));
 		steam()->connect(SNAME("join_game_requested"), callable_mp(this, &Purr::steam_join_game_requested));
 	}
-	if (game_center() && !game_center()->is_connected(SNAME("match_invite_accepted"), callable_mp(this, &Purr::game_center_match_invite_accepted))) {
-		game_center()->connect(SNAME("match_invite_accepted"), callable_mp(this, &Purr::game_center_match_invite_accepted));
-	}
 	load_remembered();
 
 	Dictionary result;
@@ -452,6 +453,9 @@ void Purr::finish_sign_in(bool p_online, const String &p_account_id, const Strin
 	}
 	if (!invited_code.is_empty()) {
 		join_invited(invited_code);
+	}
+	if (!invited_match_sender.is_empty()) {
+		game_center_match_invite_accepted(invited_match_sender);
 	}
 }
 
@@ -673,6 +677,11 @@ void Purr::join_steam_lobby(uint64_t p_lobby_id) {
 
 // An invite to a friend's Game Center match accepted: joins it at once.
 void Purr::game_center_match_invite_accepted(const String &p_sender_id) {
+	if (player.is_null() || sign_in_call.is_valid()) {
+		invited_match_sender = p_sender_id; // Joined once signing in finishes.
+		return;
+	}
+	invited_match_sender = String();
 	const Ref<PurrGameCenterLobby> game_center_lobby = platform_lobby();
 	if (game_center_lobby.is_valid()) {
 		lobby->leave();

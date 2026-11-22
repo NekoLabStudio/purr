@@ -7,6 +7,9 @@
 
 #import <CloudKit/CloudKit.h>
 #import <Foundation/Foundation.h>
+#if defined(MACOS_ENABLED)
+#import <Security/Security.h>
+#endif
 
 ICloud *ICloud::singleton = nullptr;
 
@@ -58,6 +61,38 @@ Dictionary parse_metadata(NSString *p_json) {
 
 Dictionary metadata_of(CKRecord *p_record) {
 	return parse_metadata(p_record[@"metadata"]);
+}
+
+// The iCloud containers the game's entitlements give it. CloudKit ends the process when asked for
+// a container the game hasn't been given: a game run from the editor, or exported without them.
+// Apple's other platforms can't read their own entitlements; the export plugin checks them there.
+bool has_container_entitlement(const String &p_container) {
+#if defined(MACOS_ENABLED)
+	static bool read = false;
+	static PackedStringArray containers;
+	if (!read) {
+		read = true;
+		SecTaskRef task = SecTaskCreateFromSelf(kCFAllocatorDefault);
+		if (task != nullptr) {
+			CFTypeRef value = SecTaskCopyValueForEntitlement(task, CFSTR("com.apple.developer.icloud-container-identifiers"), nullptr);
+			if (value != nullptr && CFGetTypeID(value) == CFArrayGetTypeID()) {
+				for (CFIndex i = 0; i < CFArrayGetCount((CFArrayRef)value); i++) {
+					CFTypeRef entry = CFArrayGetValueAtIndex((CFArrayRef)value, i);
+					if (CFGetTypeID(entry) == CFStringGetTypeID()) {
+						containers.push_back(godot_string((__bridge NSString *)entry));
+					}
+				}
+			}
+			if (value != nullptr) {
+				CFRelease(value);
+			}
+			CFRelease(task);
+		}
+	}
+	return containers.has(p_container);
+#else
+	return true;
+#endif
 }
 
 CKDatabase *database() {
@@ -126,8 +161,10 @@ String ICloud::get_container() const {
 }
 
 bool ICloud::is_available() const {
-	// Set up for this game, and the player signed in to iCloud on this device.
-	return !get_container().is_empty() && NSFileManager.defaultManager.ubiquityIdentityToken != nil;
+	// Set up for this game, given the container by its entitlements, and the player signed in to
+	// iCloud on this device.
+	const String container = get_container();
+	return !container.is_empty() && has_container_entitlement(container) && NSFileManager.defaultManager.ubiquityIdentityToken != nil;
 }
 
 Signal ICloud::save_file(const String &p_name, const PackedByteArray &p_data, const Dictionary &p_metadata) {

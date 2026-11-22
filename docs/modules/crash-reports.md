@@ -26,7 +26,7 @@ CrashReports.set_context("save", save_name)
 
 ## Sending them
 
-With the [online services](../online/index.md) (Trill), reports can go to them, where Trill's `npm run crashes` lists them grouped by crash (see [Crash reports](https://oss.nekolab.studio/trill/crash-reports/)). Nothing is sent until the player agrees: ask once, in your settings or after a crash, and keep their answer in the built-in option `privacy/send_crash_reports`:
+With the [online services](../online/index.md), reports can go to them, where `npm run crashes` lists them grouped by crash (see [Crash reports](../online/crash-reports.md)). Nothing is sent until the player agrees: ask once, in your settings or after a crash, and keep their answer in the built-in option `privacy/send_crash_reports`:
 
 ```gdscript
 func _on_send_reports_toggled(on: bool) -> void:

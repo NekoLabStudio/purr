@@ -5,7 +5,7 @@
 	</brief_description>
 	<description>
 		Each run of the game leaves a note in [code]user://crashes[/code] saying what it runs on, and removes it when it ends cleanly. When the game next starts, a note left behind is a run that crashed, was closed by force, or lost power: a report of it is written beside it, as a text file the player can read and send. It has the engine and game versions, the OS, processor, memory and GPU, anything the game added with [method set_context], and the end of that run's log, where a crash's backtrace is.
-		Nothing leaves the device until the player agrees. With the online services (Trill), the option [code]privacy/send_crash_reports[/code] in [Options] is their answer: while it's on, every report waiting is sent once they're signed in, and removed from the device once the service has it. Before a report is sent, the player's home folder becomes [code]~[/code], and anything shaped like an email or IP address is removed. A game can also tell the player after a crash, show the report, or offer to send it:
+		Nothing leaves the device until the player agrees. With Purr's online services, the option [code]privacy/send_crash_reports[/code] in [Options] is their answer: while it's on, every report waiting is sent once they're signed in, and removed from the device once the service has it. Before a report is sent, the player's home folder becomes [code]~[/code], and anything shaped like an email or IP address is removed. A report longer than the service takes (64 KiB) is sent with its start and as much of the end of its log as fits. A game can also tell the player after a crash, show the report, or offer to send it:
 		[codeblock]
 		func _ready() -&gt; void:
 			if CrashReports.previous_run_crashed():
@@ -45,7 +45,7 @@
 			<return type="Signal" />
 			<param index="0" name="path" type="String" />
 			<description>
-				Sends a report, given its path from [method get_reports], to the game's online service, and returns a signal to await. Its result is a [Dictionary] with [code]ok[/code], and on failure [code]error[/code] and [code]message[/code]. Once the service has the report, it's removed from the device. Send one only when the player has agreed to it: when [code]privacy/send_crash_reports[/code] is on, Purr sends them all itself.
+				Sends a report, given its path from [method get_reports], to the game's online service, and returns a signal to await. Its result is a [Dictionary] with [code]ok[/code], and on failure [code]error[/code] and [code]message[/code]. Once the service has the report, it's removed from the device, as it is when the service refuses it as malformed (it never would take it). Send one only when the player has agreed to it: when [code]privacy/send_crash_reports[/code] is on, Purr sends them all itself.
 				[codeblock]
 				var result: Dictionary = await CrashReports.send(CrashReports.get_reports()[0])
 				[/codeblock]

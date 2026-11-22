@@ -4,8 +4,8 @@
 // returns a signal that fires once with the result, so a game can write
 //   var result = await PurrOnline.read_save("slot1")
 // The result is {"ok": bool, "status": HTTP status, "data": the answer, "error": a code like
-// "version_conflict" or "" , "message": why}. The service's URL is the trill/url project
-// setting, and the game's ID trill/game. Most games use Purr instead, which uses this.
+// "version_conflict" or "" , "message": why}. The service's URL is the online/url project
+// setting, and the game's ID online/game. Most games use Purr instead, which uses this.
 
 #include "core/io/http_client.h"
 #include "core/object/object.h"
@@ -38,9 +38,9 @@ class PurrOnline : public Object {
 	// "service_outdated" or "not_owned"), or empty.
 	String blocked;
 	Dictionary ownership_proof;
-	// The Trill protocol this Purr needs (PROTOCOL in Trill's src/version.ts).
-	static constexpr int PROTOCOL = 2;
-	// The close code the service uses when the host removes a player (see Trill's src/lobby.ts).
+	// The service protocol this Purr needs (online/src/version.ts's PROTOCOL).
+	static constexpr int PROTOCOL = 3;
+	// The close code the service uses when the host removes a player (see online/src/lobby.ts).
 	static constexpr int LOBBY_KICKED_CLOSE_CODE = 4001;
 
 	Signal call(HTTPClient::Method p_method, const String &p_path, const Variant &p_body, const String &p_token, const Vector<String> &p_extra_headers = Vector<String>(), bool p_binary_answer = false);

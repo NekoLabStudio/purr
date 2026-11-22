@@ -3,6 +3,6 @@ config_version=5
 [application]
 config/name="Purr sample"
 
-[trill]
+[online]
 url="http://localhost:8787"
 game="example"

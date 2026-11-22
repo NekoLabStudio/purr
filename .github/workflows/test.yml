@@ -11,6 +11,32 @@ permissions:
   contents: read
 
 jobs:
+  online:
+    name: Online services
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: online
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: online/package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
+
   docs:
     name: Docs
     runs-on: ubuntu-latest
@@ -22,7 +48,10 @@ jobs:
 
       # Fails when a page is missing from the nav or a version set can't build.
       - name: Build docs site
-        run: python3 docs-site/build.py --output dist/docs-site
+        run: |
+          python3 docs-site/build.py --output dist/docs-site
+          # The online services' setup command downloads this.
+          test -s dist/docs-site/online/setup.sh
 
       - name: Check the class reference XML
         run: |
