@@ -3,7 +3,7 @@
 # prepare-release.sh <version>
 #
 # Makes every file change a release needs, in one pass:
-#   - VERSION.txt -> <version>, and the online services' SERVICE_VERSION (online/src/version.ts)
+#   - VERSION.txt -> <version>
 #   - docs/upgrading/next.md -> docs/upgrading/<version>.md (retitled "# Purr <version>",
 #     the unreleased intro dropped), a fresh next.md, and the version listed in
 #     docs/upgrading/index.md. A next.md still at "Nothing yet." becomes a short page
@@ -23,9 +23,6 @@ fi
 # 1. The version (the Release workflow refuses a tag that doesn't match it). The first
 #    release's version is already there, so an unchanged version is fine.
 echo "$VERSION" > VERSION.txt
-sed -i.bak "s/^export const SERVICE_VERSION = \".*\";$/export const SERVICE_VERSION = \"$VERSION\";/" online/src/version.ts
-rm online/src/version.ts.bak
-grep -q "SERVICE_VERSION = \"$VERSION\"" online/src/version.ts
 
 # 2. The upgrade notes.
 NEXT="docs/upgrading/next.md"
@@ -71,4 +68,4 @@ sed -i.bak "/<!-- newest-first/a\\
 rm docs/upgrading/index.md.bak
 grep -q "(/upgrading/$VERSION/)" docs/upgrading/index.md
 
-echo "Prepared release $VERSION: VERSION.txt, online/src/version.ts, $PAGE (from next.md, a fresh next.md started), docs/upgrading/index.md"
+echo "Prepared release $VERSION: VERSION.txt, $PAGE (from next.md, a fresh next.md started), docs/upgrading/index.md"

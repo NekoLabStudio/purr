@@ -17,8 +17,8 @@ void PurrOnlineCall::_bind_methods() {
 
 PurrOnline::PurrOnline() {
 	singleton = this;
-	GLOBAL_DEF_BASIC(PropertyInfo(Variant::STRING, "online/url", PROPERTY_HINT_PLACEHOLDER_TEXT, "https://purr-online.example.workers.dev"), "");
-	GLOBAL_DEF_BASIC("online/game", "");
+	GLOBAL_DEF_BASIC(PropertyInfo(Variant::STRING, "trill/url", PROPERTY_HINT_PLACEHOLDER_TEXT, "https://trill.example.workers.dev"), "");
+	GLOBAL_DEF_BASIC("trill/game", "");
 }
 
 PurrOnline::~PurrOnline() {
@@ -43,11 +43,11 @@ bool PurrOnline::is_secure() const {
 }
 
 String PurrOnline::get_url() const {
-	return String(GLOBAL_GET("online/url")).strip_edges().trim_suffix("/");
+	return String(GLOBAL_GET("trill/url")).strip_edges().trim_suffix("/");
 }
 
 String PurrOnline::get_game() const {
-	return GLOBAL_GET("online/game");
+	return GLOBAL_GET("trill/game");
 }
 
 void PurrOnline::set_session(const String &p_token, const String &p_account_id) {
@@ -74,21 +74,27 @@ Signal PurrOnline::call(HTTPClient::Method p_method, const String &p_path, const
 	if (!bearer.is_empty()) {
 		headers.push_back("Authorization: Bearer " + bearer);
 	}
+	// Signing in, and adding an email (which can move this device to the address's account).
+	const bool signs_in = p_path.begins_with("/auth/");
 	PackedByteArray body;
 	if (p_body.get_type() == Variant::PACKED_BYTE_ARRAY) {
 		body = p_body;
 		headers.push_back("Content-Type: application/octet-stream");
 	} else if (p_body.get_type() != Variant::NIL) {
-		body = JSON::stringify(p_body).to_utf8_buffer();
+		Variant sent = p_body;
+		// A game that only lets players who bought it play online checks this at every sign-in.
+		if (signs_in && sent.get_type() == Variant::DICTIONARY && !ownership_proof.is_empty()) {
+			Dictionary with_proof = Dictionary(p_body).duplicate();
+			with_proof["ownership"] = ownership_proof;
+			sent = with_proof;
+		}
+		body = JSON::stringify(sent).to_utf8_buffer();
 		headers.push_back("Content-Type: application/json");
 	}
-
-	// Signing in, and adding an email (which can move this device to the address's account).
-	const bool signs_in = p_path.begins_with("/auth/");
 	if (!is_configured() || !is_secure()) {
 		Dictionary response;
 		response["status"] = 0;
-		response["error"] = is_configured() ? "The online service must be reached over https (plain http only for this computer)." : "The online service isn't set up (online/url).";
+		response["error"] = is_configured() ? "The online service must be reached over https (plain http only for this computer)." : "The online service isn't set up (trill/url).";
 		callable_mp(this, &PurrOnline::finish).call_deferred(response, pending_call, p_binary_answer, false);
 		return completed;
 	}
@@ -98,7 +104,7 @@ Signal PurrOnline::call(HTTPClient::Method p_method, const String &p_path, const
 		Dictionary response;
 		response["status"] = 0;
 		response["error_code"] = blocked;
-		response["error"] = blocked == "service_outdated" ? "The online service is too old for this version of Purr." : "This version of the game can't play online: update it.";
+		response["error"] = blocked == "service_outdated" ? "The online service (Trill) is too old for this version of Purr." : blocked == "not_owned" ? "This game only plays online for players who bought it." : "This version of the game can't play online: update it.";
 		callable_mp(this, &PurrOnline::finish).call_deferred(response, pending_call, p_binary_answer, false);
 		return completed;
 	}
@@ -147,11 +153,11 @@ void PurrOnline::finish(const Dictionary &p_response, const Ref<PurrOnlineCall> 
 	pending.erase(p_call);
 }
 
-// What every request says about the game: its ID and version, which the service can require a
-// minimum or maximum of.
+// What every request says about the game: its ID and version, which Trill can require a minimum
+// or maximum of.
 Vector<String> PurrOnline::game_headers() const {
 	Vector<String> headers;
-	headers.push_back("X-Purr-Game: " + get_game());
+	headers.push_back("X-Trill-Game: " + get_game());
 	const String version = String(GLOBAL_GET("application/config/version")).strip_edges();
 	if (!version.is_empty()) {
 		headers.push_back("X-Game-Version: " + version);
@@ -167,14 +173,22 @@ void PurrOnline::check_versions(const Dictionary &p_result) {
 		return;
 	}
 	const String error = p_result.get("error", "");
+	// The game only lets players who bought it play online, and this player hasn't (or this copy
+	// can't show it).
+	if (error == "not_owned") {
+		blocked = error;
+		emit_signal(SNAME("not_owned"));
+		return;
+	}
 	if (error == "update_required" || error == "version_unsupported") {
 		blocked = error;
 		const Dictionary data = p_result.get("data", Dictionary());
 		emit_signal(SNAME("update_required"), data.get("min_version", Variant()), data.get("max_version", Variant()));
 		return;
 	}
+	// Purr's own online services before they became Trill say so with their old header.
 	const Dictionary headers = p_result.get("headers", Dictionary());
-	if (headers.has("x-purr-protocol") && String(headers["x-purr-protocol"]).to_int() < PROTOCOL) {
+	if ((headers.has("x-trill-protocol") && String(headers["x-trill-protocol"]).to_int() < PROTOCOL) || headers.has("x-purr-protocol")) {
 		blocked = "service_outdated";
 		emit_signal(SNAME("service_outdated"));
 	}
@@ -216,6 +230,11 @@ Signal PurrOnline::sign_in_play_games(const String &p_server_auth_code, const St
 	body["game"] = get_game();
 	body["server_auth_code"] = p_server_auth_code;
 	return call(HTTPClient::METHOD_POST, "/auth/play_games", with_name(body, p_display_name), String());
+}
+
+// A one-off challenge, for a proof of purchase bound to the request it comes with (Play Integrity).
+Signal PurrOnline::get_ownership_challenge() {
+	return call(HTTPClient::METHOD_GET, "/ownership/challenge?game=" + get_game().uri_encode(), Variant(), String());
 }
 
 Signal PurrOnline::send_crash_report(const String &p_report) {
@@ -266,6 +285,7 @@ Signal PurrOnline::email_verify(const String &p_email, const String &p_challenge
 	body["email"] = p_email;
 	body["challenge"] = p_challenge;
 	body["code"] = p_code;
+	body["game"] = get_game();
 	if (!p_current_email.is_empty()) {
 		body["current_email"] = p_current_email;
 	}
@@ -310,7 +330,7 @@ Signal PurrOnline::create_lobby() {
 
 // A WebSocket to the service, signed in, polled every frame by p_poll.
 Error PurrOnline::open_socket(Ref<WebSocketPeer> &r_socket, const String &p_path, const Callable &p_poll) {
-	ERR_FAIL_COND_V_MSG(!is_configured(), ERR_UNCONFIGURED, "The online service isn't set up (online/url).");
+	ERR_FAIL_COND_V_MSG(!is_configured(), ERR_UNCONFIGURED, "The online service isn't set up (trill/url).");
 	ERR_FAIL_COND_V_MSG(token.is_empty(), ERR_UNAUTHORIZED, "Sign in first.");
 	ERR_FAIL_COND_V_MSG(!is_secure(), ERR_UNAUTHORIZED, "The online service must be reached over https (plain http only for this computer).");
 	ERR_FAIL_COND_V_MSG(!blocked.is_empty(), ERR_UNAVAILABLE, "Online play is off for this session: " + blocked + ".");
@@ -360,7 +380,10 @@ static Vector<Dictionary> read_messages(const Ref<WebSocketPeer> &p_socket) {
 Error PurrOnline::join_lobby(const String &p_code) {
 	leave_lobby();
 	kicked_seen = false;
-	return open_socket(lobby, "/lobbies/" + p_code.uri_encode() + "/socket?game=" + get_game().uri_encode(), callable_mp(this, &PurrOnline::poll_lobby));
+	// Where connections can move onto renewed TURN credentials (everywhere but the web), the lobby
+	// is told, and gives credentials that last a session rather than a long one.
+	const String renews = ClassDB::class_exists("WebRTCNativePeerConnection") ? "&renews=1" : "";
+	return open_socket(lobby, "/lobbies/" + p_code.uri_encode() + "/socket?game=" + get_game().uri_encode() + renews, callable_mp(this, &PurrOnline::poll_lobby));
 }
 
 void PurrOnline::send_lobby_message(const Dictionary &p_message) {
@@ -406,6 +429,13 @@ void PurrOnline::report_result(const Array &p_ranking) {
 	send_lobby_message(message);
 }
 
+// This player's TURN credentials are ending: the lobby sends new ones (lobby_ice_servers).
+void PurrOnline::renew_lobby_ice() {
+	Dictionary message;
+	message["type"] = "renew_ice";
+	send_lobby_message(message);
+}
+
 void PurrOnline::send_check(const String &p_name, const String &p_value) {
 	Dictionary message;
 	message["type"] = "check";
@@ -442,7 +472,9 @@ void PurrOnline::poll_lobby() {
 		}
 		const String type = message.get("type", "");
 		if (type == "welcome") {
-			emit_signal(SNAME("lobby_joined"), message.get("peer_id", 0), message.get("members", Array()), message.get("ice_servers", Array()));
+			emit_signal(SNAME("lobby_joined"), message.get("peer_id", 0), message.get("members", Array()), message.get("ice_servers", Array()), message.get("ice_expires_in", 0));
+		} else if (type == "ice_servers") {
+			emit_signal(SNAME("lobby_ice_servers"), message.get("ice_servers", Array()), message.get("ice_expires_in", 0));
 		} else if (type == "joined") {
 			emit_signal(SNAME("lobby_peer_joined"), message.get("peer_id", 0), message.get("display_name", ""));
 		} else if (type == "left") {
@@ -564,13 +596,15 @@ void PurrOnline::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_rating", "mode"), &PurrOnline::get_rating);
 	ClassDB::bind_method(D_METHOD("is_in_lobby"), &PurrOnline::is_in_lobby);
 
-	ADD_SIGNAL(MethodInfo("lobby_joined", PropertyInfo(Variant::INT, "peer_id"), PropertyInfo(Variant::ARRAY, "members"), PropertyInfo(Variant::ARRAY, "ice_servers")));
+	ADD_SIGNAL(MethodInfo("lobby_joined", PropertyInfo(Variant::INT, "peer_id"), PropertyInfo(Variant::ARRAY, "members"), PropertyInfo(Variant::ARRAY, "ice_servers"), PropertyInfo(Variant::INT, "ice_expires_in")));
+	ADD_SIGNAL(MethodInfo("lobby_ice_servers", PropertyInfo(Variant::ARRAY, "ice_servers"), PropertyInfo(Variant::INT, "ice_expires_in")));
 	ADD_SIGNAL(MethodInfo("lobby_peer_joined", PropertyInfo(Variant::INT, "peer_id"), PropertyInfo(Variant::STRING, "display_name")));
 	ADD_SIGNAL(MethodInfo("lobby_peer_left", PropertyInfo(Variant::INT, "peer_id")));
 	ADD_SIGNAL(MethodInfo("lobby_signal", PropertyInfo(Variant::INT, "from_peer"), PropertyInfo(Variant::NIL, "data", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NIL_IS_VARIANT)));
 	ADD_SIGNAL(MethodInfo("lobby_closed"));
 	ADD_SIGNAL(MethodInfo("update_required", PropertyInfo(Variant::NIL, "min_version", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NIL_IS_VARIANT), PropertyInfo(Variant::NIL, "max_version", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NIL_IS_VARIANT)));
 	ADD_SIGNAL(MethodInfo("service_outdated"));
+	ADD_SIGNAL(MethodInfo("not_owned"));
 	ADD_SIGNAL(MethodInfo("lobby_host_changed", PropertyInfo(Variant::INT, "old_peer_id"), PropertyInfo(Variant::BOOL, "you")));
 	ADD_SIGNAL(MethodInfo("lobby_kicked"));
 	ADD_SIGNAL(MethodInfo("lobby_result_recorded"));

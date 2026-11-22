@@ -1,11 +1,6 @@
 // Apple's headers first: GameController's (which GameKit brings in) use the name Key, which
 // Godot also defines.
-#import <GameKit/GameKit.h>
-#if defined(MACOS_ENABLED)
-#import <AppKit/AppKit.h>
-#else
-#import <UIKit/UIKit.h>
-#endif
+#include "game_center_internal.h"
 
 #include "game_center.h"
 
@@ -18,10 +13,18 @@ void GameCenterCall::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("completed", PropertyInfo(Variant::DICTIONARY, "result")));
 }
 
+String game_center_string(NSString *p_string) {
+	return p_string ? String::utf8(p_string.UTF8String) : String();
+}
+
+NSString *game_center_ns_string(const String &p_string) {
+	return [NSString stringWithUTF8String:p_string.utf8().get_data()];
+}
+
 namespace {
 
 String ns_string(NSString *p_string) {
-	return p_string ? String::utf8(p_string.UTF8String) : String();
+	return game_center_string(p_string);
 }
 
 // Every call's result: ok, and on failure a short error code and Game Center's own message.
@@ -41,18 +44,32 @@ void finish(const Ref<GameCenterCall> &p_call, const Dictionary &p_result) {
 	callable_mp(GameCenter::get_singleton(), &GameCenter::finish_call).call_deferred(p_call, p_result);
 }
 
+void present(GameCenterViewController *p_controller) {
+	game_center_present(p_controller);
+}
+
+void dismiss(GameCenterViewController *p_controller) {
+	game_center_dismiss(p_controller);
+}
+
+void emit_on_main_thread(const StringName &p_signal, const Variant &p_value) {
+	GameCenter::get_singleton()->call_deferred(SNAME("emit_signal"), p_signal, p_value);
+}
+
+} // namespace
+
 // Shows one of Game Center's screens (sign-in, invites) over the game, and closes it.
 #if defined(MACOS_ENABLED)
-void present(NSViewController *p_controller) {
+void game_center_present(NSViewController *p_controller) {
 	NSWindow *window = NSApp.keyWindow ?: NSApp.mainWindow;
 	[window.contentViewController presentViewControllerAsSheet:p_controller];
 }
 
-void dismiss(NSViewController *p_controller) {
+void game_center_dismiss(NSViewController *p_controller) {
 	[p_controller.presentingViewController dismissViewController:p_controller];
 }
 #else
-void present(UIViewController *p_controller) {
+void game_center_present(UIViewController *p_controller) {
 	for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
 		if ([scene isKindOfClass:[UIWindowScene class]]) {
 			UIViewController *root = ((UIWindowScene *)scene).keyWindow.rootViewController;
@@ -64,16 +81,27 @@ void present(UIViewController *p_controller) {
 	}
 }
 
-void dismiss(UIViewController *p_controller) {
+void game_center_dismiss(UIViewController *p_controller) {
 	[p_controller dismissViewControllerAnimated:YES completion:nil];
 }
 #endif
 
-void emit_on_main_thread(const StringName &p_signal, const Variant &p_value) {
-	GameCenter::get_singleton()->call_deferred(SNAME("emit_signal"), p_signal, p_value);
-}
+namespace {
+
+GKInvite *accepted_invite = nil;
+NSMutableDictionary<NSString *, GKPlayer *> *friends = nil;
 
 } // namespace
+
+GKInvite *game_center_take_invite() {
+	GKInvite *invite = accepted_invite;
+	accepted_invite = nil;
+	return invite;
+}
+
+GKPlayer *game_center_friend(const String &p_player_id) {
+	return friends[game_center_ns_string(p_player_id)];
+}
 
 // Invites and parties arriving from Game Center, and the invite screen's outcome. GameKit keeps
 // only weak references to both, so one of each lives as long as the game.
@@ -82,10 +110,17 @@ void emit_on_main_thread(const StringName &p_signal, const Variant &p_value) {
 
 @implementation GameCenterListener
 
-// The player accepted an invite (in Messages or a notification): the inviting game's player group
-// says what to join. Connecting to the invite's match lets the inviter's invite screen close.
+// The player accepted an invite (in Messages or a notification). One with a player group carries
+// a crossplay lobby's code: connecting to the invite's match lets the inviter's invite screen
+// close, and the game joins the lobby. One without is to the Game Center match itself, which
+// GameCenterMultiplayerPeer.accept_invite() takes.
 - (void)player:(GKPlayer *)player didAcceptInvite:(GKInvite *)invite {
 	const int64_t group = invite.playerGroup;
+	if (group == 0) {
+		accepted_invite = invite;
+		emit_on_main_thread(SNAME("match_invite_accepted"), ns_string(invite.sender.gamePlayerID));
+		return;
+	}
 	[GKMatchmaker.sharedMatchmaker matchForInvite:invite
 								completionHandler:^(GKMatch *match, NSError *error) {
 									[match disconnect];
@@ -126,6 +161,15 @@ GameCenterListener *listener = nil;
 id party = nil; // The GKGameActivity under way, on OS 26 and later.
 
 } // namespace
+
+void game_center_set_party(id p_activity) {
+	if (@available(iOS 26.0, macOS 26.0, tvOS 26.0, visionOS 26.0, *)) {
+		if (party != p_activity) {
+			[(GKGameActivity *)party end];
+		}
+	}
+	party = p_activity;
+}
 
 GameCenter::GameCenter() {
 	singleton = this;
@@ -354,6 +398,57 @@ void GameCenter::invite_players(int64_t p_player_group, int p_max_players) {
 	present(controller);
 }
 
+// The player's Game Center friends: {"ok", "friends": [{"id", "name"}]}. The first time, Game
+// Center asks the player whether to share them with the game.
+Signal GameCenter::load_friends() {
+	const Ref<GameCenterCall> call = begin_call();
+	const Signal completed(call.ptr(), SNAME("completed"));
+	if (@available(iOS 14.5, macOS 11.3, tvOS 14.5, visionOS 1.0, *)) {
+		[GKLocalPlayer.local loadFriends:^(NSArray<GKPlayer *> *loaded, NSError *error) {
+			Dictionary done = result(error);
+			Array list;
+			NSMutableDictionary<NSString *, GKPlayer *> *by_id = [NSMutableDictionary dictionary];
+			for (GKPlayer *player in loaded) {
+				by_id[player.gamePlayerID] = player;
+				Dictionary entry;
+				entry["id"] = ns_string(player.gamePlayerID);
+				entry["name"] = ns_string(player.displayName);
+				list.push_back(entry);
+			}
+			done["friends"] = list;
+			dispatch_async(dispatch_get_main_queue(), ^{
+				friends = by_id;
+			});
+			finish(call, done);
+		}];
+	} else {
+		Dictionary done;
+		done["ok"] = false;
+		done["error"] = "unavailable";
+		done["message"] = "Game Center friends need a newer OS.";
+		done["friends"] = Array();
+		finish(call, done);
+	}
+	return completed;
+}
+
+// Invites one friend (from load_friends()) without the invite screen, to the crossplay lobby in
+// the player group, like invite_players().
+void GameCenter::invite_friend(const String &p_player_id, int64_t p_player_group, int p_max_players) {
+	GKPlayer *player = game_center_friend(p_player_id);
+	ERR_FAIL_NULL_MSG(player, "Load the player's friends (GameCenter.load_friends) before inviting one.");
+	GKMatchRequest *request = [GKMatchRequest new];
+	request.minPlayers = 2;
+	request.maxPlayers = MAX(2, MIN(p_max_players, (int)[GKMatchRequest maxPlayersAllowedForMatchOfType:GKMatchTypePeerToPeer]));
+	request.playerGroup = p_player_group;
+	request.recipients = @[ player ];
+	[GKMatchmaker.sharedMatchmaker findMatchForRequest:request
+								 withCompletionHandler:^(GKMatch *match, NSError *error) {
+									 // The friend accepted: the game itself goes on in the lobby.
+									 [match disconnect];
+								 }];
+}
+
 void GameCenter::start_party(const String &p_activity_id, const String &p_party_code) {
 	end_party();
 	if (@available(iOS 26.0, macOS 26.0, tvOS 26.0, visionOS 26.0, *)) {
@@ -398,11 +493,14 @@ void GameCenter::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("show_achievements"), &GameCenter::show_achievements);
 	ClassDB::bind_method(D_METHOD("show_leaderboard", "leaderboard_id"), &GameCenter::show_leaderboard, DEFVAL(String()));
 	ClassDB::bind_method(D_METHOD("invite_players", "player_group", "max_players"), &GameCenter::invite_players);
+	ClassDB::bind_method(D_METHOD("load_friends"), &GameCenter::load_friends);
+	ClassDB::bind_method(D_METHOD("invite_friend", "player_id", "player_group", "max_players"), &GameCenter::invite_friend);
 	ClassDB::bind_method(D_METHOD("start_party", "activity_id", "party_code"), &GameCenter::start_party);
 	ClassDB::bind_method(D_METHOD("end_party"), &GameCenter::end_party);
 
 	ADD_SIGNAL(MethodInfo("invite_accepted", PropertyInfo(Variant::INT, "player_group")));
 	ADD_SIGNAL(MethodInfo("party_joined", PropertyInfo(Variant::STRING, "party_code")));
+	ADD_SIGNAL(MethodInfo("match_invite_accepted", PropertyInfo(Variant::STRING, "sender_id")));
 
 	BIND_ENUM_CONSTANT(SCOPE_GLOBAL);
 	BIND_ENUM_CONSTANT(SCOPE_FRIENDS);

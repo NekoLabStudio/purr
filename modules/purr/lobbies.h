@@ -1,7 +1,7 @@
 #pragma once
 
 // Lobbies: playing together through Godot's high-level multiplayer. A lobby sets the scene tree's
-// multiplayer peer: crossplay over WebRTC with the online service (online/url), otherwise a Steam
+// multiplayer peer: crossplay over WebRTC with the online service (trill/url), otherwise a Steam
 // lobby. Ranked matchmaking, and the checks, flags, reports and blocks that keep play fair.
 
 #include "core/object/class_db.h"

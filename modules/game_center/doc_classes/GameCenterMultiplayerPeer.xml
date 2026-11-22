@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GameCenterMultiplayerPeer" inherits="MultiplayerPeer" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Godot's high-level multiplayer over a Game Center match.
+	</brief_description>
+	<description>
+		A [MultiplayerPeer] over a Game Center real-time match, found by matchmaking ([method find_match]), invites ([method invite], [method accept_invite]) or a party code ([method find_party_match]). Every player is connected to every other through Apple's servers. Peer IDs come from the players' gamePlayerIDs, so every device works out the same ones; the host, chosen with [method set_host], is peer [code]1[/code]. [method send_message] carries text alongside the game's packets, for coordinating the match.
+		Purr's [Lobbies] use it on Apple platforms when the game doesn't use the online services, so most games never need it directly.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="accept_invite">
+			<return type="int" enum="Error" />
+			<description>
+				Takes the match from the invite the player last accepted ([signal GameCenter.match_invite_accepted]). [signal match_started] or [signal match_failed] follows.
+			</description>
+		</method>
+		<method name="cancel_matchmaking">
+			<return type="void" />
+			<description>
+				Stops [method find_match] and [method find_party_match] waiting.
+			</description>
+		</method>
+		<method name="find_match">
+			<return type="int" enum="Error" />
+			<param index="0" name="min_players" type="int" />
+			<param index="1" name="max_players" type="int" />
+			<param index="2" name="player_group" type="int" default="0" />
+			<description>
+				Asks Game Center for [param min_players] to [param max_players] players (this one included) who asked for the same [param player_group], or anyone with [code]0[/code]. [signal match_started] fires once they're found, or [signal match_failed].
+			</description>
+		</method>
+		<method name="find_party_match">
+			<return type="int" enum="Error" />
+			<param index="0" name="activity_id" type="String" />
+			<param index="1" name="party_code" type="String" />
+			<description>
+				Starts the game activity [param activity_id] (set up in App Store Connect, with party codes) with [param party_code], and finds a match with the other players who started it with the same code. Needs iOS, macOS, tvOS or visionOS 26 or later: returns [constant ERR_UNAVAILABLE] before.
+			</description>
+		</method>
+		<method name="get_host" qualifiers="const">
+			<return type="String" />
+			<description>
+				Returns the host's gamePlayerID, or empty until [method set_host].
+			</description>
+		</method>
+		<method name="get_local_player_id" qualifiers="const">
+			<return type="String" />
+			<description>
+				Returns this player's gamePlayerID, or empty when they aren't signed in to Game Center.
+			</description>
+		</method>
+		<method name="get_peer_id_for_player" qualifiers="const">
+			<return type="int" />
+			<param index="0" name="player_id" type="String" />
+			<description>
+				Returns the peer ID of the player with this gamePlayerID: [code]1[/code] for the host, otherwise one worked out from the ID, the same on every device.
+			</description>
+		</method>
+		<method name="get_player_for_peer_id" qualifiers="const">
+			<return type="String" />
+			<param index="0" name="peer_id" type="int" />
+			<description>
+				Returns the gamePlayerID of the player with this peer ID, or empty.
+			</description>
+		</method>
+		<method name="get_player_ids" qualifiers="const">
+			<return type="PackedStringArray" />
+			<description>
+				Returns the gamePlayerIDs of the other players connected to the match.
+			</description>
+		</method>
+		<method name="has_match" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] once there's a match.
+			</description>
+		</method>
+		<method name="invite">
+			<return type="int" enum="Error" />
+			<param index="0" name="max_players" type="int" />
+			<description>
+				Opens Apple's invite screen, for up to [param max_players] players. Without a match, accepting starts one ([signal match_started]); with one, the invited players join it.
+			</description>
+		</method>
+		<method name="invite_player">
+			<return type="int" enum="Error" />
+			<param index="0" name="player_id" type="String" />
+			<param index="1" name="max_players" type="int" />
+			<description>
+				Invites one friend (an [code]id[/code] from [method GameCenter.load_friends]) without the invite screen: to this match, or to a new one.
+			</description>
+		</method>
+		<method name="send_message">
+			<return type="int" enum="Error" />
+			<param index="0" name="message" type="String" />
+			<description>
+				Sends [param message] to every other player in the match, reliably, alongside the game's packets. [signal message_received] fires on their side.
+			</description>
+		</method>
+		<method name="set_host">
+			<return type="void" />
+			<param index="0" name="player_id" type="String" />
+			<description>
+				Makes the player with this gamePlayerID the host, peer [code]1[/code]. Every peer ID may change, so the game hears about every player again: set the peer on the [MultiplayerAPI] again afterwards.
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="match_failed">
+			<param index="0" name="error" type="String" />
+			<param index="1" name="message" type="String" />
+			<description>
+				Emitted when no match came of [method find_match], [method find_party_match], [method invite_player] or [method accept_invite]. [param error] is [code]"cancelled"[/code], [code]"not_signed_in"[/code] or [code]"failed"[/code], and [param message] is Game Center's own.
+			</description>
+		</signal>
+		<signal name="match_started">
+			<description>
+				Emitted when there's a match to play in (also when the invite screen added players to it).
+			</description>
+		</signal>
+		<signal name="message_received">
+			<param index="0" name="player_id" type="String" />
+			<param index="1" name="message" type="String" />
+			<description>
+				Emitted when another player sent a message with [method send_message].
+			</description>
+		</signal>
+		<signal name="player_connected">
+			<param index="0" name="player_id" type="String" />
+			<description>
+				Emitted when another player connected to the match after it started.
+			</description>
+		</signal>
+		<signal name="player_disconnected">
+			<param index="0" name="player_id" type="String" />
+			<description>
+				Emitted when another player left the match.
+			</description>
+		</signal>
+	</signals>
+</class>

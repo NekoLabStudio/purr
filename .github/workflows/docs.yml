@@ -38,10 +38,7 @@ jobs:
           fetch-depth: 0
 
       - name: Build site
-        run: |
-          python3 docs-site/build.py --output dist/docs-site
-          # The online services' setup command downloads this.
-          test -s dist/docs-site/online/setup.sh
+        run: python3 docs-site/build.py --output dist/docs-site
 
       - name: Configure Pages
         uses: actions/configure-pages@v6

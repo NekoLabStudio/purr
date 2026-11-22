@@ -5,7 +5,9 @@
 // tree. The host is peer 1 and every other player connects to the host, as with Godot's server
 // and clients; the lobby stays open for players joining later. Matchmaking finds a ranked lobby
 // the same way, by code. With lobbies/host_migration on, when the host leaves, the player
-// who's been there longest becomes peer 1 and the others reconnect to them.
+// who's been there longest becomes peer 1 and the others reconnect to them. TURN credentials last
+// a few hours: before they end, the lobby gives new ones, and connections relayed through TURN
+// move onto them without the game noticing (WebRTCNativePeerConnection::renew_ice_servers).
 
 #include "modules/webrtc/webrtc_multiplayer_peer.h"
 
@@ -17,6 +19,7 @@ class PurrLobby : public RefCounted {
 	String code;
 	int64_t peer_id = 0;
 	Array ice_servers;
+	uint64_t ice_generation = 0; // Which credentials a renewal timer is for.
 	Ref<WebRTCMultiplayerPeer> peer;
 	Ref<RefCounted> pending_call; // Completed once the lobby has welcomed the player.
 
@@ -35,7 +38,10 @@ class PurrLobby : public RefCounted {
 	void disconnect_signals();
 
 	Ref<WebRTCPeerConnection> connection_to(int64_t p_peer_id);
-	void welcomed(int64_t p_peer_id, const Array &p_members, const Array &p_ice_servers);
+	void welcomed(int64_t p_peer_id, const Array &p_members, const Array &p_ice_servers, int64_t p_ice_expires_in);
+	void schedule_ice_renewal(int64_t p_expires_in);
+	void renew_ice(uint64_t p_generation);
+	void ice_servers_received(const Array &p_ice_servers, int64_t p_ice_expires_in);
 	void peer_joined(int64_t p_peer_id, const String &p_display_name);
 	void peer_left(int64_t p_peer_id);
 	void signal_received(int64_t p_from_peer, const Variant &p_data);

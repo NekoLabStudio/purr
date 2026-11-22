@@ -1,6 +1,8 @@
 #include "webrtc_native_peer_connection.h"
 
-#include "webrtc_native_data_channel.h"
+#include "core/io/json.h"
+#include "core/object/class_db.h"
+#include "core/os/os.h"
 
 namespace {
 
@@ -128,15 +130,34 @@ WebRTCPeerConnection::SignalingState WebRTCNativePeerConnection::get_signaling_s
 	}
 }
 
+namespace {
+
+Error parse_ice_servers(rtc::Configuration &r_config, const Array &p_servers) {
+	r_config.iceServers.clear();
+	for (const Variant &server : p_servers) {
+		ERR_FAIL_COND_V_MSG(server.get_type() != Variant::DICTIONARY, ERR_INVALID_PARAMETER, "Each of \"iceServers\" must be a dictionary.");
+		ERR_FAIL_COND_V(parse_ice_server(r_config, server) != OK, ERR_INVALID_PARAMETER);
+	}
+	return OK;
+}
+
+std::string random_hex(int p_bytes) {
+	uint8_t bytes[32];
+	if (OS::get_singleton()->get_entropy(bytes, p_bytes) != OK) {
+		for (int i = 0; i < p_bytes; i++) {
+			bytes[i] = uint8_t(Math::rand());
+		}
+	}
+	return String::hex_encode_buffer(bytes, p_bytes).utf8().get_data();
+}
+
+} // namespace
+
 Error WebRTCNativePeerConnection::initialize(const Dictionary &p_config) {
 	close();
 	rtc::Configuration config;
 	if (p_config.get("iceServers", Variant()).get_type() == Variant::ARRAY) {
-		const Array servers = p_config["iceServers"];
-		for (const Variant &server : servers) {
-			ERR_FAIL_COND_V_MSG(server.get_type() != Variant::DICTIONARY, ERR_INVALID_PARAMETER, "Each of \"iceServers\" must be a dictionary.");
-			ERR_FAIL_COND_V(parse_ice_server(config, server) != OK, ERR_INVALID_PARAMETER);
-		}
+		ERR_FAIL_COND_V(parse_ice_servers(config, p_config["iceServers"]) != OK, ERR_INVALID_PARAMETER);
 	}
 	// "relay": connect only through TURN, so the other side never sees this device's address.
 	if (p_config.get("iceTransportPolicy", "all") == Variant("relay")) {
@@ -161,25 +182,31 @@ Error WebRTCNativePeerConnection::initialize(const Dictionary &p_config) {
 			config.mtu = int(options["mtu"]);
 		}
 	}
+	// Offers are made when the game asks for one, as in browsers.
+	config.disableAutoNegotiation = true;
+	configuration = config;
 	return create_peer_connection(config);
 }
 
+// Queues work for the main thread, which poll() does.
+std::function<void(std::function<void(Object *)>)> WebRTCNativePeerConnection::task_queue() {
+	const std::weak_ptr<SharedState> weak_state = shared_state;
+	return [weak_state](std::function<void(Object *)> p_task) {
+		if (const std::shared_ptr<SharedState> state = weak_state.lock()) {
+			std::lock_guard lock(state->mutex);
+			state->tasks.push(std::move(p_task));
+		}
+	};
+}
+
 Error WebRTCNativePeerConnection::create_peer_connection(rtc::Configuration &r_config) {
-	// Offers are made when the game asks for one, as in browsers.
-	r_config.disableAutoNegotiation = true;
 	try {
 		peer_connection = std::make_shared<rtc::PeerConnection>(r_config);
 	} catch (const std::exception &e) {
 		ERR_FAIL_V_MSG(FAILED, vformat("Couldn't create the WebRTC peer connection: %s", e.what()));
 	}
 
-	const std::weak_ptr<SharedState> weak_state = shared_state;
-	auto queue_task = [weak_state](std::function<void(Object *)> p_task) {
-		if (const std::shared_ptr<SharedState> state = weak_state.lock()) {
-			std::lock_guard lock(state->mutex);
-			state->tasks.push(std::move(p_task));
-		}
-	};
+	auto queue_task = task_queue();
 	peer_connection->onLocalDescription([queue_task](rtc::Description p_description) {
 		const String type = p_description.type() == rtc::Description::Type::Offer ? "offer" : "answer";
 		const String sdp = String::utf8(std::string(p_description).c_str());
@@ -197,10 +224,48 @@ Error WebRTCNativePeerConnection::create_peer_connection(rtc::Configuration &r_c
 	peer_connection->onDataChannel([queue_task](std::shared_ptr<rtc::DataChannel> p_channel) {
 		const Ref<WebRTCNativeDataChannel> channel = WebRTCNativeDataChannel::wrap(p_channel, false);
 		queue_task([channel](Object *p_object) {
+			static_cast<WebRTCNativePeerConnection *>(p_object)->record(channel);
 			p_object->emit_signal(SNAME("data_channel_received"), channel);
 		});
 	});
+	open_control(peer_connection, control);
 	return OK;
+}
+
+// The channel moves are negotiated on. Negotiated, so it's there on both sides without an offer.
+void WebRTCNativePeerConnection::open_control(const std::shared_ptr<rtc::PeerConnection> &p_connection, std::shared_ptr<rtc::DataChannel> &r_control) {
+	rtc::DataChannelInit init;
+	init.negotiated = true;
+	init.id = CONTROL_CHANNEL_ID;
+	try {
+		r_control = p_connection->createDataChannel("purr-move", init);
+	} catch (const std::exception &e) {
+		ERR_PRINT(vformat("Couldn't create the WebRTC control channel: %s", e.what()));
+		return;
+	}
+	auto queue_task = task_queue();
+	r_control->onMessage([](rtc::binary) {}, [queue_task](rtc::string p_text) {
+		const String text = String::utf8(p_text.c_str());
+		queue_task([text](Object *p_object) {
+			static_cast<WebRTCNativePeerConnection *>(p_object)->control_received(text);
+		});
+	});
+}
+
+void WebRTCNativePeerConnection::record(const Ref<WebRTCNativeDataChannel> &p_wrapper) {
+	const std::shared_ptr<rtc::DataChannel> channel = p_wrapper->get_channel();
+	if (!channel) {
+		return;
+	}
+	// On the connection moved to, every channel is negotiated, with the ID it has by then (one the
+	// game didn't negotiate only gets its ID once the connection is up).
+	ChannelRecord record;
+	record.wrapper = p_wrapper;
+	record.label = channel->label();
+	record.init.reliability = channel->reliability();
+	record.init.protocol = channel->protocol();
+	record.init.negotiated = true;
+	records.push_back(record);
 }
 
 Ref<WebRTCDataChannel> WebRTCNativePeerConnection::create_data_channel(const String &p_label, const Dictionary &p_options) {
@@ -210,7 +275,9 @@ Ref<WebRTCDataChannel> WebRTCNativePeerConnection::create_data_channel(const Str
 	try {
 		const std::shared_ptr<rtc::DataChannel> channel = peer_connection->createDataChannel(p_label.utf8().get_data(), init);
 		ERR_FAIL_COND_V(!channel, Ref<WebRTCDataChannel>());
-		return WebRTCNativeDataChannel::wrap(channel, init.negotiated);
+		const Ref<WebRTCNativeDataChannel> wrapper = WebRTCNativeDataChannel::wrap(channel, init.negotiated);
+		record(wrapper);
+		return wrapper;
 	} catch (const std::exception &e) {
 		ERR_FAIL_V_MSG(Ref<WebRTCDataChannel>(), vformat("Couldn't create the WebRTC data channel: %s", e.what()));
 	}
@@ -268,18 +335,276 @@ Error WebRTCNativePeerConnection::poll() {
 		tasks.front()(this);
 		tasks.pop();
 	}
+	advance_move();
 	return OK;
 }
 
 void WebRTCNativePeerConnection::close() {
+	if (move) {
+		cancel_move();
+	}
 	if (peer_connection) {
 		try {
 			peer_connection->close();
 		} catch (...) {
 		}
 	}
+	records.clear();
+	control.reset();
+	move_waiting = false;
 	// Anything still queued belongs to the closed connection.
 	shared_state = std::make_shared<SharedState>();
+}
+
+// Moving to new ICE servers.
+
+// Whether this side reaches the other through a TURN server: then its credentials matter.
+bool WebRTCNativePeerConnection::uses_relay() {
+	rtc::Candidate local;
+	rtc::Candidate remote;
+	return peer_connection && peer_connection->getSelectedCandidatePair(&local, &remote) && local.type() == rtc::Candidate::Type::Relayed;
+}
+
+Error WebRTCNativePeerConnection::renew_ice_servers(const Array &p_ice_servers) {
+	ERR_FAIL_COND_V(!peer_connection, ERR_UNCONFIGURED);
+	rtc::Configuration config = configuration;
+	ERR_FAIL_COND_V(parse_ice_servers(config, p_ice_servers) != OK, ERR_INVALID_PARAMETER);
+	configuration = config;
+	if (move) {
+		move_waiting = true;
+		return OK;
+	}
+	ERR_FAIL_COND_V_MSG(get_connection_state() != STATE_CONNECTED, ERR_UNAVAILABLE, "Only a connected WebRTC connection can move to new ICE servers.");
+	return start_move(true, std::string());
+}
+
+Error WebRTCNativePeerConnection::start_move(bool p_initiator, const std::string &p_remote_marker) {
+	std::unique_ptr<Move> started = std::make_unique<Move>();
+	started->initiator = p_initiator;
+	started->marker = "purr-move:" + random_hex(16);
+	started->remote_marker = p_remote_marker;
+	started->nonce = uint64_t(std::stoull(random_hex(7), nullptr, 16));
+	started->started_msec = OS::get_singleton()->get_ticks_msec();
+	try {
+		started->connection = std::make_shared<rtc::PeerConnection>(configuration);
+	} catch (const std::exception &e) {
+		ERR_FAIL_V_MSG(FAILED, vformat("Couldn't create the WebRTC connection to move to: %s", e.what()));
+	}
+	// Its offer, answer and candidates go over the control channel, never to the game; a task left
+	// over from a move that ended does nothing.
+	auto queue_task = task_queue();
+	const uint64_t nonce = started->nonce;
+	started->connection->onLocalDescription([queue_task, nonce](rtc::Description p_description) {
+		const String type = p_description.type() == rtc::Description::Type::Offer ? "offer" : "answer";
+		const String sdp = String::utf8(std::string(p_description).c_str());
+		queue_task([type, sdp, nonce](Object *p_object) {
+			WebRTCNativePeerConnection *self = static_cast<WebRTCNativePeerConnection *>(p_object);
+			if (self->move && self->move->nonce == nonce) {
+				Dictionary message;
+				message["t"] = type;
+				message["sdp"] = sdp;
+				message["marker"] = String::utf8(self->move->marker.c_str());
+				message["nonce"] = String::num_uint64(nonce);
+				self->send_control(message);
+			}
+		});
+	});
+	started->connection->onLocalCandidate([queue_task, nonce](rtc::Candidate p_candidate) {
+		const String mid = String::utf8(p_candidate.mid().c_str());
+		const String candidate = String::utf8(p_candidate.candidate().c_str());
+		queue_task([mid, candidate, nonce](Object *p_object) {
+			WebRTCNativePeerConnection *self = static_cast<WebRTCNativePeerConnection *>(p_object);
+			if (self->move && self->move->nonce == nonce) {
+				Dictionary message;
+				message["t"] = "candidate";
+				message["candidate"] = candidate;
+				message["mid"] = mid;
+				message["nonce"] = String::num_uint64(nonce);
+				self->send_control(message);
+			}
+		});
+	});
+	open_control(started->connection, started->control);
+	for (ChannelRecord &record : records) {
+		std::shared_ptr<rtc::DataChannel> channel;
+		rtc::DataChannelInit init = record.init;
+		init.id = record.wrapper->get_channel()->id();
+		if (!init.id.has_value()) {
+			started->connection->close();
+			ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "A data channel has no ID yet: the WebRTC connection can only move once it's connected.");
+		}
+		try {
+			channel = started->connection->createDataChannel(record.label, init);
+		} catch (const std::exception &e) {
+			started->connection->close();
+			ERR_FAIL_V_MSG(FAILED, vformat("Couldn't create a data channel on the WebRTC connection to move to: %s", e.what()));
+		}
+		started->channels.push_back(channel);
+	}
+	move = std::move(started);
+	for (size_t i = 0; i < records.size(); i++) {
+		records[i].wrapper->begin_move(move->channels[i]);
+		if (!p_remote_marker.empty()) {
+			records[i].wrapper->expect_marker(p_remote_marker);
+		}
+	}
+	if (p_initiator) {
+		try {
+			move->connection->setLocalDescription(rtc::Description::Type::Offer);
+		} catch (const std::exception &e) {
+			cancel_move();
+			ERR_FAIL_V_MSG(FAILED, vformat("Couldn't offer the WebRTC connection to move to: %s", e.what()));
+		}
+	}
+	return OK;
+}
+
+void WebRTCNativePeerConnection::send_control(const Dictionary &p_message) {
+	if (!control || !control->isOpen()) {
+		return;
+	}
+	try {
+		control->send(std::string(JSON::stringify(p_message).utf8().get_data()));
+	} catch (...) {
+	}
+}
+
+void WebRTCNativePeerConnection::control_received(const String &p_text) {
+	const Variant parsed = JSON::parse_string(p_text);
+	if (parsed.get_type() != Variant::DICTIONARY) {
+		return;
+	}
+	const Dictionary message = parsed;
+	const String type = message.get("t", "");
+	const uint64_t nonce = String(message.get("nonce", "0")).to_int();
+	// A candidate or "moved" from a move that has ended (one that lost to a move started at the
+	// same moment) is ignored.
+	if ((type == "candidate" || type == "moved") && (!move || move->remote_nonce != nonce)) {
+		return;
+	}
+	try {
+		if (type == "offer") {
+			// Both sides started at once: the higher nonce's move goes ahead.
+			if (move && move->initiator && move->nonce > nonce) {
+				return;
+			}
+			if (move) {
+				cancel_move();
+			}
+			if (start_move(false, String(message.get("marker", "")).utf8().get_data()) != OK) {
+				return;
+			}
+			move->remote_nonce = nonce;
+			move->connection->setRemoteDescription(rtc::Description(String(message.get("sdp", "")).utf8().get_data(), "offer"));
+			move->connection->setLocalDescription(rtc::Description::Type::Answer);
+		} else if (type == "answer" && move && move->initiator) {
+			move->remote_nonce = nonce;
+			move->remote_marker = String(message.get("marker", "")).utf8().get_data();
+			for (ChannelRecord &record : records) {
+				record.wrapper->expect_marker(move->remote_marker);
+			}
+			move->connection->setRemoteDescription(rtc::Description(String(message.get("sdp", "")).utf8().get_data(), "answer"));
+		} else if (type == "candidate") {
+			try {
+				move->connection->addRemoteCandidate(rtc::Candidate(String(message.get("candidate", "")).utf8().get_data(), String(message.get("mid", "")).utf8().get_data()));
+			} catch (const std::exception &e) {
+				// One candidate that can't be used doesn't stop the move.
+				print_verbose(vformat("Skipped a WebRTC candidate while moving: %s", e.what()));
+			}
+		} else if (type == "moved") {
+			move->remote_moved = true;
+		}
+	} catch (const std::exception &e) {
+		ERR_PRINT(vformat("Couldn't move the WebRTC connection: %s", e.what()));
+		if (move) {
+			cancel_move();
+		}
+	}
+}
+
+// Each poll: once the new connection and its channels are open, this side sends on them; once
+// both sides do and everything sent on the old one has arrived, the old one closes.
+void WebRTCNativePeerConnection::advance_move() {
+	if (!move) {
+		return;
+	}
+	const uint64_t time = OS::get_singleton()->get_ticks_msec();
+	if (!move->moved) {
+		bool open = move->connection->state() == rtc::PeerConnection::State::Connected && move->control && move->control->isOpen();
+		for (const std::shared_ptr<rtc::DataChannel> &channel : move->channels) {
+			open = open && channel->isOpen();
+		}
+		if (!open) {
+			if (time - move->started_msec > MOVE_TIMEOUT_MSEC) {
+				WARN_PRINT("The WebRTC connection couldn't move to its new ICE servers; it carries on with its old ones.");
+				cancel_move();
+			}
+			return;
+		}
+		for (ChannelRecord &record : records) {
+			record.wrapper->send_moved(move->marker);
+		}
+		Dictionary message;
+		message["t"] = "moved";
+		message["nonce"] = String::num_uint64(move->nonce);
+		send_control(message);
+		move->moved = true;
+		move->settled_msec = 0;
+	}
+	bool received = move->remote_moved;
+	for (const ChannelRecord &record : records) {
+		received = received && record.wrapper->has_received_move();
+	}
+	if (received && move->settled_msec == 0) {
+		move->settled_msec = time;
+	}
+	// A moment for the last of the old connection's unordered packets, or, if the other side never
+	// says it moved, a while longer before giving up on it.
+	if ((move->settled_msec != 0 && time - move->settled_msec > MOVE_SETTLE_MSEC) || time - move->started_msec > 2 * MOVE_TIMEOUT_MSEC) {
+		complete_move();
+	}
+}
+
+void WebRTCNativePeerConnection::complete_move() {
+	const std::shared_ptr<rtc::PeerConnection> old = peer_connection;
+	const std::shared_ptr<rtc::DataChannel> old_control = control;
+	for (ChannelRecord &record : records) {
+		record.wrapper->finish_move();
+	}
+	peer_connection = move->connection;
+	control = move->control;
+	move.reset();
+	if (old_control) {
+		old_control->resetCallbacks();
+	}
+	try {
+		old->close();
+	} catch (...) {
+	}
+	if (move_waiting) {
+		move_waiting = false;
+		start_move(true, std::string());
+	}
+}
+
+void WebRTCNativePeerConnection::cancel_move() {
+	for (ChannelRecord &record : records) {
+		record.wrapper->cancel_move();
+	}
+	if (move->control) {
+		move->control->resetCallbacks();
+	}
+	try {
+		move->connection->close();
+	} catch (...) {
+	}
+	move.reset();
+}
+
+void WebRTCNativePeerConnection::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("renew_ice_servers", "ice_servers"), &WebRTCNativePeerConnection::renew_ice_servers);
+	ClassDB::bind_method(D_METHOD("uses_relay"), &WebRTCNativePeerConnection::uses_relay);
+	ClassDB::bind_method(D_METHOD("is_renewing"), &WebRTCNativePeerConnection::is_renewing);
 }
 
 WebRTCNativePeerConnection::WebRTCNativePeerConnection() {

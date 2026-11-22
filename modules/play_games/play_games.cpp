@@ -191,6 +191,17 @@ Signal PlayGames::get_scores(const String &p_leaderboard_id, Scope p_scope, int 
 	return Signal(call.ptr(), SNAME("completed"));
 }
 
+// {"friends": [{"id", "name"}]}: asks the player to share their friends the first time.
+Signal PlayGames::load_friends() {
+	if (!is_authenticated() || !connect_android()) {
+		return fail_now("not_signed_in");
+	}
+	Ref<PlayGamesCall> call;
+	const int id = begin_call(call);
+	android()->call("loadFriends", id);
+	return Signal(call.ptr(), SNAME("completed"));
+}
+
 void PlayGames::submit_score(const String &p_leaderboard_id, int64_t p_score) {
 	if (is_authenticated()) {
 		android()->call("submitScore", p_leaderboard_id, p_score);
@@ -294,6 +305,7 @@ void PlayGames::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("submit_score", "leaderboard_id", "score"), &PlayGames::submit_score);
 	ClassDB::bind_method(D_METHOD("show_achievements"), &PlayGames::show_achievements);
 	ClassDB::bind_method(D_METHOD("show_leaderboard", "leaderboard_id"), &PlayGames::show_leaderboard, DEFVAL(String()));
+	ClassDB::bind_method(D_METHOD("load_friends"), &PlayGames::load_friends);
 	ClassDB::bind_method(D_METHOD("is_saved_games_enabled"), &PlayGames::is_saved_games_enabled);
 	ClassDB::bind_method(D_METHOD("save_file", "name", "data", "metadata"), &PlayGames::save_file, DEFVAL(Dictionary()));
 	ClassDB::bind_method(D_METHOD("load_file", "name"), &PlayGames::load_file);

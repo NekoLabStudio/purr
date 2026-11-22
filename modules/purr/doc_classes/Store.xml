@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Store" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Content the player buys once and keeps, on Steam, the App Store and Google Play.
+	</brief_description>
+	<description>
+		Store sells what a player buys once and keeps: DLC, expansions, a soundtrack, unlocking the full game. List each item by the game's own ID in the [b]Store[/b] tab of Project Settings, with its product on each store: the DLC's app ID on Steam, the product ID in App Store Connect and in the Play Console. An empty product means the item isn't sold on that store.
+		[codeblock]
+		if Store.owns("winter_expansion"):
+		    unlock_winter_islands()
+
+		func _on_buy_pressed():
+		    var result = await Store.purchase("winter_expansion")
+		    if not result.ok and result.error != "cancelled":
+		        show_message(result.message)
+		[/codeblock]
+		Store sells through Steam where the game was started from Steam, the App Store on Apple platforms and Google Play on Android. Running from the editor without one, it pretends: the items in [code]store/owned_in_editor[/code] (Project Settings) are owned, and purchases succeed, so both sides of the game can be tried.
+		Items are never used up: there's no buying coins or gems. The content itself ships with the game (or as a [code].pck[/code] loaded with [method ProjectSettings.load_resource_pack]); Store only says whether the player owns it.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_price" qualifiers="const">
+			<return type="String" />
+			<param index="0" name="id" type="String" />
+			<description>
+				The item's price as the store shows it to this player, in their currency ([code]"£4.99"[/code]), or an empty string when it isn't known yet or the store doesn't say. Steam doesn't tell games a DLC's price: its store page, which [method purchase] opens, shows it.
+			</description>
+		</method>
+		<method name="is_available" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] where there's a store to buy from: Steam is running, or the platform has its store, or the game runs from the editor.
+			</description>
+		</method>
+		<method name="owns" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="id" type="String" />
+			<description>
+				Returns [code]true[/code] if the player owns the item [param id]. On the App Store and Google Play, what the player owns arrives shortly after the game starts; [signal ownership_changed] fires for each item as it does.
+			</description>
+		</method>
+		<method name="purchase">
+			<return type="Signal" />
+			<param index="0" name="id" type="String" />
+			<description>
+				Asks the store to sell the player the item [param id], and returns a [Signal] to await. Its result is a [Dictionary] with [code]ok[/code], and on failure [code]error[/code] and [code]message[/code]. [code]error[/code] is [code]"cancelled"[/code] when the player changed their mind, [code]"pending"[/code] when the purchase goes on outside the game (Ask to Buy, a slow payment, or Steam without its overlay, where the item's page opens in Steam) and [signal ownership_changed] fires if it completes, [code]"unavailable"[/code] when there's no store or the item isn't on it, and [code]"failed"[/code] otherwise. Buying an item the player already owns succeeds at once.
+				On Steam, the DLC's store page opens in the overlay, and the result comes once the player closes it.
+			</description>
+		</method>
+		<method name="restore">
+			<return type="Signal" />
+			<description>
+				Asks the store again what the player owns, and returns a [Signal] to await, with the same result as [method purchase]. On the App Store, games selling items must have a [b]Restore Purchases[/b] button that calls this; elsewhere it's rarely needed, since Store always loads what the player owns.
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="ownership_changed">
+			<param index="0" name="id" type="String" />
+			<description>
+				Emitted when the player comes to own the item [param id] (a purchase, here or on another device, or what they own arriving from the store), or no longer does (a refund). Check [method owns].
+			</description>
+		</signal>
+	</signals>
+</class>

@@ -7,7 +7,7 @@ def configure(env):
 
 
 def get_doc_classes():
-    return ["GameCenter"]
+    return ["GameCenter", "GameCenterMultiplayerPeer"]
 
 
 def get_doc_path():

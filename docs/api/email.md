@@ -1,6 +1,6 @@
 # Progress on every platform
 
-Players sign in through their platform without seeing an account at all. To take their progress to another platform, they add their email address: Purr's online services email them a 6-digit code, and once they've entered it, every platform signed in with that address shares one account and one set of saves.
+Players sign in through their platform without seeing an account at all. To take their progress to another platform, they add their email address: the online services ([Trill](../online/index.md)) email them a 6-digit code, and once they've entered it, every platform signed in with that address shares one account and one set of saves.
 
 ```gdscript
 func add_email(address: String) -> void:
@@ -33,4 +33,4 @@ Changing the address signs the account out everywhere else; each device signs in
 
 `Account.confirm_email()` returns `error` `"wrong_code"` for a code that's wrong, used or expired (a code works for 10 minutes and five tries), `"wrong_current_email"` when changing with the wrong current address, and `"email_in_use"` when the new address already belongs to another account.
 
-The services keep no email addresses. They keep a one-way code made from the address, which is enough to recognise it again, and send each sign-in code through the email provider the service is set up with. See [Privacy](../online/privacy.md).
+The services keep no email addresses. They keep a one-way code made from the address, which is enough to recognise it again, and send each sign-in code through the email provider the service is set up with. See [Privacy](https://oss.nekolab.studio/trill/privacy/).

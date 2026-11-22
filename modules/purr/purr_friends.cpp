@@ -188,11 +188,47 @@ void PurrFriends::write_presence() {
 	steam()->call("setRichPresence", INVITED_KEY, String(",").join(invited));
 }
 
-Array PurrFriends::get_friends() const {
+bool PurrFriends::is_available() const {
+	Purr *purr = Purr::get_singleton();
+	return purr->steam_ready() || purr->game_center_ready() || purr->play_games_ready();
+}
+
+void PurrFriends::ask_platform_friends() {
+	Purr *purr = Purr::get_singleton();
+	Object *platform = purr->game_center_ready() ? purr->game_center() : purr->play_games_ready() ? purr->play_games() : nullptr;
+	if (!platform || platform_friends_asked) {
+		return;
+	}
+	platform_friends_asked = true;
+	Signal loaded = platform->call("load_friends");
+	loaded.connect(callable_mp(this, &PurrFriends::platform_friends_loaded), CONNECT_ONE_SHOT);
+}
+
+// Neither platform says who's playing or where: those stay false and empty.
+void PurrFriends::platform_friends_loaded(const Dictionary &p_result) {
+	if (!p_result.get("ok", false)) {
+		return;
+	}
+	platform_friends.clear();
+	for (const Variant &entry : Array(p_result.get("friends", Array()))) {
+		const Dictionary loaded = entry;
+		Dictionary friend_entry;
+		friend_entry["id"] = loaded.get("id", "");
+		friend_entry["name"] = loaded.get("name", "");
+		friend_entry["playing"] = false;
+		friend_entry["lobby"] = String();
+		friend_entry["invited"] = false;
+		platform_friends.push_back(friend_entry);
+	}
+	changed();
+}
+
+Array PurrFriends::get_friends() {
 	Array friends;
 	Purr *purr = Purr::get_singleton();
 	if (!purr->steam_ready()) {
-		return friends;
+		ask_platform_friends();
+		return platform_friends.duplicate(true);
 	}
 	const int64_t immediate = purr->steam_constant("FRIEND_FLAG_IMMEDIATE");
 	const int64_t app_id = steam()->call("getAppID");
@@ -224,7 +260,12 @@ Array PurrFriends::get_friends() const {
 
 void PurrFriends::invite(const String &p_friend_id) {
 	ERR_FAIL_COND_MSG(lobby_code.is_empty(), "Create or join a lobby before inviting friends.");
-	ERR_FAIL_COND_MSG(!Purr::get_singleton()->steam_ready(), "Inviting a friend by ID needs Steam; Lobbies.invite_friends() opens the platform's invite screen.");
+	Purr *purr = Purr::get_singleton();
+	if (!purr->steam_ready() && crossplay && purr->game_center_ready()) {
+		purr->game_center()->call("invite_friend", p_friend_id, code_to_number(lobby_code), (int64_t)GLOBAL_GET("lobbies/max_players"));
+		return;
+	}
+	ERR_FAIL_COND_MSG(!purr->steam_ready(), "Inviting a friend needs Steam or Game Center; Lobbies.invite_friends() opens the platform's invite screen.");
 	if (crossplay) {
 		steam()->call("inviteUserToGame", steam_id(p_friend_id), vformat("%s %s", PURR_INVITE_ARGUMENT, lobby_code));
 	} else {
@@ -243,7 +284,7 @@ void PurrFriends::invite(const String &p_friend_id) {
 
 bool PurrFriends::can_invite() const {
 	Purr *purr = Purr::get_singleton();
-	return purr->steam_ready() || (purr->game_center_ready() && purr->online_lobbies());
+	return purr->steam_ready() || (purr->game_center_ready() && (purr->online_lobbies() || PurrGameCenterLobby::is_supported()));
 }
 
 void PurrFriends::invite_with_platform_screen() {

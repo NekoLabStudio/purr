@@ -1,6 +1,6 @@
 # Accounts, saves and play together
 
-Every game needs the same few things: signing in, saves, achievements, leaderboards, lobbies, friends and local players. Purr has a singleton for each, and the same game code works on Steam, Game Center, Play Games, a device without a platform and, when you run them, Purr's [online services](../online/index.md):
+Every game needs the same few things: signing in, saves, achievements, leaderboards, lobbies, friends, local players and, for many, something to buy. Purr has a singleton for each, and the same game code works on Steam, Game Center, Play Games, a device without a platform and, when you run them, the [online services](../online/index.md) (Trill):
 
 | Singleton | What it does |
 |---|---|
@@ -10,6 +10,7 @@ Every game needs the same few things: signing in, saves, achievements, leaderboa
 | `Lobbies` | [Playing together](lobbies.md), [ranked matches](ranked.md) and [fair play](checks.md) |
 | `Friends` | The player's Steam friends and their lobbies |
 | `LocalPlayers` | [Guests](local-players.md) playing on the same device |
+| `Store` | [DLC and expansions](store.md) the player buys once, on Steam, the App Store and Google Play |
 
 Underneath, Purr uses each platform's own systems, and each platform's singleton (`Steam`, `GameCenter`, `PlayGames`, `ICloud`) stays available for anything Purr doesn't cover.
 
@@ -34,11 +35,11 @@ if Account.needs_display_name():
 	var saved = await Account.set_display_name(name)  # 1 to 24 characters
 ```
 
-A chosen name is kept on the player's account and stays theirs on every platform they sign in with later, instead of the platform's. Other players see it in lobbies, so they can report a name that breaks your rules (see [Moderation](../online/moderation.md)).
+A chosen name is kept on the player's account and stays theirs on every platform they sign in with later, instead of the platform's. Other players see it in lobbies, so they can report a name that breaks your rules (see [Moderation](https://oss.nekolab.studio/trill/moderation/)).
 
 ## With or without the online services
 
-Purr works without the online services. When `online/url` is empty in Project Settings, the platform account is the player's identity, saves go to the platform's cloud, and lobbies and invites are the platform's own (Steam lobbies). Set the URL, and the game in `online/game`, to add crossplay lobbies, progress that follows the player to other platforms (by [email](email.md)) and guests who bring their own profile.
+Purr works without the online services. When `trill/url` is empty in Project Settings, the platform account is the player's identity, saves go to the platform's cloud, and lobbies, matchmaking, invites and friends are the platform's own: Steam lobbies, or Game Center matches on Apple platforms (see [Lobbies](lobbies.md#without-the-online-services)). The same calls work either way. Set the URL, and the game in `trill/game`, to add crossplay lobbies, progress that follows the player to other platforms (by [email](email.md)) and guests who bring their own profile.
 
 ## What works where
 
@@ -47,10 +48,11 @@ Each singleton says what works where the game is running, so the game can show o
 | Ask | True |
 |---|---|
 | `Achievements.is_available()`, `Leaderboards.is_available()` | on Steam, Game Center and Play Games (achievements are kept with the player's saves everywhere) |
-| `Lobbies.is_available()` | with the online services, or on Steam |
-| `Lobbies.has_crossplay()`, `Lobbies.can_matchmake()`, `Account.can_link_email()`, `LocalPlayers.can_invite_guests()` | with the online services, signed in |
-| `Lobbies.can_invite()` | on Steam, and on Game Center with the online services |
-| `Friends.is_available()` | on Steam |
+| `Lobbies.is_available()`, `Lobbies.can_matchmake()` | with the online services, on Steam, or on Game Center |
+| `Lobbies.has_crossplay()`, `Account.can_link_email()`, `LocalPlayers.can_invite_guests()` | with the online services, signed in |
+| `Lobbies.can_invite()` | on Steam and Game Center |
+| `Friends.is_available()` | on Steam, Game Center and Play Games |
+| `Store.is_available()` | on Steam, the App Store and Google Play, and in the editor |
 
 `Saves.get_backend()` says where saves sync. Calling something that isn't available does nothing.
 
@@ -60,7 +62,7 @@ Stores ask games with accounts to let players delete them. `Account.delete_accou
 
 ## Versions
 
-Every request to the online services says which game it's from and its version, from `application/config/version` in Project Settings. The service's operator can set a minimum and a maximum version for each game (see [Settings](../online/index.md#settings)); without them, every version can play online. When the service turns a version away, `Account` emits `update_required` with the allowed range, and online features stop for the session. Ask the player to update; their saves keep working on the device and in the platform's cloud.
+Every request to the online services says which game it's from and its version, from `application/config/version` in Project Settings. The service's operator can set a minimum and a maximum version for each game (see [Settings](https://oss.nekolab.studio/trill/settings/)); without them, every version can play online. When the service turns a version away, `Account` emits `update_required` with the allowed range, and online features stop for the session. Ask the player to update; their saves keep working on the device and in the platform's cloud.
 
 ```gdscript
 Account.update_required.connect(func(min_version, max_version): show_update_prompt())

@@ -53,18 +53,18 @@ void purr_complete(const Ref<RefCounted> &p_call, const Variant &p_result) {
 	callable_mp_static(&emit_completed).call_deferred(p_call, p_result);
 }
 
-namespace {
-
-void complete(const Ref<RefCounted> &p_call, const Variant &p_result) {
-	purr_complete(p_call, p_result);
-}
-
-Dictionary failure(const String &p_error, const String &p_message) {
+Dictionary purr_failure(const String &p_error, const String &p_message) {
 	Dictionary result;
 	result["ok"] = false;
 	result["error"] = p_error;
 	result["message"] = p_message;
 	return result;
+}
+
+namespace {
+
+void complete(const Ref<RefCounted> &p_call, const Variant &p_result) {
+	purr_complete(p_call, p_result);
 }
 
 } // namespace
@@ -75,6 +75,7 @@ Purr::Purr() {
 	friends.instantiate();
 	achievements.instantiate();
 	leaderboards.instantiate();
+	store_items.instantiate();
 	GLOBAL_DEF_BASIC(PropertyInfo(Variant::STRING, "saves/backend", PROPERTY_HINT_ENUM, "automatic,online,platform,local"), "automatic");
 	GLOBAL_DEF_BASIC(PropertyInfo(Variant::INT, "lobbies/max_players", PROPERTY_HINT_RANGE, "2,8"), 4);
 	// Crossplay lobbies connect only through TURN, so players never see each other's IP address.
@@ -88,13 +89,20 @@ Purr::Purr() {
 	GLOBAL_DEF_BASIC(PropertyInfo(Variant::STRING, "play_games/app_id", PROPERTY_HINT_PLACEHOLDER_TEXT, "123456789012"), "");
 	GLOBAL_DEF(PropertyInfo(Variant::STRING, "play_games/server_client_id", PROPERTY_HINT_PLACEHOLDER_TEXT, "1234-abcd.apps.googleusercontent.com"), "");
 	GLOBAL_DEF(PropertyInfo(Variant::BOOL, "play_games/saved_games"), false);
+	// The Google Cloud project linked to the game in the Play Console, whose number Play Integrity
+	// needs to show Purr's online service the game came from Google Play.
+	GLOBAL_DEF(PropertyInfo(Variant::STRING, "google_play/cloud_project_number", PROPERTY_HINT_PLACEHOLDER_TEXT, "123456789012"), "");
 	// A game activity (set up in App Store Connect, with party codes) that crossplay lobbies start,
 	// so friends see the party in Apple's Games app and join it from there.
 	GLOBAL_DEF(PropertyInfo(Variant::STRING, "game_center/party_activity", PROPERTY_HINT_PLACEHOLDER_TEXT, "Game activity ID"), "");
+	// The Store's items treated as owned when the game runs from the editor without a store, to
+	// try both sides; purchases there always succeed.
+	GLOBAL_DEF(PropertyInfo(Variant::PACKED_STRING_ARRAY, "store/owned_in_editor"), PackedStringArray());
 	// The online service turned this game's version away, or is too old for this Purr: passed on.
 	if (PurrOnline::get_singleton()) {
 		PurrOnline::get_singleton()->connect(SNAME("update_required"), callable_mp(this, &Purr::online_update_required));
 		PurrOnline::get_singleton()->connect(SNAME("service_outdated"), callable_mp(this, &Purr::online_service_outdated));
+		PurrOnline::get_singleton()->connect(SNAME("not_owned"), callable_mp(this, &Purr::online_not_owned));
 	}
 }
 
@@ -153,6 +161,15 @@ String Purr::platform_owner() const {
 
 int64_t Purr::steam_constant(const String &p_name) const {
 	return ClassDB::get_integer_constant("Steam", p_name);
+}
+
+// Initialised here unless the game already did.
+bool Purr::start_steam() {
+	if (steam() && !steam_ready()) {
+		const int64_t app_id = GLOBAL_GET("steam/initialization/app_data/app_id");
+		steam()->call("steamInitEx", app_id, true);
+	}
+	return steam_ready();
 }
 
 bool Purr::steam_ready() const {
@@ -215,12 +232,8 @@ Signal Purr::sign_in() {
 	// Before Game Center signs in, which is when it hands over an invite the game was opened with.
 	friends->start();
 
-	// Steam, if the game was started from it (initialised here unless the game already did).
-	if (steam() && !steam_ready()) {
-		const int64_t app_id = GLOBAL_GET("steam/initialization/app_data/app_id");
-		steam()->call("steamInitEx", app_id, true);
-	}
-	if (steam_ready()) {
+	// Steam, if the game was started from it.
+	if (start_steam()) {
 		provider = "steam";
 		if (online->is_configured()) {
 			sign_in_steam_online(call);
@@ -230,22 +243,37 @@ Signal Purr::sign_in() {
 		return signal_of(call);
 	}
 
+	// Steam's ticket shows the service the game is owned; elsewhere the platform's store does, sent
+	// with whichever sign-in follows.
+	if (online->is_configured() && store_items->is_available()) {
+		store_items->get_ownership_proof(callable_mp(this, &Purr::sign_in_proven).bind(call));
+	} else {
+		sign_in_platform(call);
+	}
+	return signal_of(call);
+}
+
+void Purr::sign_in_proven(const Dictionary &p_proof, const Ref<RefCounted> &p_call) {
+	PurrOnline::get_singleton()->set_ownership_proof(p_proof);
+	sign_in_platform(p_call);
+}
+
+void Purr::sign_in_platform(const Ref<RefCounted> &p_call) {
 	// Game Center on Apple platforms.
 	if (game_center()) {
 		Signal authenticated = game_center()->call("authenticate");
-		authenticated.connect(callable_mp(this, &Purr::game_center_authenticated).bind(call), CONNECT_ONE_SHOT);
-		return signal_of(call);
+		authenticated.connect(callable_mp(this, &Purr::game_center_authenticated).bind(p_call), CONNECT_ONE_SHOT);
+		return;
 	}
 
 	// Google Play Games on Android, when the game set its application ID.
 	if (play_games() && (bool)play_games()->call("is_available")) {
 		Signal authenticated = play_games()->call("authenticate", true);
-		authenticated.connect(callable_mp(this, &Purr::play_games_authenticated).bind(call), CONNECT_ONE_SHOT);
-		return signal_of(call);
+		authenticated.connect(callable_mp(this, &Purr::play_games_authenticated).bind(p_call), CONNECT_ONE_SHOT);
+		return;
 	}
 
-	sign_in_without_platform(call);
-	return signal_of(call);
+	sign_in_without_platform(p_call);
 }
 
 // No platform sign-in: a device account if the online service is set up, else this device alone.
@@ -328,7 +356,7 @@ void Purr::play_games_code_received(const Dictionary &p_result, const Ref<RefCou
 
 void Purr::sign_in_steam_online(const Ref<RefCounted> &p_call) {
 	steam()->connect(SNAME("get_ticket_for_web_api"), callable_mp(this, &Purr::steam_ticket).bind(p_call), CONNECT_ONE_SHOT);
-	steam()->call("getAuthTicketForWebApi", "purr-online");
+	steam()->call("getAuthTicketForWebApi", "trill");
 }
 
 void Purr::steam_ticket(int64_t p_auth_ticket, int64_t p_result, int64_t p_size, const PackedByteArray &p_ticket, const Ref<RefCounted> &p_call) {
@@ -396,6 +424,9 @@ void Purr::finish_sign_in(bool p_online, const String &p_account_id, const Strin
 	if (steam_ready() && !steam()->is_connected(SNAME("join_requested"), callable_mp(this, &Purr::steam_join_requested))) {
 		steam()->connect(SNAME("join_requested"), callable_mp(this, &Purr::steam_join_requested));
 		steam()->connect(SNAME("join_game_requested"), callable_mp(this, &Purr::steam_join_game_requested));
+	}
+	if (game_center() && !game_center()->is_connected(SNAME("match_invite_accepted"), callable_mp(this, &Purr::game_center_match_invite_accepted))) {
+		game_center()->connect(SNAME("match_invite_accepted"), callable_mp(this, &Purr::game_center_match_invite_accepted));
 	}
 	load_remembered();
 
@@ -477,19 +508,21 @@ bool Purr::is_available(const String &p_feature) const {
 	if (p_feature == "achievements" || p_feature == "leaderboards") {
 		return steam_ready() || game_center_ready() || play_games_ready();
 	}
-	if (p_feature == "lobbies") {
-		return online || steam_ready();
+	// The platform's own lobbies, where there's no online service: Steam's or Game Center's.
+	const bool platform_lobbies = steam_ready() || (game_center_ready() && PurrGameCenterLobby::is_supported());
+	if (p_feature == "lobbies" || p_feature == "matchmaking") {
+		return online || platform_lobbies;
 	}
 	if (p_feature == "invites") {
 		return friends->can_invite();
 	}
 	if (p_feature == "friends") {
-		return steam_ready();
+		return friends->is_available();
 	}
 	if (p_feature == "local_profiles") {
 		return true;
 	}
-	if (p_feature == "guests" || p_feature == "linking" || p_feature == "crossplay" || p_feature == "matchmaking") {
+	if (p_feature == "guests" || p_feature == "linking" || p_feature == "crossplay") {
 		return online;
 	}
 	return false;
@@ -535,85 +568,93 @@ void Purr::show_leaderboard(const String &p_leaderboard) {
 	leaderboards->show(p_leaderboard);
 }
 
-// Lobbies: crossplay ones through the online service when it's set up (see PurrLobby), otherwise
-// Steam's, where the code is the Steam lobby's ID and the game plays through Godot's high-level
-// multiplayer with a SteamMultiplayerPeer.
+// The store: see PurrStore.
+
+Signal Purr::store_purchase(const String &p_id) {
+	const Ref<PurrOnlineCall> call = new_call();
+	store_items->purchase(p_id, callable_mp(this, &Purr::store_done).bind(call));
+	return signal_of(call);
+}
+
+Signal Purr::store_restore() {
+	const Ref<PurrOnlineCall> call = new_call();
+	store_items->restore(callable_mp(this, &Purr::store_done).bind(call));
+	return signal_of(call);
+}
+
+// PurrStore answers later, never from inside the call, so the game is already awaiting.
+void Purr::store_done(const Dictionary &p_result, const Ref<RefCounted> &p_call) {
+	emit_completed(p_call, p_result);
+}
+
+// Lobbies: crossplay ones through the online service when it's set up and the player is signed
+// in to it (see PurrLobby), otherwise the platform's own (see PurrPlatformLobby): a Steam lobby
+// where Steam runs, a Game Center match on Apple platforms.
 
 bool Purr::online_lobbies() const {
 	return PurrOnline::get_singleton()->is_configured() && !PurrOnline::get_singleton()->get_token().is_empty() && PurrOnline::get_singleton()->get_blocked_reason().is_empty();
 }
 
+// The platform's lobbies, made for whichever platform is ready now.
+Ref<PurrPlatformLobby> Purr::platform_lobby() {
+	if (steam_ready()) {
+		if (!Object::cast_to<PurrSteamLobby>(platform_lobby_instance.ptr())) {
+			leave_platform_lobby();
+			platform_lobby_instance = Ref<PurrPlatformLobby>(memnew(PurrSteamLobby));
+		}
+	} else if (game_center_ready() && PurrGameCenterLobby::is_supported()) {
+		if (!Object::cast_to<PurrGameCenterLobby>(platform_lobby_instance.ptr())) {
+			leave_platform_lobby();
+			platform_lobby_instance = Ref<PurrPlatformLobby>(memnew(PurrGameCenterLobby));
+		}
+	} else {
+		leave_platform_lobby();
+		platform_lobby_instance.unref();
+	}
+	return platform_lobby_instance;
+}
+
+void Purr::leave_platform_lobby() {
+	if (platform_lobby_instance.is_valid()) {
+		platform_lobby_instance->leave();
+	}
+}
+
+// The lobby the player is in, if it's the platform's.
+Ref<PurrPlatformLobby> Purr::active_platform_lobby() const {
+	return platform_lobby_instance.is_valid() && platform_lobby_instance->is_active() ? platform_lobby_instance : Ref<PurrPlatformLobby>();
+}
+
 Signal Purr::lobby_create() {
 	const Ref<PurrOnlineCall> call = new_call();
 	if (online_lobbies()) {
+		leave_platform_lobby();
 		lobby->create(call);
 		return signal_of(call);
 	}
-	if (!steam_ready()) {
-		complete(call, failure("unavailable", "Lobbies need Steam on this platform for now."));
+	const Ref<PurrPlatformLobby> platform = platform_lobby();
+	if (platform.is_null()) {
+		complete(call, purr_failure("unavailable", "Lobbies need the online services, Steam or Game Center here."));
 		return signal_of(call);
 	}
-	pending_lobby_call = call;
-	steam()->connect(SNAME("lobby_created"), callable_mp(this, &Purr::steam_lobby_created), CONNECT_ONE_SHOT);
-	steam()->call("createLobby", steam_constant("LOBBY_TYPE_FRIENDS_ONLY"), (int64_t)GLOBAL_GET("lobbies/max_players"));
+	platform->create(call);
 	return signal_of(call);
-}
-
-void Purr::steam_lobby_created(int64_t p_connect, int64_t p_lobby_id) {
-	const Ref<RefCounted> call = pending_lobby_call;
-	pending_lobby_call.unref();
-	if (p_connect != steam_constant("RESULT_OK")) {
-		complete(call, failure("lobby_failed", vformat("Steam couldn't create a lobby (result %d).", p_connect)));
-		return;
-	}
-	steam_lobby = p_lobby_id;
-	set_lobby_presence(String::num_uint64(p_lobby_id), false);
-	Ref<MultiplayerPeer> peer = Object::cast_to<MultiplayerPeer>(ClassDB::instantiate("SteamMultiplayerPeer"));
-	peer->call("host_with_lobby", p_lobby_id);
-	SceneTree::get_singleton()->get_multiplayer()->set_multiplayer_peer(peer);
-	Dictionary result;
-	result["ok"] = true;
-	result["code"] = String::num_uint64(p_lobby_id);
-	complete(call, result);
 }
 
 Signal Purr::lobby_join(const String &p_code) {
 	const Ref<PurrOnlineCall> call = new_call();
 	if (online_lobbies()) {
+		leave_platform_lobby();
 		lobby->join(p_code, call);
 		return signal_of(call);
 	}
-	if (!steam_ready()) {
-		complete(call, failure("unavailable", "Lobbies need Steam on this platform for now."));
+	const Ref<PurrPlatformLobby> platform = platform_lobby();
+	if (platform.is_null()) {
+		complete(call, purr_failure("unavailable", "Lobbies need the online services, Steam or Game Center here."));
 		return signal_of(call);
 	}
-	pending_lobby_call = call;
-	steam()->connect(SNAME("lobby_joined"), callable_mp(this, &Purr::steam_lobby_entered), CONNECT_ONE_SHOT);
-	steam()->call("joinLobby", (int64_t)p_code.to_int());
+	platform->join(p_code, call);
 	return signal_of(call);
-}
-
-void Purr::steam_lobby_entered(int64_t p_lobby_id, int64_t p_permissions, bool p_locked, int64_t p_response) {
-	const Ref<RefCounted> call = pending_lobby_call;
-	pending_lobby_call.unref();
-	if (p_response != steam_constant("CHAT_ROOM_ENTER_RESPONSE_SUCCESS")) {
-		if (call.is_valid()) {
-			complete(call, failure("lobby_failed", vformat("Couldn't join the lobby (response %d).", p_response)));
-		}
-		return;
-	}
-	steam_lobby = p_lobby_id;
-	set_lobby_presence(String::num_uint64(p_lobby_id), false);
-	Ref<MultiplayerPeer> peer = Object::cast_to<MultiplayerPeer>(ClassDB::instantiate("SteamMultiplayerPeer"));
-	peer->call("connect_to_lobby", p_lobby_id);
-	SceneTree::get_singleton()->get_multiplayer()->set_multiplayer_peer(peer);
-	Dictionary result;
-	result["ok"] = true;
-	result["code"] = String::num_uint64(p_lobby_id);
-	if (call.is_valid()) {
-		complete(call, result);
-	}
-	Lobbies::get_singleton()->call_deferred(SNAME("emit_signal"), SNAME("joined"), result["code"]);
 }
 
 // A friend's invite to a Steam lobby accepted from the Steam overlay: joined at once.
@@ -622,12 +663,21 @@ void Purr::steam_join_requested(int64_t p_lobby_id, int64_t p_friend_id) {
 }
 
 void Purr::join_steam_lobby(uint64_t p_lobby_id) {
-	if (p_lobby_id == 0 || p_lobby_id == steam_lobby) {
+	const Ref<PurrSteamLobby> steam_lobby = platform_lobby();
+	if (p_lobby_id == 0 || steam_lobby.is_null() || steam_lobby->get_lobby_id() == p_lobby_id) {
 		return;
 	}
-	lobby_leave();
-	steam()->connect(SNAME("lobby_joined"), callable_mp(this, &Purr::steam_lobby_entered), CONNECT_ONE_SHOT);
-	steam()->call("joinLobby", p_lobby_id);
+	lobby->leave();
+	steam_lobby->join(String::num_uint64(p_lobby_id), Ref<RefCounted>());
+}
+
+// An invite to a friend's Game Center match accepted: joins it at once.
+void Purr::game_center_match_invite_accepted(const String &p_sender_id) {
+	const Ref<PurrGameCenterLobby> game_center_lobby = platform_lobby();
+	if (game_center_lobby.is_valid()) {
+		lobby->leave();
+		game_center_lobby->join_invite(p_sender_id);
+	}
 }
 
 // A friend's invite accepted, or "Join Game" chosen in Steam's friends list, while the game runs.
@@ -669,48 +719,74 @@ Array Purr::get_friends() const {
 }
 
 void Purr::invite_friend(const String &p_friend_id) {
+	const Ref<PurrGameCenterLobby> game_center_lobby = active_platform_lobby();
+	if (game_center_lobby.is_valid()) {
+		game_center_lobby->invite(p_friend_id);
+		return;
+	}
 	friends->invite(p_friend_id);
 }
 
-void Purr::lobby_leave() {
-	set_lobby_presence(String(), false);
-	lobby->leave();
-	if (steam_lobby != 0 && steam_ready()) {
-		steam()->call("leaveLobby", steam_lobby);
+void Purr::invite_friends() {
+	const Ref<PurrGameCenterLobby> game_center_lobby = active_platform_lobby();
+	if (game_center_lobby.is_valid()) {
+		game_center_lobby->invite_with_platform_screen();
+		return;
 	}
-	steam_lobby = 0;
-	if (SceneTree::get_singleton()) {
-		SceneTree::get_singleton()->get_multiplayer()->set_multiplayer_peer(Ref<MultiplayerPeer>());
-	}
+	friends->invite_with_platform_screen();
 }
 
-// Crossplay lobbies only: the host removes a player (who can't come back to that lobby); anyone
-// reports or blocks a player they're playing with.
+void Purr::lobby_leave() {
+	lobby->leave();
+	leave_platform_lobby();
+}
+
+// The host removes a player (who can't come back to that lobby); anyone reports or blocks a
+// player they're playing with.
 void Purr::lobby_kick(int64_t p_peer_id) {
-	ERR_FAIL_COND_MSG(!lobby->is_active() || !lobby->is_host(), "Only the host of a crossplay lobby can remove players.");
+	if (const Ref<PurrPlatformLobby> platform = active_platform_lobby(); platform.is_valid()) {
+		platform->kick(p_peer_id);
+		return;
+	}
+	ERR_FAIL_COND_MSG(!lobby->is_active() || !lobby->is_host(), "Only the host of a lobby can remove players.");
 	PurrOnline::get_singleton()->kick_peer(p_peer_id);
 }
 
 void Purr::report_player(int64_t p_peer_id, const String &p_reason, const String &p_details) {
-	ERR_FAIL_COND_MSG(!lobby->is_active(), "Players can be reported from a crossplay lobby they're in.");
+	if (const Ref<PurrPlatformLobby> platform = active_platform_lobby(); platform.is_valid()) {
+		platform->report(p_peer_id);
+		return;
+	}
+	ERR_FAIL_COND_MSG(!lobby->is_active(), "Players can be reported from a lobby they're in.");
 	PurrOnline::get_singleton()->report_peer(p_peer_id, p_reason, p_details);
 }
 
 void Purr::block_player(int64_t p_peer_id) {
-	ERR_FAIL_COND_MSG(!lobby->is_active(), "Players can be blocked from a crossplay lobby they're in.");
+	if (const Ref<PurrPlatformLobby> platform = active_platform_lobby(); platform.is_valid()) {
+		platform->block(p_peer_id);
+		return;
+	}
+	ERR_FAIL_COND_MSG(!lobby->is_active(), "Players can be blocked from a lobby they're in.");
 	PurrOnline::get_singleton()->block_peer(p_peer_id);
 }
 
 // Ranked play: matchmaking finds players of a similar rating and joins them in a lobby, and each
-// player's game reports who finished where. The service changes ratings once enough of them
-// agree (the game's ranked_agreement on the service; more than half by default).
+// player's game reports who finished where. Ratings change once enough of them agree: on the
+// service (the game's ranked_agreement; more than half by default), or, in the platform's
+// lobbies, in each player's game (more than half), which keeps its player's rating in their saves.
 Signal Purr::matchmake(const String &p_mode, int p_players) {
 	const Ref<PurrOnlineCall> call = new_call();
-	if (!online_lobbies()) {
-		complete(call, failure("unavailable", "Matchmaking needs the online service, signed in."));
+	if (online_lobbies()) {
+		leave_platform_lobby();
+		lobby->matchmake(p_mode, p_players, call);
 		return signal_of(call);
 	}
-	lobby->matchmake(p_mode, p_players, call);
+	const Ref<PurrPlatformLobby> platform = platform_lobby();
+	if (platform.is_null()) {
+		complete(call, purr_failure("unavailable", "Matchmaking needs the online services, Steam or Game Center here."));
+		return signal_of(call);
+	}
+	platform->matchmake(p_mode, p_players, call);
 	return signal_of(call);
 }
 
@@ -718,18 +794,36 @@ void Purr::matchmake_cancel() {
 	if (lobby->is_matchmaking()) {
 		lobby->cancel_matchmaking();
 	}
+	if (platform_lobby_instance.is_valid() && platform_lobby_instance->is_matchmaking()) {
+		platform_lobby_instance->cancel_matchmaking();
+	}
 }
 
 void Purr::report_result(const Array &p_ranking) {
+	if (const Ref<PurrPlatformLobby> platform = active_platform_lobby(); platform.is_valid()) {
+		platform->report_result(p_ranking);
+		return;
+	}
 	ERR_FAIL_COND_MSG(!lobby->is_active(), "Results are reported from the matchmade lobby they're for.");
 	PurrOnline::get_singleton()->report_result(p_ranking);
+}
+
+Signal Purr::get_rating(const String &p_mode) {
+	if (online_lobbies()) {
+		return PurrOnline::get_singleton()->get_rating(p_mode);
+	}
+	return deferred_result(PurrPlatformLobby::get_rating(p_mode));
 }
 
 // Checks: at moments the game picks, every player's game sends something they can all work out
 // (a lap time, a score, the shared state). Only a hash of it leaves the device. Once everyone
 // has, check_completed says whether they agreed and who didn't.
 void Purr::check(const String &p_name, const Variant &p_value) {
-	ERR_FAIL_COND_MSG(!lobby->is_active(), "Checks run in a crossplay lobby.");
+	if (const Ref<PurrPlatformLobby> platform = active_platform_lobby(); platform.is_valid()) {
+		platform->check(p_name, p_value);
+		return;
+	}
+	ERR_FAIL_COND_MSG(!lobby->is_active(), "Checks run in a lobby.");
 	PurrOnline::get_singleton()->send_check(p_name, VariantUtilityFunctions::var_to_str(p_value).sha256_text());
 }
 
@@ -737,12 +831,20 @@ void Purr::check(const String &p_name, const Variant &p_value) {
 // game allows, say). When most of the other players' games flag the same player for the same
 // reason within a few seconds, player_flagged fires on everyone's device.
 void Purr::flag(int64_t p_peer_id, const String &p_reason) {
-	ERR_FAIL_COND_MSG(!lobby->is_active(), "Players are flagged from a crossplay lobby.");
+	if (const Ref<PurrPlatformLobby> platform = active_platform_lobby(); platform.is_valid()) {
+		platform->flag(p_peer_id, p_reason);
+		return;
+	}
+	ERR_FAIL_COND_MSG(!lobby->is_active(), "Players are flagged from a lobby they're in.");
 	PurrOnline::get_singleton()->flag_peer(p_peer_id, p_reason);
 }
 
 void Purr::online_update_required(const Variant &p_min_version, const Variant &p_max_version) {
 	Account::get_singleton()->emit_signal(SNAME("update_required"), p_min_version, p_max_version);
+}
+
+void Purr::online_not_owned() {
+	Account::get_singleton()->emit_signal(SNAME("not_owned"));
 }
 
 void Purr::online_service_outdated() {
@@ -761,7 +863,7 @@ Signal Purr::set_display_name(const String &p_name) {
 	const Ref<PurrOnlineCall> call = new_call();
 	const String name = p_name.strip_edges();
 	if (name.is_empty() || name.length() > MAX_NAME_LENGTH) {
-		complete(call, failure("bad_name", vformat("A name is 1 to %d characters.", MAX_NAME_LENGTH)));
+		complete(call, purr_failure("bad_name", vformat("A name is 1 to %d characters.", MAX_NAME_LENGTH)));
 		return signal_of(call);
 	}
 	if (PurrOnline::get_singleton()->is_configured() && !PurrOnline::get_singleton()->get_token().is_empty()) {
@@ -795,14 +897,6 @@ void Purr::display_name_saved(const Dictionary &p_result, const Ref<RefCounted> 
 
 Signal Purr::get_service_version() {
 	return PurrOnline::get_singleton()->get_service_version();
-}
-
-Signal Purr::get_rating(const String &p_mode) {
-	return PurrOnline::get_singleton()->get_rating(p_mode);
-}
-
-void Purr::invite_friends() {
-	friends->invite_with_platform_screen();
 }
 
 // Local players.
@@ -856,7 +950,7 @@ void Purr::email_code_sent(const Dictionary &p_result, const Ref<RefCounted> &p_
 Signal Purr::guest_email_finish(const String &p_code, bool p_remember, const String &p_name) {
 	const Ref<PurrOnlineCall> call = new_call();
 	if (pending_guest_challenge.is_empty()) {
-		complete(call, failure("no_code_requested", "Call LocalPlayers.invite_guest() first."));
+		complete(call, purr_failure("no_code_requested", "Call LocalPlayers.invite_guest() first."));
 		return signal_of(call);
 	}
 	Signal verified = PurrOnline::get_singleton()->guest_email_verify(pending_guest_email, pending_guest_challenge, p_code, p_remember, get_device_label(), p_name);
@@ -893,7 +987,7 @@ void Purr::guest_email_verified(const Dictionary &p_result, const Ref<RefCounted
 Signal Purr::email_link_start(const String &p_email, const String &p_current_email) {
 	const Ref<PurrOnlineCall> call = new_call();
 	if (!is_available("linking")) {
-		complete(call, failure("unavailable", "Adding an email needs the online service, signed in."));
+		complete(call, purr_failure("unavailable", "Adding an email needs the online service, signed in."));
 		return signal_of(call);
 	}
 	pending_email = p_email.strip_edges();
@@ -907,12 +1001,22 @@ Signal Purr::email_link_start(const String &p_email, const String &p_current_ema
 Signal Purr::email_link_finish(const String &p_code) {
 	const Ref<PurrOnlineCall> call = new_call();
 	if (pending_challenge.is_empty()) {
-		complete(call, failure("no_code_requested", "Call Account.link_email() first."));
+		complete(call, purr_failure("no_code_requested", "Call Account.link_email() first."));
 		return signal_of(call);
 	}
-	Signal verified = PurrOnline::get_singleton()->email_verify(pending_email, pending_challenge, p_code, email_added ? pending_current_email : String());
-	verified.connect(callable_mp(this, &Purr::email_verified).bind(call), CONNECT_ONE_SHOT);
+	// The address's account may be another one, which the service may want to see owns the game.
+	if (store_items->is_available()) {
+		store_items->get_ownership_proof(callable_mp(this, &Purr::email_proven).bind(p_code, call));
+	} else {
+		email_proven(Dictionary(), p_code, call);
+	}
 	return signal_of(call);
+}
+
+void Purr::email_proven(const Dictionary &p_proof, const String &p_code, const Ref<RefCounted> &p_call) {
+	PurrOnline::get_singleton()->set_ownership_proof(p_proof);
+	Signal verified = PurrOnline::get_singleton()->email_verify(pending_email, pending_challenge, p_code, email_added ? pending_current_email : String());
+	verified.connect(callable_mp(this, &Purr::email_verified).bind(p_call), CONNECT_ONE_SHOT);
 }
 
 void Purr::email_verified(const Dictionary &p_result, const Ref<RefCounted> &p_call) {
@@ -947,7 +1051,7 @@ void Purr::email_verified(const Dictionary &p_result, const Ref<RefCounted> &p_c
 Signal Purr::get_devices() {
 	const Ref<PurrOnlineCall> call = new_call();
 	if (!online_lobbies()) {
-		complete(call, failure("offline", "Devices need the online service, signed in."));
+		complete(call, purr_failure("offline", "Devices need the online service, signed in."));
 		return signal_of(call);
 	}
 	PurrOnline::get_singleton()->list_grants().connect(callable_mp_static(+[](const Dictionary &p_result, const Ref<RefCounted> &p_call) {
@@ -967,7 +1071,7 @@ Signal Purr::get_devices() {
 
 Signal Purr::forget_device(const String &p_device_id) {
 	if (!online_lobbies()) {
-		return deferred_result(failure("offline", "Devices need the online service, signed in."));
+		return deferred_result(purr_failure("offline", "Devices need the online service, signed in."));
 	}
 	return PurrOnline::get_singleton()->revoke_grant(p_device_id);
 }
@@ -975,7 +1079,7 @@ Signal Purr::forget_device(const String &p_device_id) {
 Signal Purr::delete_account() {
 	const Ref<PurrOnlineCall> call = new_call();
 	if (!online_lobbies()) {
-		complete(call, failure("offline", "Deleting the account needs the online service, signed in."));
+		complete(call, purr_failure("offline", "Deleting the account needs the online service, signed in."));
 		return signal_of(call);
 	}
 	PurrOnline::get_singleton()->delete_account().connect(callable_mp(this, &Purr::account_deleted).bind(call), CONNECT_ONE_SHOT);

@@ -1,9 +1,9 @@
-# Sends crash reports to a local copy of the online service. Start it first, with its database
-# kept in a folder of its own:
-#   cd online && npx wrangler d1 migrations apply purr-online --local --persist-to /tmp/purr-crashes
+# Sends crash reports to a local copy of Trill (the online services). Start it first, from a copy
+# of Trill's repository, with its database kept in a folder of its own:
+#   npx wrangler d1 migrations apply trill --local --persist-to /tmp/purr-crashes
 #   npx wrangler dev --persist-to /tmp/purr-crashes
-# then run, with that folder (to read what the service stored):
-#   PURR_ONLINE_STATE=/tmp/purr-crashes purr --headless --path samples/crash_reports -s online_test.gd
+# then run, with that copy and that folder (to read what the service stored):
+#   TRILL_DIR=<Trill's folder> PURR_ONLINE_STATE=/tmp/purr-crashes purr --headless --path samples/crash_reports -s online_test.gd
 # It exits non-zero if a check fails.
 extends SceneTree
 
@@ -22,8 +22,8 @@ func run(script: String) -> void:
 
 # The newest reports the service stored, read from its database.
 func stored() -> Array:
-	var online := ProjectSettings.globalize_path("res://").path_join("../../online").simplify_path()
-	var command := "cd '%s' && npx wrangler d1 execute purr-online --local --persist-to '%s' --json --command 'SELECT report FROM crash_reports ORDER BY created_at DESC'" % [online, OS.get_environment("PURR_ONLINE_STATE")]
+	var online := OS.get_environment("TRILL_DIR")
+	var command := "cd '%s' && npx wrangler d1 execute trill --local --persist-to '%s' --json --command 'SELECT report FROM crash_reports ORDER BY created_at DESC'" % [online, OS.get_environment("PURR_ONLINE_STATE")]
 	var output := []
 	OS.execute("sh", PackedStringArray(["-c", command]), output)
 	var parsed: Variant = JSON.parse_string("".join(output))
@@ -43,8 +43,8 @@ func _initialize() -> void:
 
 func _run() -> void:
 	await process_frame
-	ProjectSettings.set_setting("online/url", "http://localhost:8787")
-	ProjectSettings.set_setting("online/game", "example")
+	ProjectSettings.set_setting("trill/url", "http://localhost:8787")
+	ProjectSettings.set_setting("trill/game", "example")
 	Options.set_value("privacy/send_crash_reports", false)
 	for report in CrashReports.get_reports():
 		CrashReports.delete_report(report)
