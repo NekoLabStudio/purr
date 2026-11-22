@@ -8,6 +8,7 @@ class PurrExportPlugin : public EditorExportPlugin {
 
 	void _export_steam(const HashSet<String> &p_features);
 	bool _play_games_export(const Ref<EditorExportPlatform> &p_platform) const;
+	bool _google_play_export(const Ref<EditorExportPlatform> &p_platform) const;
 
 protected:
 	virtual void _export_begin(const HashSet<String> &p_features, bool p_debug, const String &p_path, int p_flags) override;

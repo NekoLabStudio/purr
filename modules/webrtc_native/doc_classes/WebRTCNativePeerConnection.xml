@@ -9,4 +9,27 @@
 	</description>
 	<tutorials>
 	</tutorials>
+	<methods>
+		<method name="is_renewing" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] while the connection is moving to new ICE servers, after [method renew_ice_servers] on either side.
+			</description>
+		</method>
+		<method name="renew_ice_servers">
+			<return type="int" enum="Error" />
+			<param index="0" name="ice_servers" type="Array" />
+			<description>
+				Moves the connected connection onto new ICE servers, in the same form as [code]iceServers[/code] in [method WebRTCPeerConnection.initialize]: for TURN credentials that are about to end, renewed. A second connection is made with them, negotiated over a channel of the first, and the data channels move onto it. Nothing sent on a reliable, ordered channel is lost, repeated or reordered, and the connection stays [constant WebRTCPeerConnection.STATE_CONNECTED] throughout. The first connection closes once the other side has moved too.
+				The other side must use this class as well (Purr on every platform but the web). If the move doesn't finish within 30 seconds, the connection carries on as it was, and a warning is printed. Calling this during a move starts another once it has finished. Returns [constant ERR_UNAVAILABLE] when the connection isn't connected.
+				Purr's lobbies do this for their players' connections before the online service's TURN credentials end.
+			</description>
+		</method>
+		<method name="uses_relay">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if this side of the connection goes through a TURN server, so its credentials matter: only then does it need [method renew_ice_servers] when they're renewed.
+			</description>
+		</method>
+	</methods>
 </class>

@@ -2,15 +2,19 @@ package studio.nekolab.purr.playgames;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.IntentSender;
 import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.google.android.gms.games.AnnotatedData;
+import com.google.android.gms.games.FriendsResolutionRequiredException;
 import com.google.android.gms.games.LeaderboardsClient;
 import com.google.android.gms.games.PlayGames;
 import com.google.android.gms.games.PlayGamesSdk;
+import com.google.android.gms.games.Player;
+import com.google.android.gms.games.PlayerBuffer;
 import com.google.android.gms.games.SnapshotsClient;
 import com.google.android.gms.games.achievement.Achievement;
 import com.google.android.gms.games.achievement.AchievementBuffer;
@@ -41,6 +45,11 @@ import java.util.Set;
 public class PlayGamesPlugin extends GodotPlugin {
 	private static final SignalInfo FINISHED = new SignalInfo("finished", Integer.class, Dictionary.class);
 	private static final int SHOW_REQUEST = 9161;
+	private static final int FRIENDS_REQUEST = 9162;
+	private static final int MAX_FRIENDS = 200;
+
+	// A friends list waiting on the player's consent to share it.
+	private int friendsCallId = 0;
 
 	private boolean authenticated = false;
 	private String playerId = "";
@@ -63,10 +72,21 @@ public class PlayGamesPlugin extends GodotPlugin {
 
 	@Override
 	public View onMainCreate(@Nullable Activity activity) {
-		if (activity != null) {
+		// The library also ships for Google Play's store alone, in games without Play Games (and so
+		// without its app ID, which Play Games can't start without).
+		if (activity != null && hasAppId(activity)) {
 			PlayGamesSdk.initialize(activity);
 		}
 		return null;
+	}
+
+	private static boolean hasAppId(Activity activity) {
+		try {
+			android.os.Bundle metaData = activity.getPackageManager().getApplicationInfo(activity.getPackageName(), android.content.pm.PackageManager.GET_META_DATA).metaData;
+			return metaData != null && metaData.containsKey("com.google.android.gms.games.APP_ID");
+		} catch (android.content.pm.PackageManager.NameNotFoundException e) {
+			return false;
+		}
 	}
 
 	private void finish(int callId, Dictionary result) {
@@ -260,6 +280,61 @@ public class PlayGamesPlugin extends GodotPlugin {
 
 	private void show(Task<Intent> intent) {
 		intent.addOnSuccessListener(value -> getActivity().startActivityForResult(value, SHOW_REQUEST));
+	}
+
+	// The player's friends on Play Games: [{"id", "name"}]. The first time, Play Games asks the
+	// player whether to share them with the game, and the list comes once they've answered.
+	@UsedByGodot
+	public void loadFriends(int callId) {
+		if (!authenticated) {
+			fail(callId, "not_signed_in", null);
+			return;
+		}
+		PlayGames.getPlayersClient(getActivity()).loadFriends(MAX_FRIENDS, false).addOnCompleteListener(task -> {
+			if (!task.isSuccessful()) {
+				Exception exception = task.getException();
+				if (exception instanceof FriendsResolutionRequiredException && friendsCallId == 0) {
+					friendsCallId = callId;
+					try {
+						getActivity().startIntentSenderForResult(((FriendsResolutionRequiredException) exception).getResolution().getIntentSender(), FRIENDS_REQUEST, null, 0, 0, 0);
+					} catch (IntentSender.SendIntentException sendException) {
+						friendsCallId = 0;
+						fail(callId, "friends_unavailable", sendException);
+					}
+					return;
+				}
+				fail(callId, "friends_unavailable", exception);
+				return;
+			}
+			PlayerBuffer buffer = task.getResult().get();
+			ArrayList<Dictionary> friends = new ArrayList<>();
+			if (buffer != null) {
+				for (Player player : buffer) {
+					Dictionary entry = new Dictionary();
+					entry.put("id", player.getPlayerId());
+					entry.put("name", player.getDisplayName());
+					friends.add(entry);
+				}
+				buffer.release();
+			}
+			Dictionary result = new Dictionary();
+			result.put("friends", friends.toArray());
+			succeed(callId, result);
+		});
+	}
+
+	@Override
+	public void onMainActivityResult(int requestCode, int resultCode, Intent data) {
+		if (requestCode != FRIENDS_REQUEST || friendsCallId == 0) {
+			return;
+		}
+		int callId = friendsCallId;
+		friendsCallId = 0;
+		if (resultCode == Activity.RESULT_OK) {
+			loadFriends(callId);
+		} else {
+			fail(callId, "cancelled", null);
+		}
 	}
 
 	// Saved games (snapshots), as files: a name, the bytes, a description (Purr keeps the save's

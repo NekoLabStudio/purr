@@ -90,7 +90,7 @@
 			The platform's cloud: Steam Cloud, iCloud or Play Games' saved games.
 		</constant>
 		<constant name="BACKEND_ONLINE" value="2" enum="Backend">
-			Purr's online services, once the player has added an email: the same saves on every platform.
+			The online services (Trill), once the player has added an email: the same saves on every platform.
 		</constant>
 	</constants>
 </class>

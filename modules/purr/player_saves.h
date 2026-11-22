@@ -24,6 +24,11 @@
 // unlocked), so the platforms they play on next (or, for a guest, their own) can unlock them too.
 // It never raises the conflict signal: the two sides' lists are merged.
 inline constexpr const char *PURR_ACHIEVEMENTS_SLOT = "purr_achievements";
+// The slot for multiplayer without the online services: the player's rating in each ranked mode
+// ({"ratings": {mode: {"rating", "matches"}}}) and the players they blocked ({"blocked":
+// {platform player ID: true}}). It merges too: each mode's rating with more matches, and every
+// block from either side.
+inline constexpr const char *PURR_MULTIPLAYER_SLOT = "purr_multiplayer";
 
 class PlayerSaves : public RefCounted {
 	GDCLASS(PlayerSaves, RefCounted);
@@ -57,7 +62,7 @@ private:
 	bool saved_meanwhile(const String &p_slot, int64_t p_edits, int64_t p_remote, const Dictionary &p_remote_summary);
 	void steam_write(const String &p_slot);
 	void take_slot(const Ref<PlayerSaves> &p_from, const String &p_slot);
-	void merge_remote_achievements(const PackedByteArray &p_remote, const String &p_key, int64_t p_remote_version);
+	void merge_remote(const String &p_slot, const PackedByteArray &p_remote, const String &p_key, int64_t p_remote_version);
 
 	void cloud_upload(const String &p_slot);
 	void cloud_uploaded(const Dictionary &p_result, const String &p_slot, int64_t p_edits_sent);
@@ -73,12 +78,16 @@ public:
 	static bool is_valid_slot(const String &p_slot);
 	// Two achievement lists ({id: progress}) as one, with each achievement's furthest progress.
 	static Dictionary merge_achievements(const Variant &p_a, const Variant &p_b);
+	static Dictionary merge_multiplayer(const Variant &p_a, const Variant &p_b);
+	// Purr's own slots, which never conflict: both sides are merged instead.
+	static bool merges(const String &p_slot);
+	static Variant merge(const String &p_slot, const Variant &p_a, const Variant &p_b);
 
 	void setup(const String &p_owner, Backend p_backend, const String &p_token);
 	Backend get_backend() const { return backend; }
 	String get_owner() const { return owner; }
 	PackedStringArray get_slots() const;
-	// The game's own slots: every one but the achievements'.
+	// The game's own slots: every one but Purr's.
 	PackedStringArray get_game_slots() const;
 
 	void save(const String &p_slot, const Variant &p_data, const Dictionary &p_summary);
@@ -97,7 +106,7 @@ public:
 	void adopt(const Ref<PlayerSaves> &p_from);
 	// Moves the saves another owner kept for this same player (before their account was known on
 	// this device) into these, without syncing: slots these saves already have stay as they are,
-	// except the achievements, which are merged. What moves is gone from the other owner.
+	// except Purr's own, which are merged. What moves is gone from the other owner.
 	void carry_over(const Ref<PlayerSaves> &p_from);
 	// Deletes every save on this device, and in the platform's cloud (a forgotten local profile);
 	// never the online service's.

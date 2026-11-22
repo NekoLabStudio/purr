@@ -48,8 +48,16 @@ void PurrExportPlugin::_export_begin(const HashSet<String> &p_features, bool p_d
 		add_apple_embedded_platform_framework("Security.framework");
 		add_apple_embedded_platform_framework("GameKit.framework");
 		add_apple_embedded_platform_framework("CloudKit.framework");
+		// The App Store module's StoreKit 2 code is in every Apple build.
+		add_apple_embedded_platform_framework("StoreKit.framework");
+		// Shown when Friends first asks Game Center for the player's friends.
+		add_apple_embedded_platform_plist_content("<key>NSGKFriendListUsageDescription</key><string>Shows your Game Center friends in the game, so you can invite them.</string>");
 	}
 	// Plugins only reach the game through Godot's Gradle build.
+	const Ref<EditorExportPreset> android_preset = get_export_preset();
+	if (p_features.has("android") && play_games_app_id().is_empty() && android_preset.is_valid() && _google_play_export(android_preset->get_platform()) && !(bool)android_preset->get("gradle_build/use_gradle_build")) {
+		WARN_PRINT("Store items are sold on Google Play, but this Android preset doesn't use the Gradle build, so Google Play's store won't be in the game. Turn on Gradle Build > Use Gradle Build in the preset.");
+	}
 	if (p_features.has("android") && !play_games_app_id().is_empty()) {
 		if (!play_games_app_id().is_valid_int()) {
 			ERR_PRINT(vformat("play_games/app_id must be the number the Play Console shows for the game, not \"%s\".", play_games_app_id()));
@@ -68,12 +76,31 @@ bool PurrExportPlugin::_play_games_export(const Ref<EditorExportPlatform> &p_pla
 	return p_platform.is_valid() && p_platform->get_os_name() == "Android" && play_games_app_id().is_valid_int();
 }
 
+// Purr's Android library also holds Google Play's store: it goes in for Play Games, for items sold
+// on Google Play, or for proving purchases to the online service.
+bool PurrExportPlugin::_google_play_export(const Ref<EditorExportPlatform> &p_platform) const {
+	if (p_platform.is_null() || p_platform->get_os_name() != "Android") {
+		return false;
+	}
+	if (play_games_app_id().is_valid_int() || !String(GLOBAL_GET("google_play/cloud_project_number")).strip_edges().is_empty()) {
+		return true;
+	}
+	List<PropertyInfo> properties;
+	ProjectSettings::get_singleton()->get_property_list(&properties);
+	for (const PropertyInfo &property : properties) {
+		if (property.name.begins_with("store/") && property.name.ends_with("/google_play") && !String(GLOBAL_GET(property.name)).strip_edges().is_empty()) {
+			return true;
+		}
+	}
+	return false;
+}
+
 PackedStringArray PurrExportPlugin::get_android_libraries(const Ref<EditorExportPlatform> &p_platform, bool p_debug) const {
 	PackedStringArray libraries;
-	if (_play_games_export(p_platform)) {
+	if (_google_play_export(p_platform)) {
 		// Built with Purr's Android export templates.
 		const String library = templates_dir().path_join(PLAY_GAMES_LIBRARY);
-		ERR_FAIL_COND_V_MSG(!FileAccess::exists(library), libraries, vformat("Play Games' plugin is missing from the export templates (%s). Reinstall Purr's export templates.", library));
+		ERR_FAIL_COND_V_MSG(!FileAccess::exists(library), libraries, vformat("Google Play's plugin is missing from the export templates (%s). Reinstall Purr's export templates.", library));
 		libraries.push_back(library);
 	}
 	return libraries;
@@ -81,9 +108,12 @@ PackedStringArray PurrExportPlugin::get_android_libraries(const Ref<EditorExport
 
 PackedStringArray PurrExportPlugin::get_android_dependencies(const Ref<EditorExportPlatform> &p_platform, bool p_debug) const {
 	PackedStringArray dependencies;
-	if (_play_games_export(p_platform)) {
-		// The version the plugin is built against (modules/play_games/android/build.gradle).
+	if (_google_play_export(p_platform)) {
+		// The versions the plugin is built against (modules/play_games/android/build.gradle): all
+		// of them, since the library's classes use each.
 		dependencies.push_back("com.google.android.gms:play-services-games-v2:22.1.0");
+		dependencies.push_back("com.android.billingclient:billing:9.1.0");
+		dependencies.push_back("com.google.android.play:integrity:1.6.0");
 	}
 	return dependencies;
 }

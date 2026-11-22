@@ -4,7 +4,8 @@
 // player is in goes in their rich presence (which also gives friends Steam's own "Join Game"), and
 // so do the friends they invited to it. On Game Center, invites go through Apple's invite screen
 // and parties (game_center/party_activity); either carries the lobby's code, encoded, and
-// whoever accepts joins it.
+// whoever accepts joins it. Game Center and Play Games also give the player's friends list,
+// asked for (with the player's consent) the first time the game reads it.
 
 #include "core/object/ref_counted.h"
 #include "core/templates/hash_map.h"
@@ -23,12 +24,16 @@ class PurrFriends : public RefCounted {
 	HashMap<String, String> lobby_invites; // Steam lobby invites received: inviter -> lobby.
 	bool started = false;
 	bool changed_queued = false;
+	Array platform_friends; // Game Center's or Play Games' friends, once loaded.
+	bool platform_friends_asked = false;
 
 	void steam_friends_changed(int64_t p_steam_id, int64_t p_detail);
 	void steam_lobby_invited(int64_t p_inviter, int64_t p_lobby, int64_t p_game);
 	void game_center_invite_accepted(int64_t p_player_group);
 	void game_center_party_joined(const String &p_party_code);
 	void write_presence();
+	void ask_platform_friends();
+	void platform_friends_loaded(const Dictionary &p_result);
 	void changed();
 	void emit_changed();
 
@@ -48,7 +53,9 @@ public:
 	// The lobby the player is in now, or empty: shown to friends (and the party ended on leaving).
 	void set_lobby(const String &p_code, bool p_crossplay);
 
-	Array get_friends() const;
+	bool is_available() const;
+	// Asks Game Center or Play Games the first time; Friends.changed fires when they answer.
+	Array get_friends();
 	void invite(const String &p_friend_id);
 	void invite_with_platform_screen();
 	bool can_invite() const;

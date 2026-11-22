@@ -1,16 +1,19 @@
 #pragma once
 
 // Purr: the engine side of what every game needs (signing in, saves, achievements, leaderboards,
-// lobbies, friends and local players), the same on every platform, behind the singletons games
-// use (Account, LocalPlayers, Saves, Achievements, Leaderboards, Lobbies, Friends). Underneath it
+// lobbies, friends, local players and the store), the same on every platform, behind the singletons
+// games use (Account, LocalPlayers, Saves, Achievements, Leaderboards, Lobbies, Friends, Store). Underneath it
 // picks the platform (Steam where it's running, Game Center, Play Games, otherwise a device
-// account) and Purr's online services when online/url is set; without them, each platform
-// directly. Internal: games never see this class.
+// account) and Purr's online services when trill/url is set; without them, each platform
+// directly, lobbies included (PurrPlatformLobby). Internal: games never see this class.
 
 #include "purr_achievements.h"
 #include "purr_friends.h"
 #include "purr_leaderboards.h"
+#include "purr_game_center_lobby.h"
 #include "purr_lobby.h"
+#include "purr_steam_lobby.h"
+#include "purr_store.h"
 #include "local_player.h"
 
 #include "core/object/object.h"
@@ -18,6 +21,8 @@
 
 // Fires a call object's completed signal on the next idle frame (shared with LocalPlayer).
 void purr_complete(const Ref<RefCounted> &p_call, const Variant &p_result);
+// A failed call's result: {"ok": false, "error", "message"}.
+Dictionary purr_failure(const String &p_error, const String &p_message);
 
 class Purr : public Object {
 	GDCLASS(Purr, Object);
@@ -49,12 +54,17 @@ class Purr : public Object {
 	bool command_line_read = false; // An invite on the command line is joined once, not at every sign-in.
 	void join_steam_lobby(uint64_t p_lobby_id);
 
-	// Steam lobbies.
-	uint64_t steam_lobby = 0;
-	Ref<RefCounted> pending_lobby_call;
+	// Lobbies on the platform's own multiplayer, without the online service.
+	Ref<PurrPlatformLobby> platform_lobby_instance;
+	Ref<PurrPlatformLobby> platform_lobby();
+	Ref<PurrPlatformLobby> active_platform_lobby() const;
+	void leave_platform_lobby();
+	void game_center_match_invite_accepted(const String &p_sender_id);
 
 	Ref<PurrAchievements> achievements;
 	Ref<PurrLeaderboards> leaderboards;
+	Ref<PurrStore> store_items;
+	void store_done(const Dictionary &p_result, const Ref<RefCounted> &p_call);
 
 	void game_center_authenticated(const Dictionary &p_result, const Ref<RefCounted> &p_call);
 	void game_center_verified(const Dictionary &p_result, const Ref<RefCounted> &p_call);
@@ -64,6 +74,9 @@ class Purr : public Object {
 	String platform_owner() const;
 	void carry_over_saves();
 	void sign_in_without_platform(const Ref<RefCounted> &p_call);
+	void sign_in_proven(const Dictionary &p_proof, const Ref<RefCounted> &p_call);
+	void sign_in_platform(const Ref<RefCounted> &p_call);
+	void email_proven(const Dictionary &p_proof, const String &p_code, const Ref<RefCounted> &p_call);
 	PlayerSaves::Backend save_backend(bool p_online) const;
 	void attach_saves();
 
@@ -75,11 +88,10 @@ class Purr : public Object {
 	void save_conflicted(const String &p_slot, const Dictionary &p_local_summary, const Dictionary &p_remote_summary);
 	void online_update_required(const Variant &p_min_version, const Variant &p_max_version);
 	void online_service_outdated();
+	void online_not_owned();
 	void display_name_saved(const Dictionary &p_result, const Ref<RefCounted> &p_call);
 	void load_remembered();
 
-	void steam_lobby_created(int64_t p_connect, int64_t p_lobby_id);
-	void steam_lobby_entered(int64_t p_lobby_id, int64_t p_permissions, bool p_locked, int64_t p_response);
 	void steam_join_requested(int64_t p_lobby_id, int64_t p_friend_id);
 
 	void email_code_sent(const Dictionary &p_result, const Ref<RefCounted> &p_call, bool p_guest);
@@ -109,6 +121,9 @@ public:
 	void submit_score(const String &p_leaderboard, int64_t p_score);
 	Signal get_scores(const String &p_leaderboard, const String &p_scope = "global", int p_count = 10);
 	void show_leaderboard(const String &p_leaderboard = String());
+	Ref<PurrStore> store() const { return store_items; }
+	Signal store_purchase(const String &p_id);
+	Signal store_restore();
 
 	Signal lobby_create();
 	Signal lobby_join(const String &p_code);
@@ -154,6 +169,8 @@ public:
 	Signal deferred_result(const Variant &p_result);
 	Object *steam() const;
 	bool steam_ready() const;
+	// Starts Steam if the game was started from it and nothing has yet; returns steam_ready().
+	bool start_steam();
 	int64_t steam_constant(const String &p_name) const;
 	Object *game_center() const;
 	bool game_center_ready() const;

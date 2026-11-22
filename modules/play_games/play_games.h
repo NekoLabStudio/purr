@@ -1,7 +1,7 @@
 #pragma once
 
 // PlayGames: Google Play Games Services on Android. Sign in, the server auth code Purr's online
-// services exchange with Google, achievements, leaderboards and saved games. Each asynchronous
+// services exchange with Google, achievements, leaderboards, friends and saved games. Each asynchronous
 // call returns a signal that fires once with a Dictionary: {"ok", "error", ...}.
 //
 // Off unless the game sets its Play Games application ID in play_games/app_id. The Android
@@ -69,6 +69,7 @@ public:
 	void submit_score(const String &p_leaderboard_id, int64_t p_score);
 	void show_achievements();
 	void show_leaderboard(const String &p_leaderboard_id = String());
+	Signal load_friends();
 
 	// Saved games, the same calls as ICloud's, so Purr's saves use either the same way.
 	bool is_saved_games_enabled() const;

@@ -395,9 +395,6 @@ def copy_static(repo: Path, output: Path) -> None:
     shutil.copy2(repo / "branding" / "purr-logo-box.svg", output / "static" / "purr.svg")
     shutil.copy2(repo / "branding" / "purr-wordmark.svg", output / "static" / "purr-wordmark.svg")
     shutil.copy2(repo / "branding" / "purr-wordmark-light.svg", output / "static" / "purr-wordmark-light.svg")
-    # The documented setup command is `curl -fsSL <origin>/purr/online/setup.sh | sh`.
-    (output / "online").mkdir(parents=True, exist_ok=True)
-    shutil.copy2(repo / "online" / "scripts" / "setup.sh", output / "online" / "setup.sh")
 
 
 def build_docs_set(docs: Path, output: Path, version: DocsVersion, versions: list[DocsVersion]) -> None:
@@ -563,6 +560,7 @@ def docs_nav_groups() -> list[tuple[str, list[tuple[str, str]]]]:
                 ("api/ranked", "api/ranked.md"),
                 ("api/checks", "api/checks.md"),
                 ("api/achievements", "api/achievements.md"),
+                ("api/store", "api/store.md"),
             ],
         ),
         (
@@ -600,10 +598,6 @@ def docs_nav_groups() -> list[tuple[str, list[tuple[str, str]]]]:
             "Online services",
             [
                 ("online", "online/index.md"),
-                ("online/moderation", "online/moderation.md"),
-                ("online/crash-reports", "online/crash-reports.md"),
-                ("online/protocol", "online/protocol.md"),
-                ("online/privacy", "online/privacy.md"),
             ],
         ),
     ]

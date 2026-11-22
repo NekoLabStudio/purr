@@ -1,6 +1,7 @@
 #include "register_types.h"
 
 #include "game_center.h"
+#include "game_center_multiplayer_peer.h"
 
 #include "core/config/engine.h"
 #include "core/object/class_db.h"
@@ -13,6 +14,7 @@ void initialize_game_center_module(ModuleInitializationLevel p_level) {
 	}
 	GDREGISTER_CLASS(GameCenter);
 	GDREGISTER_INTERNAL_CLASS(GameCenterCall);
+	GDREGISTER_CLASS(GameCenterMultiplayerPeer);
 	game_center = memnew(GameCenter);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("GameCenter", GameCenter::get_singleton()));
 }

@@ -19,7 +19,9 @@ func _on_check_completed(check: String, agreed: bool, disagreeing: Array) -> voi
 
 Every player's game calls `Lobbies.check()` with the same name at the same moment in the game. Only a hash of the value leaves the device. Once every player in the lobby has answered, `Lobbies.check_completed` fires on everyone's device: `agreed` is true when every value matched, and `disagreeing` lists the peer IDs of players whose value differs from the majority's. With no majority (two players who disagree, say), nobody is named.
 
-Players named in `disagreeing` are reported as cheating to the online services' operator automatically (see [Moderation](../online/moderation.md)), unless the operator sets `report_failed_checks` to `false` for the game. With `kick_cheaters` on for the game, the service also removes them from the lobby (see [What happens to a cheater](#what-happens-to-a-cheater)). In a [ranked](ranked.md) lobby, a failed check stops the match's result from changing anyone's rating.
+Checks work in every lobby: crossplay ones, and Steam lobbies and Game Center matches without the online services, where the players' games compare the hashes among themselves (see [Lobbies](lobbies.md#without-the-online-services)).
+
+With the online services, players named in `disagreeing` are reported as cheating to the operator automatically (see [Moderation](https://oss.nekolab.studio/trill/moderation/)), unless the operator sets `report_failed_checks` to `false` for the game. With `kick_cheaters` on for the game, the service also removes them from the lobby (see [What happens to a cheater](#what-happens-to-a-cheater)). In a [ranked](ranked.md) lobby, a failed check stops the match's result from changing anyone's rating.
 
 The game decides what to check and what to do about a failed check: remove the player, end the match, or only note it. Each name is checked once per lobby, and a lobby holds up to 256 checks, so check at moments that matter (a lap, a round, the end of a match) rather than every frame.
 
@@ -43,14 +45,14 @@ Flags suit anything other players can see: teleporting, moving too fast, hits th
 
 ## What happens to a cheater
 
-The online services' operator sets what happens, for each game in the service's `GAMES` settings:
+Without the online services, nothing happens on its own: the game decides, from `check_completed` and `player_flagged`. With them, the operator sets what happens, for each game in the service's `GAMES` settings:
 
 | Setting | Effect |
 |---|---|
 | `report_failed_checks` | `true` by default: players named by a failed check or a confirmed flag are reported as cheating |
 | `kick_cheaters` | `false` by default: with `true`, they're also removed from the lobby, as if the host had removed them. A cheating host is removed too, and the player who has been there longest takes over. |
 
-Removals for cheating can lead to a ban from multiplayer. With the service's `AUTO_BAN` setting, a number of removals within a window bans the player, for longer each time and in the end for good (see [Moderation](../online/moderation.md#automatic-bans)).
+Removals for cheating can lead to a ban from multiplayer. With the service's `AUTO_BAN` setting, a number of removals within a window bans the player, for longer each time and in the end for good (see [Moderation](https://oss.nekolab.studio/trill/moderation/#automatic-bans)).
 
 The game can also act on `check_completed` and `player_flagged` itself, for example by ending the match.
 

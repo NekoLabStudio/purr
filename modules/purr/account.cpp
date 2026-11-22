@@ -106,6 +106,7 @@ void Account::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("signed_in"));
 	ADD_SIGNAL(MethodInfo("update_required", PropertyInfo(Variant::NIL, "min_version", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NIL_IS_VARIANT), PropertyInfo(Variant::NIL, "max_version", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NIL_IS_VARIANT)));
 	ADD_SIGNAL(MethodInfo("service_outdated"));
+	ADD_SIGNAL(MethodInfo("not_owned"));
 
 	BIND_ENUM_CONSTANT(PROVIDER_LOCAL);
 	BIND_ENUM_CONSTANT(PROVIDER_DEVICE);

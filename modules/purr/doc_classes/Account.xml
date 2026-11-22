@@ -4,7 +4,7 @@
 		The player's account: signing in, their name and the email that takes their progress to other platforms.
 	</brief_description>
 	<description>
-		Sign in first, before saves, achievements or lobbies: [method sign_in] uses Steam when Steam is running, Game Center on Apple platforms and Play Games on Android, and Purr's online services when [code]online/url[/code] is set in Project Settings (otherwise each platform directly, or this device alone).
+		Sign in first, before saves, achievements or lobbies: [method sign_in] uses Steam when Steam is running, Game Center on Apple platforms and Play Games on Android, and the online services (Trill) when [code]trill/url[/code] is set in Project Settings (otherwise each platform directly, or this device alone).
 		To take their progress to another platform, a player adds their email address: [method link_email] sends them a code and [method confirm_email] checks it. From then on, every platform signed in with that address shares one account and one set of saves. The same two calls change the address later.
 		[codeblock]
 		var result = await Account.sign_in()
@@ -100,6 +100,11 @@
 		</member>
 	</members>
 	<signals>
+		<signal name="not_owned">
+			<description>
+				Emitted when the online service turned the player away because the game only plays online for players who bought it, and the player hasn't, or this copy can't show it (one from a store Purr can't check). Online features stop for the session, as with [signal update_required]: tell the player they need to buy the game to play online. Saves still work on the device and the platform's cloud. See [Store].
+			</description>
+		</signal>
 		<signal name="service_outdated">
 			<description>
 				Emitted when the online service is too old for this version of Purr. Online features stop for the session, as with [signal update_required]; the service's operator needs to update it.

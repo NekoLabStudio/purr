@@ -4,7 +4,7 @@
 #include "core/string/regex.h"
 
 namespace {
-// The same as the online service's (online/src/crash_reports.ts).
+// The same as the online service's (Trill's src/crash_reports.ts).
 // Every repeat is bounded, so no text can make these slow.
 const char *EMAIL = R"re([\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63}){1,8})re";
 const char *IPV4 = R"re((?<![\w.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\w.]))re";

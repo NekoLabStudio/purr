@@ -2,7 +2,8 @@
 
 // GameCenter: Apple's Game Center on macOS, iOS and tvOS. Sign in (authenticate), the identity
 // verification signature Purr's online services check, achievements, leaderboards (and their
-// screens), invites and parties (game activities with a party code). Each asynchronous call
+// screens), friends, invites and parties (game activities with a party code). Real-time matches
+// are GameCenterMultiplayerPeer's. Each asynchronous call
 // returns a signal that fires once with a Dictionary: {"ok", "error", ...}.
 
 #include "core/object/class_db.h"
@@ -62,6 +63,8 @@ public:
 	void show_achievements();
 	void show_leaderboard(const String &p_leaderboard_id = String());
 	void invite_players(int64_t p_player_group, int p_max_players);
+	Signal load_friends();
+	void invite_friend(const String &p_player_id, int64_t p_player_group, int p_max_players);
 	void start_party(const String &p_activity_id, const String &p_party_code);
 	void end_party();
 

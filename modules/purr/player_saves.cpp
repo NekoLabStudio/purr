@@ -127,20 +127,50 @@ Dictionary PlayerSaves::merge_achievements(const Variant &p_a, const Variant &p_
 	return merged;
 }
 
-// The achievements slot never conflicts: changed here and on another device, the two lists are
-// merged and the result goes up over the other device's (p_key is "version" for the online
-// service, "modified" for a cloud store).
-void PlayerSaves::merge_remote_achievements(const PackedByteArray &p_remote, const String &p_key, int64_t p_remote_version) {
+// Each mode's rating from the side with more matches, and every block from either.
+Dictionary PlayerSaves::merge_multiplayer(const Variant &p_a, const Variant &p_b) {
+	Dictionary merged = p_a.get_type() == Variant::DICTIONARY ? Dictionary(p_a).duplicate(true) : Dictionary();
+	if (p_b.get_type() != Variant::DICTIONARY) {
+		return merged;
+	}
+	const Dictionary other = p_b;
+	Dictionary ratings = merged.get("ratings", Dictionary());
+	for (const KeyValue<Variant, Variant> &entry : Dictionary(other.get("ratings", Dictionary()))) {
+		const Dictionary theirs = entry.value;
+		const Dictionary ours = ratings.get(entry.key, Dictionary());
+		if ((int64_t)theirs.get("matches", 0) > (int64_t)ours.get("matches", 0)) {
+			ratings[entry.key] = theirs.duplicate();
+		}
+	}
+	merged["ratings"] = ratings;
+	Dictionary blocked = merged.get("blocked", Dictionary());
+	blocked.merge(Dictionary(other.get("blocked", Dictionary())));
+	merged["blocked"] = blocked;
+	return merged;
+}
+
+bool PlayerSaves::merges(const String &p_slot) {
+	return p_slot == PURR_ACHIEVEMENTS_SLOT || p_slot == PURR_MULTIPLAYER_SLOT;
+}
+
+Variant PlayerSaves::merge(const String &p_slot, const Variant &p_a, const Variant &p_b) {
+	return p_slot == PURR_MULTIPLAYER_SLOT ? merge_multiplayer(p_a, p_b) : merge_achievements(p_a, p_b);
+}
+
+// Purr's slots never conflict: changed here and on another device, the two sides are merged and
+// the result goes up over the other device's (p_key is "version" for the online service,
+// "modified" for a cloud store).
+void PlayerSaves::merge_remote(const String &p_slot, const PackedByteArray &p_remote, const String &p_key, int64_t p_remote_version) {
 	Variant remote;
 	if (decode_variant(remote, p_remote.ptr(), p_remote.size(), nullptr, false) != OK) {
 		remote = Variant();
 	}
-	Dictionary meta = read_meta(PURR_ACHIEVEMENTS_SLOT);
+	Dictionary meta = read_meta(p_slot);
 	meta[p_key] = p_remote_version;
 	meta.erase("conflict_version");
-	write_meta(PURR_ACHIEVEMENTS_SLOT, meta);
-	save(PURR_ACHIEVEMENTS_SLOT, merge_achievements(load(PURR_ACHIEVEMENTS_SLOT), remote), Dictionary());
-	emit_signal(SNAME("synced"), PURR_ACHIEVEMENTS_SLOT);
+	write_meta(p_slot, meta);
+	save(p_slot, merge(p_slot, load(p_slot), remote), Dictionary());
+	emit_signal(SNAME("synced"), p_slot);
 }
 
 // A download was asked for when the slot had p_edits edits; if the player has saved since, the
@@ -263,7 +293,7 @@ void PlayerSaves::listed(const Dictionary &p_result) {
 		if (remote_version > local_version && !dirty) {
 			Signal read = PurrOnline::get_singleton()->read_save(slot, token);
 			read.connect(callable_mp(this, &PlayerSaves::downloaded).bind(slot, remote_version, meta.get("edits", 0)), CONNECT_ONE_SHOT);
-		} else if (remote_version > local_version && dirty && slot == PURR_ACHIEVEMENTS_SLOT) {
+		} else if (remote_version > local_version && dirty && merges(slot)) {
 			Signal read = PurrOnline::get_singleton()->read_save(slot, token);
 			read.connect(callable_mp(this, &PlayerSaves::downloaded).bind(slot, remote_version, meta.get("edits", 0)), CONNECT_ONE_SHOT);
 		} else if (remote_version > local_version && dirty) {
@@ -286,8 +316,8 @@ void PlayerSaves::downloaded(const Dictionary &p_result, const String &p_slot, i
 	if (!p_result.get("ok", false)) {
 		return;
 	}
-	if (p_slot == PURR_ACHIEVEMENTS_SLOT && read_meta(p_slot).get("dirty", false)) {
-		merge_remote_achievements(p_result["data"], "version", p_version);
+	if (merges(p_slot) && read_meta(p_slot).get("dirty", false)) {
+		merge_remote(p_slot, p_result["data"], "version", p_version);
 		return;
 	}
 	const Dictionary headers = p_result.get("headers", Dictionary());
@@ -388,7 +418,7 @@ void PlayerSaves::cloud_listed(const Dictionary &p_result) {
 		const bool dirty = meta.get("dirty", false);
 		if (remote > (int64_t)meta.get("modified", 0) && !dirty) {
 			cloud_download(slot);
-		} else if (remote > (int64_t)meta.get("modified", 0) && dirty && slot == PURR_ACHIEVEMENTS_SLOT) {
+		} else if (remote > (int64_t)meta.get("modified", 0) && dirty && merges(slot)) {
 			cloud_download(slot);
 		} else if (remote > (int64_t)meta.get("modified", 0) && dirty) {
 			meta["conflict_version"] = remote;
@@ -414,8 +444,8 @@ void PlayerSaves::cloud_downloaded(const Dictionary &p_result, const String &p_s
 	if (!p_result.get("ok", false)) {
 		return;
 	}
-	if (p_slot == PURR_ACHIEVEMENTS_SLOT && read_meta(p_slot).get("dirty", false)) {
-		merge_remote_achievements(p_result["data"], "modified", p_result.get("modified", 0));
+	if (merges(p_slot) && read_meta(p_slot).get("dirty", false)) {
+		merge_remote(p_slot, p_result["data"], "modified", p_result.get("modified", 0));
 		return;
 	}
 	const Dictionary remote_summary = Dictionary(p_result.get("metadata", Dictionary())).get("summary", Dictionary());
@@ -445,6 +475,7 @@ PackedStringArray PlayerSaves::get_slots() const {
 PackedStringArray PlayerSaves::get_game_slots() const {
 	PackedStringArray slots = get_slots();
 	slots.erase(PURR_ACHIEVEMENTS_SLOT);
+	slots.erase(PURR_MULTIPLAYER_SLOT);
 	return slots;
 }
 
@@ -474,8 +505,8 @@ void PlayerSaves::adopt(const Ref<PlayerSaves> &p_from) {
 void PlayerSaves::carry_over(const Ref<PlayerSaves> &p_from) {
 	ERR_FAIL_COND(p_from.is_null() || p_from->owner == owner);
 	for (const String &slot : p_from->get_slots()) {
-		if (slot == PURR_ACHIEVEMENTS_SLOT) {
-			save(slot, merge_achievements(load(slot), p_from->load(slot)), Dictionary());
+		if (merges(slot)) {
+			save(slot, merge(slot, load(slot), p_from->load(slot)), Dictionary());
 		} else if (has(slot) || (backend == BACKEND_PLATFORM && !cloud && steam() && (bool)steam()->call("fileExists", steam_file(owner, slot)))) {
 			// This player already has a save in that slot (here, or in Steam Cloud, which can't
 			// offer both): it's kept, and so is the other one, where it was.

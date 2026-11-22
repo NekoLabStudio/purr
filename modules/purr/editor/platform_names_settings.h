@@ -1,8 +1,7 @@
 #pragma once
 
-// A Project Settings tab listing a game's achievements or leaderboards by their own IDs, with each
-// one's name on every platform: <prefix>/<id>/<platform> in the project's settings, an empty name
-// meaning the platform uses the same ID.
+// A Project Settings tab listing a game's achievements, leaderboards or store items by their own
+// IDs, with each one's name on every platform: <prefix>/<id>/<platform> in the project's settings.
 
 #include "scene/gui/box_container.h"
 
@@ -13,6 +12,7 @@ class PlatformNamesSettings : public VBoxContainer {
 	GDCLASS(PlatformNamesSettings, VBoxContainer);
 
 	String prefix;
+	String empty_tooltip; // What an empty name means.
 	Vector<String> columns; // The setting under each ID, one column each.
 	LineEdit *id_edit = nullptr;
 	Tree *tree = nullptr;
@@ -31,7 +31,7 @@ protected:
 public:
 	void update_list();
 
-	// p_prefix: "achievements" or "leaderboards"; p_columns: the setting under each ID with its
-	// column's title, in order.
-	PlatformNamesSettings(const String &p_prefix, const Vector<Pair<String, String>> &p_columns);
+	// p_prefix: "achievements", "leaderboards" or "store"; p_columns: the setting under each ID with
+	// its column's title, in order; p_empty_tooltip: what leaving a name empty means.
+	PlatformNamesSettings(const String &p_prefix, const Vector<Pair<String, String>> &p_columns, const String &p_empty_tooltip, const String &p_id_placeholder);
 };

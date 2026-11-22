@@ -8,7 +8,7 @@ def configure(env):
 
 
 def get_doc_classes():
-    return ["Account", "LocalPlayers", "LocalPlayer", "Saves", "PlayerSaves", "Achievements", "Leaderboards", "Lobbies", "Friends"]
+    return ["Account", "LocalPlayers", "LocalPlayer", "Saves", "PlayerSaves", "Achievements", "Leaderboards", "Lobbies", "Friends", "Store"]
 
 
 def get_doc_path():

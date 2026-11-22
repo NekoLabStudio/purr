@@ -8,19 +8,43 @@ Ref<WebRTCNativeDataChannel> WebRTCNativeDataChannel::wrap(const std::shared_ptr
 	wrapper.instantiate();
 	wrapper->channel = p_channel;
 	wrapper->negotiated = p_negotiated;
+	const rtc::Reliability reliability = p_channel->reliability();
+	wrapper->shared_state->strict_order = !reliability.unordered && !reliability.maxPacketLifeTime.has_value() && !reliability.maxRetransmits.has_value();
+	wrapper->bind(p_channel, 0);
+	return wrapper;
+}
 
-	const std::weak_ptr<SharedState> weak_state = wrapper->shared_state;
-	auto queue_packet = [weak_state](const uint8_t *p_data, size_t p_size, bool p_is_string) {
+// Packets from a generation already left behind are dropped (there are none: the marker is the
+// last), the next generation's wait for the marker, and only the sending generation's state counts.
+void WebRTCNativeDataChannel::bind(const std::shared_ptr<rtc::DataChannel> &p_channel, uint32_t p_generation) {
+	const std::weak_ptr<SharedState> weak_state = shared_state;
+	auto queue_packet = [weak_state, p_generation](const uint8_t *p_data, size_t p_size, bool p_is_string) {
 		const std::shared_ptr<SharedState> state = weak_state.lock();
 		if (!state) {
 			return;
 		}
 		std::lock_guard lock(state->mutex);
-		state->packets.emplace(std::vector<uint8_t>(p_data, p_data + p_size), p_is_string);
+		QueuedPacket packet(std::vector<uint8_t>(p_data, p_data + p_size), p_is_string);
+		if (!state->strict_order || p_generation == state->receiving) {
+			if (state->strict_order && p_is_string && !state->marker.empty() && p_size == state->marker.size() && memcmp(p_data, state->marker.data(), p_size) == 0) {
+				// The old connection's last: the new one's waiting messages come next.
+				state->receiving++;
+				state->marker.clear();
+				while (!state->held.empty()) {
+					state->packets.push(std::move(state->held.front()));
+					state->held.pop();
+				}
+			} else {
+				state->packets.push(std::move(packet));
+			}
+		} else if (p_generation == state->receiving + 1) {
+			state->held.push(std::move(packet));
+		}
 		state->available_packets.store(state->packets.size(), std::memory_order_release);
 	};
-	auto set_state = [weak_state](ChannelState p_state) {
-		if (const std::shared_ptr<SharedState> state = weak_state.lock()) {
+	auto set_state = [weak_state, p_generation](ChannelState p_state) {
+		const std::shared_ptr<SharedState> state = weak_state.lock();
+		if (state && state->sending.load(std::memory_order_acquire) == p_generation) {
 			state->channel_state.store(p_state, std::memory_order_release);
 		}
 	};
@@ -37,7 +61,70 @@ Ref<WebRTCNativeDataChannel> WebRTCNativeDataChannel::wrap(const std::shared_ptr
 	p_channel->onError([](std::string p_error) {
 		ERR_PRINT(vformat("WebRTC data channel error: %s", String::utf8(p_error.c_str())));
 	});
-	return wrapper;
+}
+
+void WebRTCNativeDataChannel::begin_move(const std::shared_ptr<rtc::DataChannel> &p_next) {
+	next = p_next;
+	bind(next, generation + 1);
+}
+
+void WebRTCNativeDataChannel::expect_marker(const std::string &p_marker) {
+	std::lock_guard lock(shared_state->mutex);
+	shared_state->marker = p_marker;
+}
+
+void WebRTCNativeDataChannel::send_moved(const std::string &p_marker) {
+	ERR_FAIL_COND(!next);
+	if (shared_state->strict_order && channel && channel->isOpen()) {
+		try {
+			channel->send(p_marker);
+		} catch (...) {
+		}
+	}
+	previous = channel;
+	channel = next;
+	next.reset();
+	generation++;
+	shared_state->sending.store(generation, std::memory_order_release);
+	shared_state->channel_state.store(channel->isOpen() ? STATE_OPEN : STATE_CONNECTING, std::memory_order_release);
+}
+
+bool WebRTCNativeDataChannel::has_received_move() const {
+	if (!shared_state->strict_order) {
+		return true;
+	}
+	std::lock_guard lock(shared_state->mutex);
+	return shared_state->receiving == generation;
+}
+
+void WebRTCNativeDataChannel::finish_move() {
+	if (previous) {
+		previous->resetCallbacks();
+		previous.reset();
+	}
+	// The marker never came (the old connection ended first): what waited comes now.
+	std::lock_guard lock(shared_state->mutex);
+	if (shared_state->receiving < generation) {
+		shared_state->receiving = generation;
+		shared_state->marker.clear();
+		while (!shared_state->held.empty()) {
+			shared_state->packets.push(std::move(shared_state->held.front()));
+			shared_state->held.pop();
+		}
+		shared_state->available_packets.store(shared_state->packets.size(), std::memory_order_release);
+	}
+}
+
+void WebRTCNativeDataChannel::cancel_move() {
+	if (next) {
+		next->resetCallbacks();
+		next.reset();
+	}
+	std::lock_guard lock(shared_state->mutex);
+	shared_state->marker.clear();
+	while (!shared_state->held.empty()) {
+		shared_state->held.pop();
+	}
 }
 
 int WebRTCNativeDataChannel::get_available_packet_count() const {

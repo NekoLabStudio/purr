@@ -4,8 +4,8 @@
 		Google Play Games on Android.
 	</brief_description>
 	<description>
-		Signs the player in to Play Games, and reports achievements and leaderboard scores. It can also keep files in the player's Play Games saved games. Most games use [Purr], which uses this on Android; it's here for anything [Purr] doesn't cover.
-		It's off unless [code]play_games/app_id[/code] in Project Settings is the game's application ID from the Play Console. Export with the Android preset's Gradle Build > Use Gradle Build on; Purr adds Play Games to the build. For Purr's online services, set [code]play_games/server_client_id[/code] to the OAuth web client ID the service uses. For saves in Play Games, turn on saved games for the game in the Play Console and [code]play_games/saved_games[/code] in Project Settings.
+		Signs the player in to Play Games, reports achievements and leaderboard scores, and lists the player's friends. It can also keep files in the player's Play Games saved games. Most games use [Purr], which uses this on Android; it's here for anything [Purr] doesn't cover.
+		It's off unless [code]play_games/app_id[/code] in Project Settings is the game's application ID from the Play Console. Export with the Android preset's Gradle Build > Use Gradle Build on; Purr adds Play Games to the build. For the online services (Trill), set [code]play_games/server_client_id[/code] to the OAuth web client ID the service uses. For saves in Play Games, turn on saved games for the game in the Play Console and [code]play_games/saved_games[/code] in Project Settings.
 		Each asynchronous call returns a signal that fires once with a [Dictionary] with [code]ok[/code] and, when it failed, [code]error[/code].
 		[codeblock]
 		var signed_in = await PlayGames.authenticate()
@@ -85,6 +85,12 @@
 			<param index="0" name="name" type="String" />
 			<description>
 				Reads a file from the player's saved games. Await it: the result has [code]data[/code] ([PackedByteArray]), [code]modified[/code] and [code]metadata[/code].
+			</description>
+		</method>
+		<method name="load_friends">
+			<return type="Signal" />
+			<description>
+				The player's Play Games friends. Await it: the result has [code]ok[/code] and [code]friends[/code], an [Array] of [Dictionary] with [code]id[/code] (their player ID) and [code]name[/code]. The first time, Play Games asks the player whether to share their friends with the game, and the result comes once they've answered ([code]error[/code] [code]"cancelled"[/code] if they said no). Purr's [method Friends.get_all] calls it.
 			</description>
 		</method>
 		<method name="get_scores">

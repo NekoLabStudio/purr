@@ -1,6 +1,6 @@
 #pragma once
 
-// Purr in the editor: the Achievements and Leaderboards tabs in Project Settings.
+// Purr in the editor: the Achievements, Leaderboards and Store tabs in Project Settings.
 
 #include "editor/plugins/editor_plugin.h"
 
@@ -11,6 +11,7 @@ class PurrEditorPlugin : public EditorPlugin {
 
 	PlatformNamesSettings *achievements = nullptr;
 	PlatformNamesSettings *leaderboards = nullptr;
+	PlatformNamesSettings *store = nullptr;
 
 public:
 	virtual String get_plugin_name() const override { return "Purr"; }

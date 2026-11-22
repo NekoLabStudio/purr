@@ -4,8 +4,8 @@
 // returns a signal that fires once with the result, so a game can write
 //   var result = await PurrOnline.read_save("slot1")
 // The result is {"ok": bool, "status": HTTP status, "data": the answer, "error": a code like
-// "version_conflict" or "" , "message": why}. The service's URL is the online/url project
-// setting, and the game's ID online/game. Most games use Purr instead, which uses this.
+// "version_conflict" or "" , "message": why}. The service's URL is the trill/url project
+// setting, and the game's ID trill/game. Most games use Purr instead, which uses this.
 
 #include "core/io/http_client.h"
 #include "core/object/object.h"
@@ -34,12 +34,13 @@ class PurrOnline : public Object {
 	Ref<WebSocketPeer> lobby;
 	Ref<WebSocketPeer> matchmaking;
 	bool kicked_seen = false;
-	// Why online play stopped for this session ("update_required", "version_unsupported" or
-	// "service_outdated"), or empty.
+	// Why online play stopped for this session ("update_required", "version_unsupported",
+	// "service_outdated" or "not_owned"), or empty.
 	String blocked;
-	// The service protocol this Purr needs (online/src/version.ts's PROTOCOL).
-	static constexpr int PROTOCOL = 1;
-	// The close code the service uses when the host removes a player (see online/src/lobby.ts).
+	Dictionary ownership_proof;
+	// The Trill protocol this Purr needs (PROTOCOL in Trill's src/version.ts).
+	static constexpr int PROTOCOL = 2;
+	// The close code the service uses when the host removes a player (see Trill's src/lobby.ts).
 	static constexpr int LOBBY_KICKED_CLOSE_CODE = 4001;
 
 	Signal call(HTTPClient::Method p_method, const String &p_path, const Variant &p_body, const String &p_token, const Vector<String> &p_extra_headers = Vector<String>(), bool p_binary_answer = false);
@@ -60,6 +61,9 @@ public:
 
 	bool is_configured() const;
 	String get_blocked_reason() const { return blocked; }
+	// This copy's proof of purchase (from PurrStore), sent with every sign-in.
+	void set_ownership_proof(const Dictionary &p_proof) { ownership_proof = p_proof; }
+	Signal get_ownership_challenge();
 	Signal get_service_version();
 	bool is_secure() const;
 	String get_url() const;
@@ -112,6 +116,7 @@ public:
 	void report_result(const Array &p_ranking);
 	// A check: a value every player's game can work out (usually a hash), compared by the lobby.
 	void send_check(const String &p_name, const String &p_value);
+	void renew_lobby_ice();
 	// A flag: this player's game judged another's behaviour impossible.
 	void flag_peer(int64_t p_peer_id, const String &p_reason);
 

@@ -12,14 +12,6 @@
 
 namespace {
 
-Dictionary failure(const String &p_error, const String &p_message) {
-	Dictionary result;
-	result["ok"] = false;
-	result["error"] = p_error;
-	result["message"] = p_message;
-	return result;
-}
-
 PurrOnline *online() {
 	return PurrOnline::get_singleton();
 }
@@ -27,7 +19,10 @@ PurrOnline *online() {
 } // namespace
 
 // The ICE servers (STUN, and TURN credentials) come with the lobby's welcome: only players in a
-// lobby get TURN credentials.
+// lobby get TURN credentials. They're renewed this long before they end, and asked for again this
+// often until new ones come.
+static constexpr int64_t ICE_RENEW_BEFORE = 30 * 60;
+static constexpr int64_t ICE_RETRY = 5 * 60;
 
 void PurrLobby::create(const Ref<RefCounted> &p_call) {
 	leave();
@@ -43,7 +38,7 @@ void PurrLobby::join(const String &p_code, const Ref<RefCounted> &p_call) {
 void PurrLobby::matchmake(const String &p_mode, int p_players, const Ref<RefCounted> &p_call) {
 	leave();
 	if (online()->join_matchmaking(p_mode, p_players) != OK) {
-		purr_complete(p_call, failure("matchmaking_failed", "Couldn't reach matchmaking."));
+		purr_complete(p_call, purr_failure("matchmaking_failed", "Couldn't reach matchmaking."));
 		return;
 	}
 	matchmaking_mode = p_mode;
@@ -76,7 +71,7 @@ void PurrLobby::disconnect_matchmaking() {
 
 void PurrLobby::lobby_created(const Dictionary &p_result, const Ref<RefCounted> &p_call) {
 	if (!p_result.get("ok", false)) {
-		purr_complete(p_call, failure("lobby_failed", "The online service couldn't create a lobby."));
+		purr_complete(p_call, purr_failure("lobby_failed", "The online service couldn't create a lobby."));
 		return;
 	}
 	enter(Dictionary(p_result["data"]).get("code", ""), p_call);
@@ -84,7 +79,7 @@ void PurrLobby::lobby_created(const Dictionary &p_result, const Ref<RefCounted> 
 
 void PurrLobby::enter(const String &p_code, const Ref<RefCounted> &p_call) {
 	if (online()->join_lobby(p_code) != OK) {
-		purr_complete(p_call, failure("lobby_failed", "Couldn't connect to the lobby."));
+		purr_complete(p_call, purr_failure("lobby_failed", "Couldn't connect to the lobby."));
 		return;
 	}
 	code = p_code;
@@ -103,6 +98,7 @@ void PurrLobby::connect_signals() {
 	online()->connect(SNAME("lobby_result_recorded"), callable_mp(this, &PurrLobby::result_recorded));
 	online()->connect(SNAME("lobby_check_result"), callable_mp(this, &PurrLobby::check_result));
 	online()->connect(SNAME("lobby_flagged"), callable_mp(this, &PurrLobby::flagged));
+	online()->connect(SNAME("lobby_ice_servers"), callable_mp(this, &PurrLobby::ice_servers_received));
 }
 
 void PurrLobby::disconnect_signals() {
@@ -117,6 +113,7 @@ void PurrLobby::disconnect_signals() {
 		online()->disconnect(SNAME("lobby_result_recorded"), callable_mp(this, &PurrLobby::result_recorded));
 		online()->disconnect(SNAME("lobby_check_result"), callable_mp(this, &PurrLobby::check_result));
 		online()->disconnect(SNAME("lobby_flagged"), callable_mp(this, &PurrLobby::flagged));
+		online()->disconnect(SNAME("lobby_ice_servers"), callable_mp(this, &PurrLobby::ice_servers_received));
 	}
 }
 
@@ -124,7 +121,7 @@ void PurrLobby::fail(const String &p_error, const String &p_message) {
 	const Ref<RefCounted> call = pending_call;
 	leave();
 	if (call.is_valid()) {
-		purr_complete(call, failure(p_error, p_message));
+		purr_complete(call, purr_failure(p_error, p_message));
 	}
 }
 
@@ -170,9 +167,10 @@ Error PurrLobby::start_peer() {
 	return OK;
 }
 
-void PurrLobby::welcomed(int64_t p_peer_id, const Array &p_members, const Array &p_ice_servers) {
+void PurrLobby::welcomed(int64_t p_peer_id, const Array &p_members, const Array &p_ice_servers, int64_t p_ice_expires_in) {
 	peer_id = p_peer_id;
 	ice_servers = p_ice_servers;
+	schedule_ice_renewal(p_ice_expires_in);
 	if (start_peer() != OK) {
 		fail("lobby_failed", "Couldn't connect to the host.");
 		return;
@@ -187,6 +185,42 @@ void PurrLobby::welcomed(int64_t p_peer_id, const Array &p_members, const Array 
 		Purr::get_singleton()->set_lobby_presence(code, true);
 	}
 	Lobbies::get_singleton()->call_deferred(SNAME("emit_signal"), SNAME("joined"), code);
+}
+
+// TURN credentials that end (p_expires_in seconds from now; 0 if they don't) are asked for again
+// before they do.
+void PurrLobby::schedule_ice_renewal(int64_t p_expires_in) {
+	ice_generation++;
+	if (p_expires_in <= 0 || !SceneTree::get_singleton()) {
+		return;
+	}
+	const double wait = MAX(60.0, double(p_expires_in - ICE_RENEW_BEFORE));
+	SceneTree::get_singleton()->create_timer(wait, true, false, true)->connect(SNAME("timeout"), callable_mp(this, &PurrLobby::renew_ice).bind(ice_generation), CONNECT_ONE_SHOT);
+}
+
+void PurrLobby::renew_ice(uint64_t p_generation) {
+	if (p_generation != ice_generation || !online() || !online()->is_in_lobby()) {
+		return;
+	}
+	online()->renew_lobby_ice();
+	// Asked again in a while if no answer comes (it may be too soon for the lobby).
+	SceneTree::get_singleton()->create_timer(ICE_RETRY, true, false, true)->connect(SNAME("timeout"), callable_mp(this, &PurrLobby::renew_ice).bind(p_generation), CONNECT_ONE_SHOT);
+}
+
+// New credentials: for connections made from now on, and connections through TURN move onto them.
+void PurrLobby::ice_servers_received(const Array &p_ice_servers, int64_t p_ice_expires_in) {
+	ice_servers = p_ice_servers;
+	schedule_ice_renewal(p_ice_expires_in);
+	if (peer.is_null()) {
+		return;
+	}
+	const Dictionary peers = peer->get_peers();
+	for (const KeyValue<Variant, Variant> &entry : peers) {
+		const Ref<WebRTCPeerConnection> connection = Dictionary(entry.value).get("connection", Variant());
+		if (connection.is_valid() && connection->has_method(SNAME("uses_relay")) && (bool)connection->call(SNAME("uses_relay"))) {
+			connection->call(SNAME("renew_ice_servers"), ice_servers);
+		}
+	}
 }
 
 void PurrLobby::peer_joined(int64_t p_peer_id, const String &p_display_name) {
@@ -311,6 +345,7 @@ void PurrLobby::leave() {
 	}
 	code = String();
 	peer_id = 0;
+	ice_generation++;
 	matchmade = false;
 	pending_call.unref();
 }

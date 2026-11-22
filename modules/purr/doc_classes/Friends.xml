@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <class name="Friends" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
 	<brief_description>
-		The player's Steam friends.
+		The player's friends on Steam, Game Center or Play Games.
 	</brief_description>
 	<description>
-		Who the player's Steam friends are, whether they're playing this game, and the lobbies they're in, to join or invite them.
+		Who the player's friends are and, on Steam, whether they're playing this game and the lobbies they're in, to join or invite them.
 	</description>
 	<tutorials>
 	</tutorials>
@@ -12,27 +12,27 @@
 		<method name="get_all" qualifiers="const">
 			<return type="Array" />
 			<description>
-				Returns the player's friends, each a [Dictionary] with [code]id[/code], [code]name[/code], [code]playing[/code] ([code]true[/code] when they're playing this game), [code]lobby[/code] (the code of the lobby they're in, for [method Lobbies.join], or empty) and [code]invited[/code] ([code]true[/code] when they invited this player to that lobby). Empty without Steam.
+				Returns the player's friends, each a [Dictionary] with [code]id[/code], [code]name[/code], [code]playing[/code] ([code]true[/code] when they're playing this game), [code]lobby[/code] (the code of the lobby they're in, for [method Lobbies.join], or empty) and [code]invited[/code] ([code]true[/code] when they invited this player to that lobby). On Game Center and Play Games, the first call asks the platform for the list, which asks the player whether to share it: it's empty until they answer, and [signal changed] fires when it arrives. Neither platform says what friends are playing, so [code]playing[/code], [code]lobby[/code] and [code]invited[/code] stay empty there. Empty elsewhere.
 			</description>
 		</method>
 		<method name="invite">
 			<return type="void" />
 			<param index="0" name="friend_id" type="String" />
 			<description>
-				Invites a friend (an [code]id[/code] from [method get_all]) to the current lobby. Steam tells them, and their game sees [code]invited[/code] in its list; accepting joins the lobby.
+				Invites a friend (an [code]id[/code] from [method get_all]) to the current lobby. Steam or Game Center tells them, and on Steam their game sees [code]invited[/code] in its list; accepting joins the lobby. Play Games has no invites.
 			</description>
 		</method>
 		<method name="is_available" qualifiers="const">
 			<return type="bool" />
 			<description>
-				Returns [code]true[/code] when Steam is running.
+				Returns [code]true[/code] when Steam is running, or the player is signed in to Game Center or Play Games.
 			</description>
 		</method>
 	</methods>
 	<signals>
 		<signal name="changed">
 			<description>
-				Emitted when a friend's status or lobby changed, or they invited this player: time to call [method get_all] again.
+				Emitted when a friend's status or lobby changed, they invited this player, or Game Center's or Play Games' list arrived: time to call [method get_all] again.
 			</description>
 		</signal>
 	</signals>

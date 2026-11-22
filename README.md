@@ -2,7 +2,7 @@
 
 Purr by NekoLab, based on Godot Engine.
 
-Purr is the game engine behind NekoLab's games, based on Godot. It adds online services, platform integrations and a few features of its own.
+Purr is the game engine behind NekoLab's games, based on Godot. It adds platform integrations, online features through [Trill](https://github.com/NekoLabStudio/trill) and a few features of its own.
 
 Purr stays close to upstream Godot. The Godot source is untouched and Purr's own changes are a few small patches, so new Godot releases come to Purr quickly.
 
@@ -14,8 +14,8 @@ On a Mac, `brew install --cask nekolabstudio/tap/purr` installs the editor. Each
 
 ## What's built in
 
-- Accounts, saves (local first, synced to the cloud), achievements, leaderboards, lobbies, friends and local players, the same on every platform (`Account`, `Saves`, `Achievements` and the rest).
-- Online services you run on your own Cloudflare account (`online/`), for crossplay lobbies, ranked matchmaking, progress across platforms by email and guests who bring their own profile.
+- Accounts, saves (local first, synced to the cloud), achievements, leaderboards, lobbies, friends, local players and DLC, the same on every platform (`Account`, `Saves`, `Achievements`, `Store` and the rest).
+- Online play through [Trill](https://oss.nekolab.studio/trill/), online services you run on your own Cloudflare account, for crossplay lobbies, ranked matchmaking, progress across platforms by email and guests who bring their own profile.
 - Steam (GodotSteam), Game Center, iCloud saves and Google Play Games.
 - WebRTC, built into the engine.
 - Controls players can change and keep, with button prompts for whatever controller they're holding, and controllers for each local player.
@@ -60,7 +60,6 @@ On a Mac with Xcode and SCons, run `./build.sh` for the editor, `./build.sh temp
 | `patches/` | Purr's changes to Godot and the third-party modules, applied in order at build time. |
 | `samples/` | A small project for each module. |
 | `docs/` | The documentation, published by `docs-site/build.py`. Upgrade notes are in `docs/upgrading/`. |
-| `online/` | The online services (a Cloudflare Worker), deployed on their own. |
 | `build/purr.py` | The build options every Purr build uses. |
 | `branding/` | Purr's logo, splash screen and icons. |
 | `VERSION.txt` | Purr's version. |

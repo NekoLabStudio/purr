@@ -1,0 +1,87 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Sun, 22 Nov 2026 10:19:51 +0000
+Subject: [PATCH] GodotSteam: a client can reconnect to a lobby with its peer
+ ID
+
+When a Steam lobby's host leaves, Purr's host migration makes the
+lobby's new owner peer 1 and reconnects everyone else to them. A
+client reconnecting through connect_to_lobby() got a new random peer
+ID, so the nodes it owned in the game were no longer its own.
+connect_to_lobby() takes the ID to keep (0 picks one, as before).
+---
+ .../godotsteam/doc_classes/SteamMultiplayerPeer.xml  |  2 ++
+ modules/godotsteam/godotsteam_multiplayer_peer.cpp   | 12 +++++++++---
+ modules/godotsteam/godotsteam_multiplayer_peer.h     |  2 +-
+ 3 files changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/modules/godotsteam/doc_classes/SteamMultiplayerPeer.xml b/modules/godotsteam/doc_classes/SteamMultiplayerPeer.xml
+index 2a6c9fe9..6b107016 100644
+--- a/modules/godotsteam/doc_classes/SteamMultiplayerPeer.xml
++++ b/modules/godotsteam/doc_classes/SteamMultiplayerPeer.xml
+@@ -24,10 +24,12 @@
+ 		<method name="connect_to_lobby">
+ 			<return type="int" enum="Error" />
+ 			<param index="0" name="lobby_id" type="int" />
++			<param index="1" name="peer_id" type="int" default="0" />
+ 			<description>
+ 				Checks you are in the lobby by calling [method Steam.getLobbyOwner] or prints an error [constant ERR_CANT_CREATE].
+ 				It then calls [method SteamMultiplayerPeer.create_client] for the host or prints an [enum Error] enum if there is no host found.
+ 				Finally it connects to the rest of the members of the lobby, calling add_peer for each.
++				With [param peer_id] greater than 1, the client takes that peer ID instead of a random one: a client reconnecting to a new host after the old one left keeps the ID it had.
+ 				Returns [constant OK] upon success; otherwise, [constant ERR_ALREADY_IN_USE] if [b]connection_status[/b] is not [constant MultiplayerPeer.CONNECTION_DISCONNECTED].
+ 			</description>
+ 		</method>
+diff --git a/modules/godotsteam/godotsteam_multiplayer_peer.cpp b/modules/godotsteam/godotsteam_multiplayer_peer.cpp
+index 4dfb8731..57adfb7f 100644
+--- a/modules/godotsteam/godotsteam_multiplayer_peer.cpp
++++ b/modules/godotsteam/godotsteam_multiplayer_peer.cpp
+@@ -630,7 +630,7 @@ Error SteamMultiplayerPeer::host_with_lobby(uint64_t p_lobby_id) {
+ 	return OK;
+ }
+ 
+-Error SteamMultiplayerPeer::connect_to_lobby(uint64_t p_lobby_id) {
++Error SteamMultiplayerPeer::connect_to_lobby(uint64_t p_lobby_id, int p_peer_id) {
+ 	ERR_FAIL_COND_V(connection_status != CONNECTION_DISCONNECTED, ERR_ALREADY_IN_USE);
+ 	// k_steamIDNil is a CSteamID in the SDK but doesn't jive with the Flat API, should be 0?
+ 	ERR_FAIL_COND_V_MSG(SteamAPI_ISteamMatchmaking_GetLobbyOwner(
+@@ -645,6 +645,12 @@ Error SteamMultiplayerPeer::connect_to_lobby(uint64_t p_lobby_id) {
+ 			SteamAPI_SteamMatchmaking(), p_lobby_id));
+ 	ERR_FAIL_COND_V(client_created != OK, client_created);
+ 
++	// Reconnecting to a new host as the same peer, so what it owns stays its own. The ID only
++	// goes to the others once connected (in its first ping), so it can still change here.
++	if (p_peer_id > 1) {
++		unique_id = p_peer_id;
++	}
++
+ 	// Connect to the rest of the members
+ 	int count = SteamAPI_ISteamMatchmaking_GetNumLobbyMembers(
+ 			SteamAPI_SteamMatchmaking(), p_lobby_id);
+@@ -759,8 +765,8 @@ void SteamMultiplayerPeer::_bind_methods() {
+ 
+ 	ClassDB::bind_method(D_METHOD("host_with_lobby", "lobby_id"),
+ 			&SteamMultiplayerPeer::host_with_lobby);
+-	ClassDB::bind_method(D_METHOD("connect_to_lobby", "lobby_id"),
+-			&SteamMultiplayerPeer::connect_to_lobby);
++	ClassDB::bind_method(D_METHOD("connect_to_lobby", "lobby_id", "peer_id"),
++			&SteamMultiplayerPeer::connect_to_lobby, DEFVAL(0));
+ 
+ 	ClassDB::bind_method(D_METHOD("get_steam_id_for_peer_id", "peer_id"),
+ 			&SteamMultiplayerPeer::get_steam_id_for_peer_id);
+diff --git a/modules/godotsteam/godotsteam_multiplayer_peer.h b/modules/godotsteam/godotsteam_multiplayer_peer.h
+index e6156653..1cbed013 100644
+--- a/modules/godotsteam/godotsteam_multiplayer_peer.h
++++ b/modules/godotsteam/godotsteam_multiplayer_peer.h
+@@ -159,7 +159,7 @@ public:
+ 
+ 	// Helper lobby mode
+ 	Error host_with_lobby(uint64_t p_lobby_id);
+-	Error connect_to_lobby(uint64_t p_lobby_id);
++	Error connect_to_lobby(uint64_t p_lobby_id, int p_peer_id = 0);
+ 
+ 	// Helper functions
+ 	uint64_t get_steam_id_for_peer_id(int p_peer_id);
+-- 
+2.54.0 (Apple Git-157)
+

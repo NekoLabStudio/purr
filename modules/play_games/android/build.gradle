@@ -23,8 +23,10 @@ dependencies {
     // The game's own Godot library is there at run time; this is only to compile against. The
     // plugin API used here hasn't changed since Godot 4.2.
     compileOnly 'org.godotengine:godot:4.7.2.stable'
-    // Purr's export plugin adds the same version to the game (keep the two in step).
+    // Purr's export plugin adds the same versions to the game (keep the two in step).
     compileOnly 'com.google.android.gms:play-services-games-v2:22.1.0'
+    compileOnly 'com.android.billingclient:billing:9.1.0'
+    compileOnly 'com.google.android.play:integrity:1.6.0'
 }
 
 // The AAR under a fixed name, ready to go into the export templates.

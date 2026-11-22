@@ -36,8 +36,11 @@ Vector<String> PlatformNamesSettings::ids() const {
 		if (!property.name.begins_with(start)) {
 			continue;
 		}
-		const String id = property.name.substr(start.length()).get_slicec('/', 0);
-		if (!id.is_empty() && !found.has(id)) {
+		// <prefix>/<id>/<platform>: a setting straight under the prefix (store/owned_in_editor) isn't
+		// an item.
+		const String rest = property.name.substr(start.length());
+		const String id = rest.get_slicec('/', 0);
+		if (rest.contains("/") && !id.is_empty() && !found.has(id)) {
 			found.push_back(id);
 		}
 	}
@@ -57,7 +60,7 @@ void PlatformNamesSettings::update_list() {
 			const String key = prefix + "/" + id + "/" + columns[i];
 			item->set_text(i + 1, ProjectSettings::get_singleton()->get_setting(key, String()));
 			item->set_editable(i + 1, true);
-			item->set_tooltip_text(i + 1, TTR("Empty: the same as the ID."));
+			item->set_tooltip_text(i + 1, empty_tooltip);
 		}
 		item->add_button(columns.size() + 1, get_editor_theme_icon(SNAME("Remove")), 0, false, TTR("Remove"));
 	}
@@ -145,8 +148,9 @@ void PlatformNamesSettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("changed"), &PlatformNamesSettings::changed);
 }
 
-PlatformNamesSettings::PlatformNamesSettings(const String &p_prefix, const Vector<Pair<String, String>> &p_columns) {
+PlatformNamesSettings::PlatformNamesSettings(const String &p_prefix, const Vector<Pair<String, String>> &p_columns, const String &p_empty_tooltip, const String &p_id_placeholder) {
 	prefix = p_prefix;
+	empty_tooltip = p_empty_tooltip;
 
 	HBoxContainer *add_row = memnew(HBoxContainer);
 	add_child(add_row);
@@ -154,7 +158,7 @@ PlatformNamesSettings::PlatformNamesSettings(const String &p_prefix, const Vecto
 	add_row->add_child(label);
 	id_edit = memnew(LineEdit);
 	id_edit->set_h_size_flags(SIZE_EXPAND_FILL);
-	id_edit->set_placeholder(TTR("The ID the game uses, like first_delivery"));
+	id_edit->set_placeholder(p_id_placeholder);
 	id_edit->set_accessibility_name(TTR("ID"));
 	id_edit->connect(SceneStringName(text_submitted), callable_mp(this, &PlatformNamesSettings::add_pressed).unbind(1));
 	add_row->add_child(id_edit);

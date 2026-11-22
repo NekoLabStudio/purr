@@ -1,4 +1,5 @@
 def can_build(env, platform):
+    env.module_add_dependencies("play_games", ["purr"])
     return platform == "android"
 
 

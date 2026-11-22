@@ -11,32 +11,6 @@ permissions:
   contents: read
 
 jobs:
-  online:
-    name: Online services
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: online
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: lts/*
-          cache: npm
-          cache-dependency-path: online/package-lock.json
-
-      - name: Install
-        run: npm ci --no-audit --no-fund
-
-      - name: Type-check
-        run: npx tsc --noEmit
-
-      - name: Test
-        run: npm test
-
   docs:
     name: Docs
     runs-on: ubuntu-latest
@@ -48,10 +22,7 @@ jobs:
 
       # Fails when a page is missing from the nav or a version set can't build.
       - name: Build docs site
-        run: |
-          python3 docs-site/build.py --output dist/docs-site
-          # The online services' setup command downloads this.
-          test -s dist/docs-site/online/setup.sh
+        run: python3 docs-site/build.py --output dist/docs-site
 
       - name: Check the class reference XML
         run: |
@@ -100,6 +71,9 @@ jobs:
       - name: Graphics adapter tiers
         run: modules/graphics/tests/run.sh
 
+      - name: Lobby rules
+        run: modules/purr/tests/run.sh
+
       - name: WebRTC
         run: godot/bin/godot.macos.editor.arm64 --headless --path samples/webrtc -s test.gd
 
@@ -134,6 +108,8 @@ jobs:
         run: godot/bin/godot.macos.editor.arm64 --headless --path samples/crash_reports -s test.gd
       - name: Options
         run: godot/bin/godot.macos.editor.arm64 --headless --path samples/options -s test.gd
+      - name: Store
+        run: godot/bin/godot.macos.editor.arm64 --headless --path samples/store -s test.gd
 
       - name: MCP server
         run: godot/bin/godot.macos.editor.arm64 --headless --path samples/mcp -s test.gd
@@ -203,6 +179,8 @@ jobs:
         run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/crash_reports -s test.gd
       - name: Options
         run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/options -s test.gd
+      - name: Store
+        run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/store -s test.gd
 
       - name: MCP server
         run: godot/bin/godot.linuxbsd.editor.x86_64 --headless --path samples/mcp -s test.gd
@@ -274,6 +252,8 @@ jobs:
         run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/crash_reports -s test.gd
       - name: Options
         run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/options -s test.gd
+      - name: Store
+        run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/store -s test.gd
 
       - name: MCP server
         run: godot/bin/godot.windows.editor.x86_64.console.exe --headless --path samples/mcp -s test.gd

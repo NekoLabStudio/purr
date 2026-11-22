@@ -1,0 +1,17 @@
+config_version=5
+
+[application]
+
+config/name="Store sample"
+config/description="Lists the game's store items with their price and a Buy button, and Restore Purchases. In the editor, purchases are pretend ones; on Steam, the App Store or Google Play they're real once the products exist there."
+run/main_scene="res://main.tscn"
+
+[store]
+
+winter_expansion/steam="2000010"
+winter_expansion/apple="studio.example.winter_expansion"
+winter_expansion/google_play="winter_expansion"
+soundtrack/steam="2000020"
+soundtrack/apple="studio.example.soundtrack"
+soundtrack/google_play="soundtrack"
+owned_in_editor=PackedStringArray("soundtrack")

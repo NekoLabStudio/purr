@@ -5,7 +5,7 @@ Purr is NekoLab's game engine: Godot with what most games end up needing built i
 For every game:
 
 - Accounts, saves, achievements, leaderboards, lobbies, friends and [local players](../api/local-players.md), through [one API](../api/index.md) that works the same on Steam, Game Center, Google Play Games and a device without a platform.
-- Purr's own [online services](../online/index.md), which you run yourself, for crossplay, progress across platforms and ranked play.
+- [Trill](../online/index.md), NekoLab's online services, which you run yourself, for crossplay, progress across platforms and ranked play.
 - [Options](../modules/options.md): the player's settings, saved and put into effect, from the window, graphics tier and audio volumes to the game's own.
 - [Controls](../modules/controls.md) players can change and keep, with button prompts for whatever controller they're holding.
 - [Crash reports](../modules/crash-reports.md) for runs that crashed or were closed by force, sent to your online services if the player agrees.

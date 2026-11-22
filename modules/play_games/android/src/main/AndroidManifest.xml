@@ -5,5 +5,9 @@
         <meta-data
             android:name="org.godotengine.plugin.v2.PlayGamesAndroid"
             android:value="studio.nekolab.purr.playgames.PlayGamesPlugin" />
+        <!-- And Google Play's store (Play Billing, Play Integrity) as PurrStoreAndroid. -->
+        <meta-data
+            android:name="org.godotengine.plugin.v2.PurrStoreAndroid"
+            android:value="studio.nekolab.purr.playgames.GooglePlayStorePlugin" />
     </application>
 </manifest>
