@@ -256,9 +256,22 @@ private:
         ++reports_;
         HRESULT result = effect->SetParameters(&parameters, DIEP_TYPESPECIFICPARAMS);
         if (result == DIERR_INPUTLOST || result == DIERR_NOTACQUIRED) {
-            // Taken away (another window, a driver reset): take it back once.
+            // Taken away (another window, a driver reset): take it back once. Losing the wheel
+            // stopped every effect and may have put its autocentre back, so all of them start
+            // again, not only this one.
+            DIPROPDWORD autocenter{};
+            autocenter.diph.dwSize = sizeof(DIPROPDWORD);
+            autocenter.diph.dwHeaderSize = sizeof(DIPROPHEADER);
+            autocenter.diph.dwHow = DIPH_DEVICE;
+            autocenter.dwData = DIPROPAUTOCENTER_OFF;
+            device_->SetProperty(DIPROP_AUTOCENTER, &autocenter.diph);
             if (FAILED(device_->Acquire())) {
                 return false;
+            }
+            for (IDirectInputEffect* each : {constant_, damper_, friction_}) {
+                if (each && each != effect) {
+                    each->Start(1, 0);
+                }
             }
             result = effect->SetParameters(&parameters, DIEP_TYPESPECIFICPARAMS | DIEP_START);
         }

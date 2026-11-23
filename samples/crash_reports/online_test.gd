@@ -1,9 +1,9 @@
-# Sends crash reports to a local copy of Trill (the online services). Start it first, from a copy
-# of Trill's repository, with its database kept in a folder of its own:
-#   npx wrangler d1 migrations apply trill --local --persist-to /tmp/purr-crashes
+# Sends crash reports to a local copy of the online service. Start it first, with its database
+# kept in a folder of its own:
+#   cd online && npx wrangler d1 migrations apply purr-online --local --persist-to /tmp/purr-crashes
 #   npx wrangler dev --persist-to /tmp/purr-crashes
-# then run, with that copy and that folder (to read what the service stored):
-#   TRILL_DIR=<Trill's folder> PURR_ONLINE_STATE=/tmp/purr-crashes purr --headless --path samples/crash_reports -s online_test.gd
+# then run, with that folder (to read what the service stored):
+#   PURR_ONLINE_STATE=/tmp/purr-crashes purr --headless --path samples/crash_reports -s online_test.gd
 # It exits non-zero if a check fails.
 extends SceneTree
 
@@ -22,8 +22,8 @@ func run(script: String) -> void:
 
 # The newest reports the service stored, read from its database.
 func stored() -> Array:
-	var online := OS.get_environment("TRILL_DIR")
-	var command := "cd '%s' && npx wrangler d1 execute trill --local --persist-to '%s' --json --command 'SELECT report FROM crash_reports ORDER BY created_at DESC'" % [online, OS.get_environment("PURR_ONLINE_STATE")]
+	var online := ProjectSettings.globalize_path("res://").path_join("../../online").simplify_path()
+	var command := "cd '%s' && npx wrangler d1 execute purr-online --local --persist-to '%s' --json --command 'SELECT report FROM crash_reports ORDER BY created_at DESC'" % [online, OS.get_environment("PURR_ONLINE_STATE")]
 	var output := []
 	OS.execute("sh", PackedStringArray(["-c", command]), output)
 	var parsed: Variant = JSON.parse_string("".join(output))
@@ -43,8 +43,8 @@ func _initialize() -> void:
 
 func _run() -> void:
 	await process_frame
-	ProjectSettings.set_setting("trill/url", "http://localhost:8787")
-	ProjectSettings.set_setting("trill/game", "example")
+	ProjectSettings.set_setting("online/url", "http://localhost:8787")
+	ProjectSettings.set_setting("online/game", "example")
 	Options.set_value("privacy/send_crash_reports", false)
 	for report in CrashReports.get_reports():
 		CrashReports.delete_report(report)
@@ -63,6 +63,13 @@ func _run() -> void:
 	check("without the email or IP address, or the home folder", not text.contains("ada@example.com") and not text.contains("203.0.113.9") and not text.contains(OS.get_environment("HOME")) and text.contains("~/game.save"), text)
 	var wrong: Dictionary = await CrashReports.send("user://options.cfg")
 	check("something that isn't a report isn't sent", wrong.get("error") == "not_a_report", wrong)
+
+	run("crash_with_long_log.gd")
+	run("look.gd")
+	sent = await CrashReports.send(CrashReports.get_reports()[0])
+	check("a report longer than the service takes is sent", sent.get("ok", false), sent)
+	text = stored()[0].get("report", "") if not stored().is_empty() else ""
+	check("shortened, with the end of its log", text.to_utf8_buffer().size() <= 65536 and text.contains("the last line") and text.contains("didn't end cleanly"), text.length())
 
 	run("crash.gd")
 	run("look.gd")

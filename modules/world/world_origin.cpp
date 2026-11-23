@@ -1,7 +1,6 @@
 #include "world_origin.h"
 
 #include "../graphics/frame_budget.h"
-#include "multimesh_body_3d.h"
 
 #include "core/config/engine.h"
 #include "core/config/project_settings.h"
@@ -12,6 +11,7 @@
 #include "scene/3d/gpu_particles_3d.h"
 #include "scene/3d/node_3d.h"
 #include "scene/3d/physics/collision_object_3d.h"
+#include "scene/3d/physics/joints/joint_3d.h"
 #include "scene/3d/visual_instance_3d.h"
 #include "scene/main/scene_tree.h"
 #include "scene/main/window.h"
@@ -174,8 +174,9 @@ void WorldOrigin::follow(const Vector3 &p_global, bool p_calm) {
 // (World3D::shift(): the renderer's instances and culling, the physics space), so the nodes under it,
 // seeing the servers already have their new transforms, needn't send them one by one. Only the
 // world node's own physics interpolation is reset (the rest follow it), so nothing is drawn sliding
-// over a frame. Nodes in that World3D that don't move with it (outside it, or top-level) are put
-// back where they are on the servers.
+// over a frame. Nodes that moved are told (Node3D::world_shifted()), for what they keep in global
+// space; those in that World3D that didn't (outside it, or top-level) are put back where they are on
+// the servers.
 void WorldOrigin::_move_world(Node3D *p_world, const Vector3 &p_by) {
 	const Ref<World3D> world_3d = p_world->is_inside_tree() ? p_world->get_world_3d() : Ref<World3D>();
 	if (world_3d.is_valid()) {
@@ -186,13 +187,16 @@ void WorldOrigin::_move_world(Node3D *p_world, const Vector3 &p_by) {
 		p_world->notification(Node::NOTIFICATION_RESET_PHYSICS_INTERPOLATION);
 	}
 	if (world_3d.is_valid() && SceneTree::get_singleton() != nullptr) {
-		_put_back_unmoved(SceneTree::get_singleton()->get_root(), p_world, world_3d.ptr(), false);
+		_after_move(SceneTree::get_singleton()->get_root(), p_world, world_3d.ptr(), p_by, false);
 	}
 }
 
-// Walks the tree: nodes that didn't move with the world (under no Node3D parent that did, or
-// top-level) send their transforms again, as the servers moved them with everything else.
-void WorldOrigin::_put_back_unmoved(Node *p_node, Node3D *p_world, World3D *p_world_3d, bool p_moved) {
+// Walks the tree. Nodes that moved with the world move what they keep in global space; those that
+// didn't (under no Node3D parent that did, or top-level) send their transforms again, and joints with
+// one body make their world end again, as the servers moved them with everything else: any other node
+// with server state of its own (instances, bodies) sends it from its transform when that changes, so
+// it's told it has.
+void WorldOrigin::_after_move(Node *p_node, Node3D *p_world, World3D *p_world_3d, const Vector3 &p_by, bool p_moved) {
 	Node3D *spatial = Object::cast_to<Node3D>(p_node);
 	bool moved = false;
 	if (spatial != nullptr) {
@@ -201,18 +205,22 @@ void WorldOrigin::_put_back_unmoved(Node *p_node, Node3D *p_world, World3D *p_wo
 		} else if (!spatial->is_set_as_top_level()) {
 			moved = p_moved && Object::cast_to<Node3D>(spatial->get_parent()) != nullptr;
 		}
-		if (!moved && spatial->get_world_3d().ptr() == p_world_3d) {
+		if (moved) {
+			spatial->world_shifted(p_by);
+		} else if (spatial->get_world_3d().ptr() == p_world_3d) {
 			if (VisualInstance3D *visual = Object::cast_to<VisualInstance3D>(spatial)) {
 				visual->update_server_transform();
 			} else if (CollisionObject3D *body = Object::cast_to<CollisionObject3D>(spatial)) {
 				body->update_server_transform();
-			} else if (Object::cast_to<MultiMeshBody3D>(spatial) != nullptr) {
+			} else if (Joint3D *joint = Object::cast_to<Joint3D>(spatial)) {
+				joint->update_server_transform();
+			} else if (spatial->is_transform_notification_enabled()) {
 				spatial->notification(Node3D::NOTIFICATION_TRANSFORM_CHANGED);
 			}
 		}
 	}
 	for (int i = 0; i < p_node->get_child_count(true); i++) {
-		_put_back_unmoved(p_node->get_child(i, true), p_world, p_world_3d, moved);
+		_after_move(p_node->get_child(i, true), p_world, p_world_3d, p_by, moved);
 	}
 }
 

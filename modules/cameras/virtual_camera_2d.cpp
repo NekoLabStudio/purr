@@ -75,10 +75,10 @@ void VirtualCamera2D::update_pose(real_t p_delta) {
 			}
 			if (any) {
 				position = bounds.get_center() + follow_offset;
-				// Zoomed out enough for the group and its margin to fit, and never in past zoom.
-				const Vector2 view = get_viewport_rect().size;
-				const Vector2 needed = bounds.size + Vector2(group_margin, group_margin) * 2.0;
-				const real_t fit = MIN(view.x / MAX(needed.x, 1.0), view.y / MAX(needed.y, 1.0));
+				// Zoomed out enough for the group to fit inside the margin (pixels on screen, whatever
+				// the zoom), and never in past zoom.
+				const Vector2 view = get_viewport_rect().size - Vector2(group_margin, group_margin) * 2.0;
+				const real_t fit = MIN(MAX(view.x, 1.0) / MAX(bounds.size.x, 1.0), MAX(view.y, 1.0) / MAX(bounds.size.y, 1.0));
 				wanted_zoom = Vector2(MIN(fit, zoom.x), MIN(fit, zoom.y));
 			}
 		} break;

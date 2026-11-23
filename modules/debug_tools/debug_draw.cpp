@@ -597,12 +597,18 @@ void DebugDraw::_draw_overlay(Viewport *p_root, const Shapes &p_shapes) {
 	}
 }
 
+// The shapes are in global space and move with the world. Their instances stay at the origin: the
+// renderer moved them with everything else in the scenario, so they're put back.
 void DebugDraw::_shifted(const Vector3 &p_by) {
 	MutexLock lock(mutex);
 	frame_shapes.move(p_by);
 	tick_shapes.move(p_by);
 	for (Timed &batch : timed) {
 		batch.shapes.move(p_by);
+	}
+	if (instance.is_valid()) {
+		RenderingServer::get_singleton()->instance_set_transform(instance, Transform3D());
+		RenderingServer::get_singleton()->instance_set_transform(see_through_instance, Transform3D());
 	}
 }
 

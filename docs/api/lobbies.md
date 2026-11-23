@@ -15,9 +15,9 @@ var joined = await Lobbies.join(code)
 
 ## Crossplay lobbies
 
-With the online services set up and the player signed in to them, lobbies are crossplay: players on any platform join with the code and play peer to peer over [WebRTC](../modules/webrtc.md). The service only introduces the players; gameplay never goes through it. When two players can't connect directly, the connection goes through a TURN relay, if the service has one set up (see [the online services](https://oss.nekolab.studio/trill/turn/)).
+With the online services set up and the player signed in to them, lobbies are crossplay: players on any platform join with the code and play peer to peer over [WebRTC](../modules/webrtc.md). The service only introduces the players; gameplay never goes through it. When two players can't connect directly, the connection goes through a TURN relay, if the service has one set up (see [the online services](../online/turn.md)).
 
-Playing peer to peer shows each player's IP address to the players they connect to. Turn on `lobbies/relay_only` to connect only through TURN, so nobody sees anyone's address. Only players who get TURN can then connect: by default, those signed in through Steam, Game Center or Play Games (see [TURN](https://oss.nekolab.studio/trill/turn/)).
+Playing peer to peer shows each player's IP address to the players they connect to. Turn on `lobbies/relay_only` to connect only through TURN, so nobody sees anyone's address. Only players who get TURN can then connect: by default, those signed in through Steam, Game Center or Play Games (see [TURN](../online/turn.md)).
 
 ## Removing, reporting and blocking players
 
@@ -36,7 +36,7 @@ Lobbies.report(peer_id, Lobbies.REPORT_CHEATING, "Drove through walls on lap 2")
 Lobbies.block(peer_id)
 ```
 
-The reason is `REPORT_CHEATING`, `REPORT_ABUSE`, `REPORT_NAME` or `REPORT_OTHER`, and the details are up to 500 characters in the player's own words. In a crossplay lobby, reports go to whoever runs the online services (see [Moderation](https://oss.nekolab.studio/trill/moderation/)). In a Steam lobby, `report()` opens the player's Steam profile in the overlay, where Steam's own report button is; Game Center has nothing a game can report to, so there it does nothing. A blocked player is never matched with the player who blocked them again, and can't join lobbies they host.
+The reason is `REPORT_CHEATING`, `REPORT_ABUSE`, `REPORT_NAME` or `REPORT_OTHER`, and the details are up to 500 characters in the player's own words. In a crossplay lobby, reports go to whoever runs the online services (see [Moderation](../online/moderation.md)). In a Steam lobby, `report()` opens the player's Steam profile in the overlay, where Steam's own report button is; Game Center has nothing a game can report to, so there it does nothing. A blocked player is never matched with the player who blocked them again, and can't join lobbies they host.
 
 ## When the host leaves
 

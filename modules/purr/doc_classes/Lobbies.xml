@@ -4,7 +4,7 @@
 		Playing together through Godot's high-level multiplayer, on any platform.
 	</brief_description>
 	<description>
-		A lobby sets the scene tree's multiplayer peer, so the game plays through Godot's high-level multiplayer ([MultiplayerAPI], RPCs, [MultiplayerSynchronizer]) as usual. When the online service is set up ([code]trill/url[/code]) and the player is signed in to it, lobbies are crossplay: players on any platform join with a code and play peer to peer over WebRTC, through a TURN relay when they can't connect directly. Otherwise they're the platform's own, for players on that platform: Steam lobbies, or Game Center matches on Apple platforms. Everything else works the same in those, decided by the players' games together instead of by the service.
+		A lobby sets the scene tree's multiplayer peer, so the game plays through Godot's high-level multiplayer ([MultiplayerAPI], RPCs, [MultiplayerSynchronizer]) as usual. When the online service is set up ([code]online/url[/code]) and the player is signed in to it, lobbies are crossplay: players on any platform join with a code and play peer to peer over WebRTC, through a TURN relay when they can't connect directly. Otherwise they're the platform's own, for players on that platform: Steam lobbies, or Game Center matches on Apple platforms. Everything else works the same in those, decided by the players' games together instead of by the service.
 		[codeblock]
 		var result = await Lobbies.create()
 		code_label.text = result.code  # the others enter it in Lobbies.join()
@@ -103,7 +103,7 @@
 		<method name="leave">
 			<return type="void" />
 			<description>
-				Leaves the lobby and clears the scene tree's multiplayer peer.
+				Leaves the lobby and clears the scene tree's multiplayer peer. A [method create], [method join] or [method matchmake] still waiting completes with [code]error[/code] [code]"cancelled"[/code], as it does when the game asks for another lobby first.
 			</description>
 		</method>
 		<method name="matchmake">

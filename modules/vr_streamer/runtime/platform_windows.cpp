@@ -103,7 +103,7 @@ void make_directories(const std::string& path) {
 bool map_shared_file(const std::string& path, std::size_t size, Mapping& out) {
     // Deleted when the last handle closes, so a crashed game leaves nothing behind.
     HANDLE file = CreateFileW(widen(path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                              nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY, nullptr);
+                              nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, nullptr);
     if (file == INVALID_HANDLE_VALUE) {
         return false;
     }

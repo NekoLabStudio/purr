@@ -13,6 +13,7 @@
 #include <cstring>
 #include <deque>
 #include <mutex>
+#include <unordered_map>
 #include <thread>
 
 namespace {
@@ -84,13 +85,22 @@ public:
             }
             images[i] = texture;
         }
-        mip_levels_ = info.mipCount;
+        {
+            std::lock_guard<std::mutex> lock(mip_levels_lock_);
+            for (std::uint32_t i = 0; i < kSwapchainImageCount; ++i) {
+                mip_levels_[images[i]] = info.mipCount;
+            }
+        }
         return true;
     }
 
     void destroy_images(void* images[kSwapchainImageCount]) override {
         for (std::uint32_t i = 0; i < kSwapchainImageCount; ++i) {
             if (images[i]) {
+                {
+                    std::lock_guard<std::mutex> lock(mip_levels_lock_);
+                    mip_levels_.erase(images[i]);
+                }
                 static_cast<ID3D12Resource*>(images[i])->Release();
                 images[i] = nullptr;
             }
@@ -151,7 +161,7 @@ public:
         slot.list->Reset(slot.allocator, nullptr);
         for (std::uint32_t eye = 0; eye < 2; ++eye) {
             auto* texture = static_cast<ID3D12Resource*>(eyes[eye].image);
-            const UINT subresource = eyes[eye].array_index * mip_levels_;
+            const UINT subresource = eyes[eye].array_index * mip_levels_of(eyes[eye].image);
             D3D12_RESOURCE_BARRIER barrier{};
             barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
             barrier.Transition.pResource = texture;
@@ -275,7 +285,15 @@ private:
     ID3D12Device* device_;
     ID3D12CommandQueue* queue_;
     std::string name_;
-    UINT mip_levels_ = 1;
+    // Each swapchain image's mip count (colour and depth swapchains can differ), for the subresource
+    // of an eye's array layer.
+    std::unordered_map<void*, UINT> mip_levels_;
+    std::mutex mip_levels_lock_;
+    UINT mip_levels_of(void* image) {
+        std::lock_guard<std::mutex> lock(mip_levels_lock_);
+        const auto found = mip_levels_.find(image);
+        return found == mip_levels_.end() ? 1 : found->second;
+    }
     UINT row_pitch_ = 0;
     std::uint64_t eye_bytes_ = 0;
     Slot slots_[vr_shared::kSlotCount];

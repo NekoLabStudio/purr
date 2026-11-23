@@ -27,7 +27,7 @@ static constexpr int64_t ICE_RETRY = 5 * 60;
 void PurrLobby::create(const Ref<RefCounted> &p_call) {
 	leave();
 	Signal created = online()->create_lobby();
-	created.connect(callable_mp(this, &PurrLobby::lobby_created).bind(p_call), CONNECT_ONE_SHOT);
+	created.connect(callable_mp(this, &PurrLobby::lobby_created).bind(p_call, attempt), CONNECT_ONE_SHOT);
 }
 
 void PurrLobby::join(const String &p_code, const Ref<RefCounted> &p_call) {
@@ -69,7 +69,12 @@ void PurrLobby::disconnect_matchmaking() {
 	matchmaking_mode = String();
 }
 
-void PurrLobby::lobby_created(const Dictionary &p_result, const Ref<RefCounted> &p_call) {
+void PurrLobby::lobby_created(const Dictionary &p_result, const Ref<RefCounted> &p_call, uint64_t p_attempt) {
+	if (p_attempt != attempt) {
+		// The game left, or joined or made another lobby, meanwhile.
+		purr_complete(p_call, purr_failure("cancelled", "Another lobby was asked for before this one was made."));
+		return;
+	}
 	if (!p_result.get("ok", false)) {
 		purr_complete(p_call, purr_failure("lobby_failed", "The online service couldn't create a lobby."));
 		return;
@@ -119,6 +124,7 @@ void PurrLobby::disconnect_signals() {
 
 void PurrLobby::fail(const String &p_error, const String &p_message) {
 	const Ref<RefCounted> call = pending_call;
+	pending_call.unref();
 	leave();
 	if (call.is_valid()) {
 		purr_complete(call, purr_failure(p_error, p_message));
@@ -147,8 +153,9 @@ Ref<WebRTCPeerConnection> PurrLobby::connection_to(int64_t p_peer_id) {
 }
 
 // The multiplayer peer for this player's role: the host as server, anyone else as a client who
-// offers a connection to the host.
-Error PurrLobby::start_peer() {
+// offers a connection to the host once the host is in the lobby (p_host_here): the lobby passes
+// signals only between players who are there.
+Error PurrLobby::start_peer(bool p_host_here) {
 	if (peer.is_valid()) {
 		peer->close();
 	}
@@ -158,11 +165,16 @@ Error PurrLobby::start_peer() {
 		return error;
 	}
 	SceneTree::get_singleton()->get_multiplayer()->set_multiplayer_peer(peer);
-	if (peer_id != 1) {
-		const Ref<WebRTCPeerConnection> host = connection_to(1);
-		if (host.is_null() || host->create_offer() != OK) {
-			return FAILED;
-		}
+	if (peer_id != 1 && p_host_here) {
+		return offer_to_host();
+	}
+	return OK;
+}
+
+Error PurrLobby::offer_to_host() {
+	const Ref<WebRTCPeerConnection> host = connection_to(1);
+	if (host.is_null() || host->create_offer() != OK) {
+		return FAILED;
 	}
 	return OK;
 }
@@ -171,7 +183,14 @@ void PurrLobby::welcomed(int64_t p_peer_id, const Array &p_members, const Array 
 	peer_id = p_peer_id;
 	ice_servers = p_ice_servers;
 	schedule_ice_renewal(p_ice_expires_in);
-	if (start_peer() != OK) {
+	// A matched lobby's host may join after the others.
+	bool host_here = false;
+	for (int i = 0; i < p_members.size(); i++) {
+		if (p_members[i].get_type() == Variant::DICTIONARY && int64_t(Dictionary(p_members[i]).get("peer_id", 0)) == 1) {
+			host_here = true;
+		}
+	}
+	if (start_peer(host_here) != OK) {
 		fail("lobby_failed", "Couldn't connect to the host.");
 		return;
 	}
@@ -224,9 +243,14 @@ void PurrLobby::ice_servers_received(const Array &p_ice_servers, int64_t p_ice_e
 }
 
 void PurrLobby::peer_joined(int64_t p_peer_id, const String &p_display_name) {
-	// Only the host connects to newcomers; they make the offer.
-	if (peer_id == 1 && peer.is_valid()) {
+	if (peer.is_null()) {
+		return;
+	}
+	// The host connects to newcomers, who make the offer; a host arriving after us is offered one.
+	if (peer_id == 1) {
 		connection_to(p_peer_id);
+	} else if (p_peer_id == 1 && !peer->has_peer(1) && offer_to_host() != OK) {
+		fail("lobby_failed", "Couldn't connect to the host.");
 	}
 }
 
@@ -275,7 +299,7 @@ void PurrLobby::host_changed(int64_t p_old_peer_id, bool p_you) {
 	if (p_you) {
 		peer_id = 1;
 	}
-	if (start_peer() != OK) {
+	if (start_peer(true) != OK) {
 		fail("lobby_failed", "Couldn't connect to the new host.");
 		return;
 	}
@@ -327,6 +351,9 @@ void PurrLobby::candidate_created(const String &p_media, int64_t p_index, const 
 }
 
 void PurrLobby::leave() {
+	// A create(), join() or matchmake() still waiting ends here.
+	const Ref<RefCounted> call = pending_call;
+	pending_call.unref();
 	if (!code.is_empty() && Purr::get_singleton()) {
 		Purr::get_singleton()->set_lobby_presence(String(), true);
 	}
@@ -345,9 +372,12 @@ void PurrLobby::leave() {
 	}
 	code = String();
 	peer_id = 0;
+	attempt++;
 	ice_generation++;
 	matchmade = false;
-	pending_call.unref();
+	if (call.is_valid()) {
+		purr_complete(call, purr_failure("cancelled", "The player left the lobby before getting in."));
+	}
 }
 
 PurrLobby::~PurrLobby() {

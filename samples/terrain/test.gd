@@ -63,6 +63,14 @@ func _run() -> void:
 	check("adding a texture keeps the others' IDs", grass.id == 0 and mud.id == 1, [grass.id, mud.id])
 	check("an empty texture stays empty", grass.albedo_texture == null)
 
+	# Instances added with fewer colours than transforms are white.
+	terrain.instancer.append_location(Vector2i.ZERO, 0, [Transform3D(Basis(), Vector3(5, 0, 5)), Transform3D(Basis(), Vector3(6, 0, 6))], PackedColorArray(), false)
+	var cells: Dictionary = terrain.data.get_region(Vector2i.ZERO).instances.get(0, {})
+	var added := 0
+	for cell in cells:
+		added += cells[cell][0].size()
+	check("instances can be added without colours", added == 2, cells)
+
 	await _shifted()
 	await _streaming()
 	await _navigation()
@@ -102,8 +110,35 @@ func _shifted() -> void:
 	camera.position.x += 60
 	await frames(5)
 	check("collision follows the camera after a shift", is_equal_approx(ground_at(Vector3(140, 0, 100)), 25.0), ground_at(Vector3(140, 0, 100)))
-	WorldOrigin.reset()
+	terrain.data.add_region_blank(Vector2i(5, 0))  # the region map changes, as when streaming: collision's made again
+	await frames(5)
+	check("collision made again after a shift is where the ground is", is_equal_approx(ground_at(Vector3(140, 0, 100)), 25.0), ground_at(Vector3(140, 0, 100)))
 	world.queue_free()
+	await frames(1)
+
+	# A new world loading after a shift, its terrain made before WorldOrigin.reset() clears the offset.
+	var next_world := Node3D.new()
+	root.add_child(next_world)
+	current_scene = next_world
+	WorldOrigin.world = next_world
+	var next_terrain := Terrain3D.new()
+	next_world.add_child(next_terrain)
+	var next_camera := Camera3D.new()
+	next_world.add_child(next_camera)
+	next_camera.make_current()
+	next_camera.position = Vector3(100, 40, 100)
+	await frames(2)
+	next_terrain.data.add_region_blank(Vector2i(4, 0))
+	for x in range(1050, 1150):
+		for z in range(50, 150):
+			next_terrain.data.set_height(Vector3(x, 0, z), 25.0)
+	next_terrain.data.update_maps()
+	await frames(5)
+	WorldOrigin.reset()
+	next_camera.position = Vector3(1100, 40, 100)
+	await frames(5)
+	check("terrain made before a reset is placed again after it", is_equal_approx(ground_at(Vector3(1100, 0, 100)), 25.0), ground_at(Vector3(1100, 0, 100)))
+	next_world.queue_free()
 	await frames(1)
 
 

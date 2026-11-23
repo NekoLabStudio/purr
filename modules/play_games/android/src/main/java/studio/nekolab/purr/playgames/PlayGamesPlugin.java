@@ -8,8 +8,10 @@ import android.view.View;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.games.AnnotatedData;
 import com.google.android.gms.games.FriendsResolutionRequiredException;
+import com.google.android.gms.games.GamesClientStatusCodes;
 import com.google.android.gms.games.LeaderboardsClient;
 import com.google.android.gms.games.PlayGames;
 import com.google.android.gms.games.PlayGamesSdk;
@@ -345,6 +347,12 @@ public class PlayGamesPlugin extends GodotPlugin {
 		return PlayGames.getSnapshotsClient(getActivity());
 	}
 
+	// Whether opening a saved game failed because there's none by that name, rather than for
+	// another reason (offline, signed out), which mustn't read as it being gone.
+	private static boolean notFound(Exception exception) {
+		return exception instanceof ApiException && ((ApiException) exception).getStatusCode() == GamesClientStatusCodes.SNAPSHOT_NOT_FOUND;
+	}
+
 	@UsedByGodot
 	public void listFiles(int callId) {
 		snapshots().load(true).addOnCompleteListener(task -> {
@@ -397,7 +405,7 @@ public class PlayGamesPlugin extends GodotPlugin {
 	public void loadFile(int callId, String name) {
 		snapshots().open(name, false, SnapshotsClient.RESOLUTION_POLICY_MOST_RECENTLY_MODIFIED).addOnCompleteListener(open -> {
 			if (!open.isSuccessful() || open.getResult().isConflict()) {
-				fail(callId, "not_found", open.getException());
+				fail(callId, !open.isSuccessful() && notFound(open.getException()) ? "not_found" : "load_failed", open.getException());
 				return;
 			}
 			Snapshot snapshot = open.getResult().getData();
@@ -419,9 +427,12 @@ public class PlayGamesPlugin extends GodotPlugin {
 	@UsedByGodot
 	public void deleteFile(int callId, String name) {
 		snapshots().open(name, false, SnapshotsClient.RESOLUTION_POLICY_MOST_RECENTLY_MODIFIED).addOnCompleteListener(open -> {
+			if (!open.isSuccessful() && notFound(open.getException())) {
+				succeed(callId, new Dictionary()); // Nothing there to delete.
+				return;
+			}
 			if (!open.isSuccessful() || open.getResult().isConflict()) {
-				// Nothing there to delete.
-				succeed(callId, new Dictionary());
+				fail(callId, "delete_failed", open.getException());
 				return;
 			}
 			Snapshot snapshot = open.getResult().getData();

@@ -34,7 +34,7 @@
 		<method name="is_available" qualifiers="const">
 			<return type="bool" />
 			<description>
-				Returns [code]true[/code] if the game has an iCloud container and the player is signed in to iCloud on this device.
+				Returns [code]true[/code] if the game has an iCloud container, its entitlements give it that container, and the player is signed in to iCloud on this device. On macOS, a game run from the editor, or exported without the entitlements, has no iCloud.
 			</description>
 		</method>
 		<method name="list_files">

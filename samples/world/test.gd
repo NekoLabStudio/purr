@@ -84,6 +84,7 @@ func _run() -> void:
 	WorldOrigin.reset()
 
 	await _servers_follow_a_shift()
+	await _kept_through_a_shift()
 	await _streaming()
 	await _multimesh_collision()
 	await _light_pool()
@@ -120,6 +121,11 @@ func _servers_follow_a_shift() -> void:
 	top.top_level = true
 	top.global_position = Vector3(50, 0, 0)
 	var mover := thing(world, Vector3(70, 0, 0))
+	var copies := InstanceGroup3D.new()  # server instances of its own, outside the world
+	copies.mesh = BoxMesh.new()
+	root.add_child(copies)
+	copies.position = Vector3(90, 0, 0)
+	copies.set_transforms(copies_at([Vector3.ZERO]))
 	await frames(3)
 	check("the scene starts where its nodes are", drawn_at(Vector3(10, 0, 0)) and solid_at(Vector3(10, 0, 0)) and drawn_at(Vector3(30, 0, 0)))
 
@@ -131,6 +137,7 @@ func _servers_follow_a_shift() -> void:
 	check("what's outside the world stays put", drawn_at(Vector3(30, 0, 0)) and solid_at(Vector3(30, 0, 0)) and not drawn_at(Vector3(-970, 0, 0), false))
 	check("and so does what's top-level", drawn_at(Vector3(50, 0, 0)) and solid_at(Vector3(50, 0, 0)) and not solid_at(Vector3(-950, 0, 0)))
 	check("a node that moved as the world shifted is where it went", drawn_at(Vector3(-925, 0, 0)) and solid_at(Vector3(-925, 0, 0)) and not drawn_at(Vector3(-930, 0, 0), false))
+	check("and so does what's outside it with instances of its own", drawn_at(Vector3(90, 0, 0)) and not drawn_at(Vector3(-910, 0, 0), false))
 	WorldOrigin.reset()
 	await frames(3)
 	await physics_frame
@@ -138,6 +145,139 @@ func _servers_follow_a_shift() -> void:
 	current_scene = null
 	world.free()
 	outside.free()
+	copies.free()
+
+
+# What nodes keep in global space outside their transforms moves with them: a trail, the world end of
+# a joint with one body, and what visibility ranges are measured from.
+func _kept_through_a_shift() -> void:
+	var world := Node3D.new()
+	root.add_child(world)
+	current_scene = world
+	var trail := Trail3D.new()
+	trail.lifetime = 5.0
+	world.add_child(trail)
+	for i in 10:
+		trail.position.x += 0.5
+		await process_frame
+	var length := trail.get_current_length()
+
+	# A ball hanging from a joint with no second body, which holds it to the world, as a node and on
+	# the physics server alone.
+	var ball := RigidBody3D.new()
+	var shape := CollisionShape3D.new()
+	shape.shape = SphereShape3D.new()
+	ball.add_child(shape)
+	ball.position = Vector3(20, -2, 0)
+	world.add_child(ball)
+	var pin := PinJoint3D.new()
+	pin.position = Vector3(20, 0, 0)
+	world.add_child(pin)
+	pin.node_a = pin.get_path_to(ball)
+	var physics := PhysicsServer3D
+	var server_ball := physics.body_create()
+	physics.body_set_mode(server_ball, PhysicsServer3D.BODY_MODE_RIGID)
+	var server_shape := physics.sphere_shape_create()
+	physics.shape_set_data(server_shape, 0.5)
+	physics.body_add_shape(server_ball, server_shape)
+	physics.body_set_space(server_ball, world.get_world_3d().space)
+	physics.body_set_state(server_ball, PhysicsServer3D.BODY_STATE_TRANSFORM, Transform3D(Basis(), Vector3(40, -2, 0)))
+	var server_pin := physics.joint_create()
+	physics.joint_make_pin(server_pin, server_ball, Vector3(0, 2, 0), RID(), Vector3(40, 0, 0))
+	# And one outside the world, which a shift leaves where it is.
+	var outside_ball: RigidBody3D = ball.duplicate()
+	outside_ball.position = Vector3(60, -2, 0)
+	root.add_child(outside_ball)
+	var outside_pin := PinJoint3D.new()
+	outside_pin.position = Vector3(60, 0, 0)
+	root.add_child(outside_pin)
+	outside_pin.node_a = outside_pin.get_path_to(outside_ball)
+	for i in 30:
+		await physics_frame
+	var hanging := ball.global_position
+	var outside_hanging := outside_ball.global_position
+
+	WorldOrigin.shift(Vector3(-1000, 0, 0))
+	await frames(2)
+	for i in 30:
+		await physics_frame
+	if DisplayServer.get_name() != "headless":  # headless, a trail isn't made
+		check("a trail is as long after a shift as before", absf(trail.get_current_length() - length) < 1.0, [length, trail.get_current_length()])
+	check("a ball held to the world by a joint stays where it hangs", ball.global_position.distance_to(hanging + Vector3(-1000, 0, 0)) < 0.5, ball.global_position)
+	check("and one outside the world stays where it was", outside_ball.global_position.distance_to(outside_hanging) < 0.5, outside_ball.global_position)
+	# Only a physics engine that shifts its whole space moves what's only on the server (Jolt).
+	var server_at: Vector3 = physics.body_get_state(server_ball, PhysicsServer3D.BODY_STATE_TRANSFORM).origin
+	check("and one made on the physics server alone", server_at.distance_to(Vector3(-960, -2, 0)) < 0.5, server_at)
+	WorldOrigin.reset()
+	physics.free_rid(server_pin)
+	physics.free_rid(server_ball)
+	physics.free_rid(server_shape)
+	outside_pin.free()
+	outside_ball.free()
+	current_scene = null
+	world.free()
+
+	if DisplayServer.get_name() != "headless":
+		check("what has a visibility range is drawn after a shift", await _ranged_drawn_after_shift())
+		check("debug drawing after a shift is drawn where it's asked", await _debug_line_after_shift())
+
+
+# A box 5 m in front of the camera, drawn up to 50 m away, in a world shifted 1 km; whether it shows.
+func _ranged_drawn_after_shift() -> bool:
+	var view := SubViewport.new()
+	view.size = Vector2i(32, 32)
+	view.own_world_3d = true
+	view.transparent_bg = true
+	view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	root.add_child(view)
+	var world := Node3D.new()
+	view.add_child(world)
+	var camera := Camera3D.new()
+	camera.position = Vector3(0, 0, 5)
+	world.add_child(camera)
+	var box := MeshInstance3D.new()
+	box.mesh = BoxMesh.new()
+	box.visibility_range_end = 50.0
+	world.add_child(box)
+	await frames(4)
+	WorldOrigin.world = world
+	WorldOrigin.shift(Vector3(-1000, 0, 0))
+	await frames(4)
+	var shown := view.get_texture().get_image().get_pixel(16, 16).a > 0.5
+	WorldOrigin.reset()
+	WorldOrigin.world = null
+	view.queue_free()
+	return shown
+
+
+# A debug line across the middle of the camera's view, drawn after a shift of the world it's in;
+# whether it shows (faint over the default sky, it's told from it by any difference).
+func _debug_line_after_shift() -> bool:
+	var world := Node3D.new()
+	root.add_child(world)
+	current_scene = world
+	var camera := Camera3D.new()
+	world.add_child(camera)
+	camera.make_current()
+	DisplayServer.window_move_to_foreground()  # a window behind others isn't drawn
+	for i in 2:  # drawing before the shift too, as a game would have
+		DebugDraw.line(Vector3(0, 0, -5), Vector3(1, 0, -5), Color.WHITE)
+		await process_frame
+	WorldOrigin.shift(Vector3(-1000, 0, 0))
+	var ahead := camera.global_position + Vector3(0, 0, -5)
+	for i in 3:
+		DebugDraw.line(ahead - Vector3(3, 0, 0), ahead + Vector3(3, 0, 0), Color.WHITE)
+		await process_frame
+	var image := root.get_texture().get_image()
+	var sky := image.get_pixel(4, 4).get_luminance()
+	var middle := image.get_size() / 2
+	var shown := false
+	for y in range(-3, 4):
+		shown = shown or absf(image.get_pixelv(middle + Vector2i(0, y)).get_luminance() - sky) > 0.02
+	WorldOrigin.reset()
+	current_scene = null
+	world.free()
+	return shown
 
 
 ## A box drawn and solid, under a parent.

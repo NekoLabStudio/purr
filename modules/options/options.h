@@ -35,6 +35,7 @@ class Options : public Object {
 	void _define_built_ins();
 	void _define_from_project();
 	void _ensure_audio();
+	void _bus_layout_changed();
 	bool _conform(const String &p_key, const Variant &p_value, Variant &r_value) const;
 	void _apply(const String &p_key);
 	void _apply_graphics_tier(bool p_starting);

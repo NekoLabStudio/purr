@@ -11,11 +11,11 @@ public:
         : manager_(std::move(manager)), device_(std::move(device)), hat_(hat) {}
 
     std::optional<int> hat() override {
-        const std::optional<Bytes> report = device_->latest_input();
+        const std::optional<Bytes> report = device_->latest_input(hat_.numbered ? hat_.report_id : 0);
         if (report) {
             const std::optional<int> read = read_hat(hat_, *report);
             if (read) {
-                last_ = read;  // (the newest report may be another one of the wheel's)
+                last_ = read;
             }
         }
         return last_;

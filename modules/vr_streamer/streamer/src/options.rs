@@ -16,11 +16,14 @@ pub struct Options {
     pub mute_mac: bool,
     /// Whether the headset's controllers reach the game.
     pub controllers: bool,
+    /// The game's process, whose sound goes to the headset. Unset, the process that started this
+    /// one: a program that runs the streamer itself (PURR_VR_STREAMER=external) passes the game's.
+    pub game: Option<i32>,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self { frames: None, data: None, eye: (2080, 2240), fps: 72.0, bitrate_mbps: 100, mute_mac: true, controllers: true }
+        Self { frames: None, data: None, eye: (2080, 2240), fps: 72.0, bitrate_mbps: 100, mute_mac: true, controllers: true, game: None }
     }
 }
 
@@ -29,7 +32,7 @@ impl Default for Options {
 pub const PLAYER_CHOICES: &str = "stream.json";
 
 /// `--frames <file> --data <folder> --eye <W>x<H> --fps <n> --bitrate <Mbps> --mute 0|1
-/// --controllers 0|1`; all but `--frames` optional. The player's choices (PLAYER_CHOICES in the
+/// --controllers 0|1 --game <pid>`; all but `--frames` optional. The player's choices (PLAYER_CHOICES in the
 /// data folder) win over the arguments.
 pub fn parse_options(args: impl Iterator<Item = String>) -> Options {
     let mut options = Options::default();
@@ -66,6 +69,7 @@ fn apply_arguments(options: &mut Options, args: impl Iterator<Item = String>) {
             }
             ("--mute", Some(v)) => options.mute_mac = v == "1",
             ("--controllers", Some(v)) => options.controllers = v == "1",
+            ("--game", Some(v)) => options.game = v.parse::<i32>().ok().filter(|pid| *pid > 0),
             ("--frames", Some(v)) => options.frames = Some(PathBuf::from(v)),
             ("--data", Some(v)) => options.data = Some(PathBuf::from(v)),
             ("--eye", Some(v)) => {
@@ -105,8 +109,9 @@ mod tests {
 
     #[test]
     fn parses_every_option() {
-        let options = parse(&["--frames", "/tmp/f.bin", "--data", "/tmp/d", "--eye", "1700x1800", "--fps", "90", "--bitrate", "80", "--mute", "0", "--controllers", "0"]);
+        let options = parse(&["--frames", "/tmp/f.bin", "--data", "/tmp/d", "--eye", "1700x1800", "--fps", "90", "--bitrate", "80", "--mute", "0", "--controllers", "0", "--game", "4321"]);
         assert_eq!(options.eye, (1696, 1792));
+        assert_eq!(options.game, Some(4321));
         assert_eq!(options.fps, 90.0);
         assert_eq!(options.frames, Some(PathBuf::from("/tmp/f.bin")));
         assert_eq!(options.data, Some(PathBuf::from("/tmp/d")));

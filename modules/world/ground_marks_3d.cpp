@@ -9,7 +9,6 @@
 #include "scene/resources/mesh.h"
 #include "servers/physics_3d/physics_server_3d.h"
 
-#include "world_origin.h"
 
 Ref<StandardMaterial3D> GroundMarks3D::default_material;
 
@@ -36,16 +35,8 @@ void GroundMarks3D::_notification(int p_what) {
 				instance->set_mesh(mesh);
 				add_child(instance, false, INTERNAL_MODE_BACK);
 			}
-			if (WorldOrigin::get_singleton() != nullptr) {
-				WorldOrigin::get_singleton()->connect(SNAME("shifted"), callable_mp(this, &GroundMarks3D::_shifted));
-			}
 			gap = true;
 			set_process_internal(true);
-		} break;
-		case NOTIFICATION_EXIT_TREE: {
-			if (WorldOrigin::get_singleton() != nullptr && WorldOrigin::get_singleton()->is_connected(SNAME("shifted"), callable_mp(this, &GroundMarks3D::_shifted))) {
-				WorldOrigin::get_singleton()->disconnect(SNAME("shifted"), callable_mp(this, &GroundMarks3D::_shifted));
-			}
 		} break;
 		case NOTIFICATION_INTERNAL_PROCESS: {
 			clock += get_process_delta_time();
@@ -213,7 +204,8 @@ void GroundMarks3D::cleanup() {
 	default_material.unref();
 }
 
-void GroundMarks3D::_shifted(const Vector3 &p_by) {
+// The marks are in global space: they move with the world, when this does.
+void GroundMarks3D::world_shifted(const Vector3 &p_by) {
 	for (Mark &mark : marks) {
 		mark.position += p_by;
 	}

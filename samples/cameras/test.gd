@@ -272,10 +272,12 @@ func check_2d() -> void:
 	group.blend_time = 0.0
 	world.add_child(group)
 	group.follow_targets = [group.get_path_to(a), group.get_path_to(b)]
+	group.group_margin = 8.0  # The headless window is 64 pixels wide.
 	await frames(1)
 	check("2D: a group camera centres on the group", camera.global_position.is_equal_approx(Vector2(1100, 100)), camera.global_position)
 	var view := root.get_visible_rect().size
 	check("2D: and zooms out to fit it", camera.zoom.x < 1.0 and 2000.0 * camera.zoom.x <= view.x, [camera.zoom, view])
+	check("2D: with its margin in pixels on screen", absf(2000.0 * camera.zoom.x + 2.0 * group.group_margin - view.x) < 1.0, [camera.zoom, view])
 	world.queue_free()
 	await frames(1)
 
@@ -300,6 +302,11 @@ func check_photo_mode() -> void:
 	check("and a camera of photo mode's own takes over where the game's was", photo_camera != game_camera and photo_camera.global_position.is_equal_approx(game_camera.global_position), photo_camera)
 	var shot: Dictionary = await PhotoMode.take_photo()
 	check("taking a photo answers with whether it was saved", shot.has("ok") and (shot.ok == false or FileAccess.file_exists(shot.path)), shot)
+	if shot.ok:
+		var again: Dictionary = await PhotoMode.take_photo()
+		check("a second photo straight after doesn't replace the first", again.ok and again.path != shot.path and FileAccess.file_exists(shot.path), [shot.path, again.get("path")])
+		DirAccess.remove_absolute(again.get("path", ""))
+		DirAccess.remove_absolute(shot.path)
 	PhotoMode.close()
 	await frames(1)
 	check("closing gives the game back as it was", not paused and hud.visible and root.get_camera_3d() == game_camera and not PhotoMode.is_open())

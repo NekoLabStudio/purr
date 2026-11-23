@@ -142,7 +142,7 @@ fn main() {
 
     // The game's sound comes from our own tap (audio.rs), made before a headset connects. Failure
     // is loud but not fatal: video still streams without sound.
-    let game_audio = match audio::GameAudioCapture::start(options.mute_mac) {
+    let game_audio = match audio::GameAudioCapture::start(options.mute_mac, options.game) {
         Ok(capture) => Some(capture),
         Err(e) => {
             error!("game audio unavailable: {e}");

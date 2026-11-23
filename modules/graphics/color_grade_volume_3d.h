@@ -38,6 +38,7 @@ private:
 
 	static void _apply(Viewport *p_viewport);
 	static void _restore();
+	static void _capture(const Ref<Environment> &p_environment);
 
 protected:
 	void _notification(int p_what);

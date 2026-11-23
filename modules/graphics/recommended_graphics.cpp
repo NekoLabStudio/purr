@@ -3,6 +3,7 @@
 #include "core/config/project_settings.h"
 
 #include "adapter_tier.h"
+#include "dynamic_resolution.h"
 #include "recommended_graphics_benchmark.h"
 
 #include "core/object/class_db.h"
@@ -164,6 +165,10 @@ void RecommendedGraphics::apply(Viewport *p_viewport, const Dictionary &p_settin
 		if (String(entry.key) == "contact_shadows") {
 			// A Project Setting the renderer reads each frame, not one a viewport has.
 			ProjectSettings::get_singleton()->set_setting("rendering/lights_and_shadows/contact_shadow/enabled", entry.value);
+			continue;
+		}
+		// Dynamic resolution, running, keeps the scale: it puts the tier's back when it stops.
+		if (DynamicResolution::get_singleton() != nullptr && DynamicResolution::get_singleton()->take_scaling(p_viewport, entry.key, entry.value)) {
 			continue;
 		}
 		bool valid = false;

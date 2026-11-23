@@ -89,6 +89,7 @@ func _run() -> void:
 	await frames(1)
 	check("a job whose object's gone is dropped", FrameBudget.get_spread_count() == 0)
 
+	await _tier_under_dynamic_resolution()
 	await _screen_effects()
 	await _color_grading()
 	if DisplayServer.get_name() != "headless":
@@ -98,6 +99,23 @@ func _run() -> void:
 	print("graphics test: %s" % ("all checks passed" if failures == 0 else "%d failed" % failures))
 	quit(failures)
 
+
+
+# A graphics tier applied while dynamic resolution runs: it keeps the scale, and puts the tier's
+# back when it stops.
+func _tier_under_dynamic_resolution() -> void:
+	var viewport := get_root()
+	viewport.scaling_3d_scale = 1.0
+	DynamicResolution.max_scale = 0.9
+	DynamicResolution.enabled = true
+	await frames(1)
+	RecommendedGraphics.apply(viewport, {"scaling_3d_scale": 0.6})
+	check("dynamic resolution keeps the scale under a new tier", is_equal_approx(viewport.scaling_3d_scale, DynamicResolution.get_scale()), viewport.scaling_3d_scale)
+	DynamicResolution.enabled = false
+	check("and puts the tier's back when it stops", is_equal_approx(viewport.scaling_3d_scale, 0.6), viewport.scaling_3d_scale)
+	viewport.scaling_3d_scale = 1.0
+	viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+	DynamicResolution.max_scale = 1.0
 
 
 # The screen effects: added to a compositor like any compositor effect; in a window, what they draw.
@@ -252,6 +270,19 @@ func _color_grading() -> void:
 	camera.global_position = Vector3(107, 0, 0)
 	await frames(2)
 	check("near its edge, part way", environment.adjustment_saturation > 0.2 and environment.adjustment_saturation < 1.0, environment.adjustment_saturation)
+	# The game changes the environment while no volume applies; going in and out keeps its change.
+	camera.global_position = Vector3.ZERO
+	await frames(2)
+	environment.tonemap_exposure = 2.0
+	await frames(1)
+	camera.global_position = Vector3(100, 0, 0)
+	await frames(2)
+	check("inside, the grade works from the game's own values", is_equal_approx(environment.tonemap_exposure, 1.0), environment.tonemap_exposure)
+	camera.global_position = Vector3.ZERO
+	await frames(2)
+	check("and out again, they're back", is_equal_approx(environment.tonemap_exposure, 2.0), environment.tonemap_exposure)
+	environment.tonemap_exposure = 1.0
+	await frames(1)
 	var warm := ColorGradeVolume3D.new()
 	warm.grade = ColorGrade.new()
 	warm.grade.tint = Color(1.0, 0.8, 0.6)

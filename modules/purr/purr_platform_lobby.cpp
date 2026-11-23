@@ -53,6 +53,7 @@ void PurrPlatformLobby::entered(const String &p_code) {
 
 void PurrPlatformLobby::failed(const String &p_error, const String &p_message) {
 	const Ref<RefCounted> call = pending_call;
+	pending_call.unref();
 	leave();
 	if (call.is_valid()) {
 		purr_complete(call, purr_failure(p_error, p_message));
@@ -95,13 +96,18 @@ bool PurrPlatformLobby::turned_away(const String &p_member) const {
 
 // Also stops whatever the platform was still doing (creating, joining, matchmaking).
 void PurrPlatformLobby::leave() {
+	// A create(), join() or matchmake() still waiting ends here.
+	const Ref<RefCounted> call = pending_call;
+	pending_call.unref();
 	active = false;
 	code = String();
 	mode = String();
-	pending_call.unref();
 	// Nothing carries over to the next lobby.
 	referee->reset();
 	_close();
+	if (call.is_valid()) {
+		purr_complete(call, purr_failure("cancelled", "The player left the lobby before getting in."));
+	}
 }
 
 // The host removes a player: every game drops them, and theirs leaves (emitting kicked). The host

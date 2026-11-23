@@ -59,6 +59,7 @@ private:
 
 public:
 	Terrain3DCollision() {}
+	void place_body();
 	~Terrain3DCollision() { destroy(); }
 	void initialize(Terrain3D *p_terrain);
 

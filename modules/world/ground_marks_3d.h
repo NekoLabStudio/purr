@@ -51,7 +51,6 @@ private:
 	bool _ground(const Vector3 &p_from, Vector3 &r_position, Vector3 &r_normal) const;
 	void _add(const Vector3 &p_position, const Vector3 &p_normal, const Vector3 &p_forward);
 	void _draw();
-	void _shifted(const Vector3 &p_by);
 	static Ref<StandardMaterial3D> default_material;
 	static Ref<Material> _default_material();
 
@@ -61,6 +60,8 @@ protected:
 	static void _bind_methods();
 
 public:
+	virtual void world_shifted(const Vector3 &p_by) override;
+
 	void set_emitting(bool p_emitting);
 	bool is_emitting() const;
 	void set_mode(Mode p_mode);

@@ -258,7 +258,7 @@ void PurrStore::get_ownership_proof(const Callable &p_done) {
 	if (seller == SELLER_STEAM) {
 		Object *steam = Purr::get_singleton()->steam();
 		steam->connect(SNAME("get_ticket_for_web_api"), callable_mp(this, &PurrStore::steam_ticket).bind(p_done), CONNECT_ONE_SHOT);
-		steam->call("getAuthTicketForWebApi", "trill");
+		steam->call("getAuthTicketForWebApi", "purr-online");
 	} else if (seller == SELLER_BACKEND && backend->get_platform() == "google_play") {
 		// Play's proof is bound to one request: the service's challenge.
 		Signal challenge = PurrOnline::get_singleton()->get_ownership_challenge();

@@ -4,7 +4,7 @@
 // without the online services: checks, flags, ranked results and removals, decided by every
 // player's game from the same messages instead of by the service. Each game sends its messages to
 // everyone, itself included, and every game reaches the same outcome, so no single player decides
-// for the others. The same limits and rules as the service's (Trill's src/lobby.ts and
+// for the others. The same limits and rules as the service's (online/src/lobby.ts and
 // src/ratings.ts), so a game behaves the same either way. Members are the platform's player IDs.
 // Plain C++ (tests/run.sh builds it without Godot); PurrLobbyReferee is Godot's side.
 

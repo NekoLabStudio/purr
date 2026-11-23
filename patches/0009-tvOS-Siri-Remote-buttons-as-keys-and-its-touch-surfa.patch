@@ -14,8 +14,9 @@ remote could hold.
 
 Its touch surface steers like a stick: where the finger rests is the
 left stick (absolute, corners included), on its own joypad device, -3,
-which actions bound to all devices hear and no real controller shares.
-Lifting the finger or unplugging the remote zeroes it.
+which no real controller shares. That device is reported connected
+while a remote is, so input mapping that lists connected joypads
+includes it. Lifting the finger or unplugging the remote zeroes it.
 
 Adapted to #118332's structure from closed pull request #123885 and
 its continuation, the tvos-port branch of sanarena/godot, verified
@@ -29,11 +30,11 @@ JOY_AXIS_LEFT_X) near 1.
 Upstream: https://github.com/godotengine/godot/pull/123885 (closed in
 favour of #118332, which has the gap).
 ---
- .../apple_embedded/godot_view_controller.mm   | 160 +++++++++++++++++-
- 1 file changed, 159 insertions(+), 1 deletion(-)
+ .../apple_embedded/godot_view_controller.mm   | 184 +++++++++++++++++-
+ 1 file changed, 183 insertions(+), 1 deletion(-)
 
 diff --git a/godot/drivers/apple_embedded/godot_view_controller.mm b/godot/drivers/apple_embedded/godot_view_controller.mm
-index 5b1dc32c..bf83fb23 100644
+index 5b1dc32c..55cc267c 100644
 --- a/godot/drivers/apple_embedded/godot_view_controller.mm
 +++ b/godot/drivers/apple_embedded/godot_view_controller.mm
 @@ -31,6 +31,8 @@
@@ -45,7 +46,7 @@ index 5b1dc32c..bf83fb23 100644
  #import "drivers/apple_embedded/display_server_apple_embedded.h"
  #import "drivers/apple_embedded/godot_keyboard_input_view.h"
  #import "drivers/apple_embedded/godot_view_apple_embedded.h"
-@@ -44,7 +46,15 @@
+@@ -44,7 +46,18 @@
  #import <GameController/GameController.h>
  #import <objc/runtime.h>
  
@@ -57,12 +58,15 @@ index 5b1dc32c..bf83fb23 100644
 +	float _stick_last_x;
 +	float _stick_last_y;
 +	bool _stick_down;
++	// Whether a remote is attached, and Input told the stick's device is connected.
++	bool _stick_attached;
++	bool _stick_connected;
 +#endif
 +}
  
  @property(strong, nonatomic) GDTViewRenderer *renderer;
  @property(strong, nonatomic) GDTKeyboardInputView *keyboardView;
-@@ -53,6 +63,34 @@ @interface GDTViewController () <GDTViewDelegate>
+@@ -53,6 +66,34 @@ @interface GDTViewController () <GDTViewDelegate>
  
  @end
  
@@ -97,7 +101,7 @@ index 5b1dc32c..bf83fb23 100644
  @implementation GDTViewController
  
  - (GDTView *)godotView {
-@@ -65,6 +103,23 @@ - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
+@@ -65,6 +106,23 @@ - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
  	if (!DisplayServerAppleEmbedded::get_singleton() || DisplayServerAppleEmbedded::get_singleton()->is_keyboard_active()) {
  		return;
  	}
@@ -121,7 +125,7 @@ index 5b1dc32c..bf83fb23 100644
  	if (@available(iOS 13.4, *)) {
  		for (UIPress *press in presses) {
  			String u32lbl = String::utf8([press.key.charactersIgnoringModifiers UTF8String]);
-@@ -115,6 +170,17 @@ - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
+@@ -115,6 +173,17 @@ - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
  	if (!DisplayServerAppleEmbedded::get_singleton() || DisplayServerAppleEmbedded::get_singleton()->is_keyboard_active()) {
  		return;
  	}
@@ -139,7 +143,7 @@ index 5b1dc32c..bf83fb23 100644
  	if (@available(iOS 13.4, *)) {
  		for (UIPress *press in presses) {
  			String u32lbl = String::utf8([press.key.charactersIgnoringModifiers UTF8String]);
-@@ -136,6 +202,95 @@ - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
+@@ -136,6 +205,116 @@ - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)eve
  	}
  }
  
@@ -169,6 +173,8 @@ index 5b1dc32c..bf83fb23 100644
 +	_stick_last_x = 0.0f;
 +	_stick_last_y = 0.0f;
 +	_stick_down = false;
++	_stick_attached = false;
++	_stick_connected = false;
 +	[self godot_attachRemoteStick];
 +}
 +
@@ -178,16 +184,34 @@ index 5b1dc32c..bf83fb23 100644
 +}
 +
 +- (void)godot_attachRemoteStick {
++	_stick_attached = false;
 +	for (GCController *controller in [GCController controllers]) {
 +		GCMicroGamepad *pad = controller.microGamepad;
 +		if (pad == nil || controller.extendedGamepad != nil) {
 +			continue; // The Siri Remote has a micro gamepad and no full one.
 +		}
++		// Where the finger rests, not how far it moved from where it landed.
++		pad.reportsAbsoluteDpadValues = YES;
 +		__weak typeof(self) weakSelf = self;
 +		pad.dpad.valueChangedHandler = ^(GCControllerDirectionPad *dpad, float xValue, float yValue) {
 +			[weakSelf godot_remoteStickMovedX:xValue y:-yValue];
 +		};
++		_stick_attached = true;
 +	}
++	[self godot_reportRemoteStick];
++}
++
++// The stick's device is a connected joypad while a remote is, so input mapping that lists
++// connected joypads (as games' rebinding does) includes it.
++- (void)godot_reportRemoteStick {
++	Input *input = Input::get_singleton();
++	if (input == nullptr || _stick_connected == _stick_attached) {
++		return;
++	}
++	Dictionary info;
++	info["mapping_handled"] = true;
++	input->joy_connection_changed(TV_REMOTE_STICK_DEVICE, _stick_attached, "Siri Remote", "", info);
++	_stick_connected = _stick_attached;
 +}
 +
 +- (void)godot_sendRemoteStickX:(float)x y:(float)y {
@@ -195,6 +219,7 @@ index 5b1dc32c..bf83fb23 100644
 +	if (input == nullptr) {
 +		return;
 +	}
++	[self godot_reportRemoteStick]; // In case the remote was attached before Input existed.
 +	const JoyAxis axes[2] = { JoyAxis::LEFT_X, JoyAxis::LEFT_Y };
 +	const float values[2] = { x, y };
 +	for (int i = 0; i < 2; i++) {
@@ -235,7 +260,7 @@ index 5b1dc32c..bf83fb23 100644
  - (void)loadView {
  	GDTView *view = GDTViewCreate();
  	GDTViewRenderer *renderer = [[GDTViewRenderer alloc] init];
-@@ -185,6 +340,9 @@ - (void)viewDidLoad {
+@@ -185,6 +364,9 @@ - (void)viewDidLoad {
  
  #ifndef TVOS_ENABLED
  	[self observeKeyboard];

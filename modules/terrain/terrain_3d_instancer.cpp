@@ -1023,6 +1023,10 @@ void Terrain3DInstancer::append_region(const Ref<Terrain3DRegion> &p_region, con
 		LOG(ERROR, "No transforms to add. Doing nothing.");
 		return;
 	}
+	if (p_mesh_id < 0 || p_mesh_id >= Terrain3DAssets::MAX_MESHES) {
+		LOG(ERROR, "Mesh ID out of range: ", p_mesh_id, ". Doing nothing.");
+		return;
+	}
 
 	_backup_region(p_region);
 
@@ -1030,7 +1034,7 @@ void Terrain3DInstancer::append_region(const Ref<Terrain3DRegion> &p_region, con
 
 	for (int i = 0; i < p_xforms.size(); i++) {
 		Transform3D xform = p_xforms[i];
-		Color col = p_colors[i];
+		Color col = i < p_colors.size() ? p_colors[i] : COLOR_WHITE; // White for colours not given.
 		Vector2i cell = _get_cell(xform.origin);
 
 		// Get current instance arrays or create if none

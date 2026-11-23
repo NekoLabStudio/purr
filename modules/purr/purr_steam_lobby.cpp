@@ -158,7 +158,9 @@ void PurrSteamLobby::lobby_created(int64_t p_connect, int64_t p_lobby_id) {
 		matchmaking_lobby_entered();
 		return;
 	}
-	start_session();
+	if (!start_session()) {
+		return;
+	}
 	entered(id_string(lobby_id));
 	Purr::get_singleton()->set_lobby_presence(code, false);
 }
@@ -190,39 +192,49 @@ void PurrSteamLobby::lobby_joined(int64_t p_lobby_id, int64_t p_permissions, boo
 		matchmaking_lobby_entered();
 		return;
 	}
-	start_session();
+	if (!start_session()) {
+		return;
+	}
 	entered(id_string(lobby_id));
 	Purr::get_singleton()->set_lobby_presence(code, false);
 }
 
 // In the lobby, playing: everyone in it is a member, the owner hosts, and Purr's messages count.
-void PurrSteamLobby::start_session() {
+// False if the peer couldn't start, and the lobby was left.
+bool PurrSteamLobby::start_session() {
 	listen(true);
 	owner = (uint64_t)(int64_t)steam()->call("getLobbyOwner", lobby_id);
 	for (const String &member : lobby_members()) {
 		member_joined(member, 0);
 	}
 	host_is(id_string(owner), false);
-	start_peer(owner == own_id(), 0);
+	return start_peer(owner == own_id(), 0);
 }
 
 // The host hosts the lobby's peer, the others connect to it. A player reconnecting to a new host
 // keeps their peer ID (p_peer_id), so what they own in the game stays theirs.
-void PurrSteamLobby::start_peer(bool p_host, int64_t p_peer_id) {
+// False if it couldn't start, and the lobby was left.
+bool PurrSteamLobby::start_peer(bool p_host, int64_t p_peer_id) {
+	const Ref<MultiplayerPeer> old_peer = peer;
 	if (peer.is_valid()) {
 		peer->disconnect(SNAME("peer_connected"), callable_mp(this, &PurrSteamLobby::peer_connected));
 		peer->close();
 	}
 	peer = Ref<MultiplayerPeer>(Object::cast_to<MultiplayerPeer>(ClassDB::instantiate("SteamMultiplayerPeer")));
-	ERR_FAIL_COND(peer.is_null());
-	const Error error = p_host ? (Error)(int)peer->call("host_with_lobby", lobby_id) : (Error)(int)peer->call("connect_to_lobby", lobby_id, p_peer_id);
+	const Error error = peer.is_null() ? ERR_UNAVAILABLE : p_host ? (Error)(int)peer->call("host_with_lobby", lobby_id) : (Error)(int)peer->call("connect_to_lobby", lobby_id, p_peer_id);
 	if (error != OK) {
+		peer.unref();
+		SceneTree *tree = SceneTree::get_singleton();
+		if (old_peer.is_valid() && tree && tree->get_multiplayer()->get_multiplayer_peer() == old_peer) {
+			tree->get_multiplayer()->set_multiplayer_peer(Ref<MultiplayerPeer>());
+		}
 		failed("lobby_failed", "Couldn't start playing in the Steam lobby.");
-		return;
+		return false;
 	}
 	peer->connect(SNAME("peer_connected"), callable_mp(this, &PurrSteamLobby::peer_connected));
 	referee->set_peer_id(_own_member(), peer->get_unique_id());
 	set_tree_peer(peer);
+	return true;
 }
 
 void PurrSteamLobby::peer_connected(int64_t p_peer_id) {
@@ -457,7 +469,9 @@ void PurrSteamLobby::begin_match() {
 		steam()->call("setLobbyData", lobby_id, OPEN_KEY, "0");
 		steam()->call("setLobbyJoinable", lobby_id, false);
 	}
-	start_session();
+	if (!start_session()) {
+		return;
+	}
 	start_ranked(ranked_mode);
 	entered(id_string(lobby_id));
 }

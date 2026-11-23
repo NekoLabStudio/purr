@@ -518,7 +518,10 @@ InputBindings::Joypad &InputBindings::joypad(int p_device) {
 	if (!pad.wheel && vendor && ClassDB::class_exists("SteeringWheel")) {
 		const Ref<RefCounted> wheels = Object::cast_to<RefCounted>(ClassDB::instantiate("SteeringWheel"));
 		if (wheels.is_valid()) {
-			pad.wheel = !Dictionary(wheels->call(SNAME("find_wheel"), vendor, product)).is_empty();
+			// find_wheel() only prefers these IDs, falling back on any wheel it can drive: this pad is
+			// a wheel only if the wheel found is this one.
+			const Dictionary found = wheels->call(SNAME("find_wheel"), vendor, product);
+			pad.wheel = int(found.get("vendor_id", -1)) == vendor && int(found.get("product_id", -1)) == product;
 		}
 	}
 	pad.family = DeviceFamily(InputDeviceFamily::of_joypad(vendor, product, name, pad.wheel));

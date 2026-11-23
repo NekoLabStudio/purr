@@ -111,6 +111,11 @@ void Terrain3D::_initialize() {
 		_setup_ocean();
 		_update_displacement_buffer();
 		_initialized = true;
+		_placed_offset = get_map_offset();
+		WorldOrigin *origin = WorldOrigin::get_singleton();
+		if (origin != nullptr && !origin->is_connected(SNAME("shifted"), callable_mp(this, &Terrain3D::_shifted))) {
+			origin->connect(SNAME("shifted"), callable_mp(this, &Terrain3D::_shifted));
+		}
 		snap();
 	}
 	update_configuration_warnings();
@@ -123,6 +128,9 @@ void Terrain3D::_initialize() {
 void Terrain3D::__physics_process(const double p_delta) {
 	if (!_initialized) {
 		return;
+	}
+	if (get_map_offset() != _placed_offset) {
+		_map_offset_changed();
 	}
 	if (!_camera.is_valid()) {
 		LOG(DEBUG, "Camera is null, getting the current one");
@@ -863,6 +871,28 @@ void Terrain3D::load_regions_around(const Vector3 &p_global_position) {
 	_stream_regions(v3v2(p_global_position + get_map_offset()), true);
 }
 
+// A shift moves what the terrain has on the servers with everything else (a physics engine that
+// can't shift its space leaves the collision body, put back here).
+void Terrain3D::_shifted(const Vector3 &p_by) {
+	_placed_offset = get_map_offset();
+	if (_collision) {
+		_collision->place_body();
+	}
+}
+
+// The offset changed without the world moving (WorldOrigin.reset() for a new world): what was
+// placed for the old one is placed again.
+void Terrain3D::_map_offset_changed() {
+	_placed_offset = get_map_offset();
+	if (_collision) {
+		_collision->place_body();
+	}
+	if (_instancer) {
+		_instancer->update_mmis(-1, V2I_MAX, true);
+	}
+	_occluders.clear();
+}
+
 Vector3 Terrain3D::get_map_offset() {
 	const WorldOrigin *origin = WorldOrigin::get_singleton();
 	return origin != nullptr ? origin->get_offset() : Vector3();
@@ -1463,6 +1493,9 @@ void Terrain3D::_notification(const int p_what) {
 			_destroy_mouse_picking();
 			_destroy_displacement_buffer();
 			_occluders.clear();
+			if (WorldOrigin::get_singleton() != nullptr && WorldOrigin::get_singleton()->is_connected(SNAME("shifted"), callable_mp(this, &Terrain3D::_shifted))) {
+				WorldOrigin::get_singleton()->disconnect(SNAME("shifted"), callable_mp(this, &Terrain3D::_shifted));
+			}
 			if (_assets.is_valid()) {
 				_assets->uninitialize();
 			}

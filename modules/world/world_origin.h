@@ -39,7 +39,7 @@ class WorldOrigin : public Object {
 	void _node_added(Node *p_node);
 	void _restart_world_space_particles();
 	void _move_world(Node3D *p_world, const Vector3 &p_by);
-	static void _put_back_unmoved(Node *p_node, Node3D *p_world, World3D *p_world_3d, bool p_moved);
+	static void _after_move(Node *p_node, Node3D *p_world, World3D *p_world_3d, const Vector3 &p_by, bool p_moved);
 	void _publish_offset();
 
 protected:

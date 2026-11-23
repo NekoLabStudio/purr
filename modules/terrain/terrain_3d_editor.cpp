@@ -649,14 +649,30 @@ void Terrain3DEditor::_store_undo() {
 	if (undo_redo != nullptr) {
 		const String action_name = !_action_name.is_empty() ? _action_name : String("Terrain ") + OPNAME[_operation] + String(" ") + TOOLNAME[_tool];
 		undo_redo->create_action(action_name, UndoRedo::MERGE_DISABLE, _terrain);
-		undo_redo->add_undo_method(this, "apply_undo", _undo_data.duplicate());
+		// The terrain it's for: the editor edits whichever is selected, which may be another by then.
+		Dictionary undo_data = _undo_data.duplicate();
+		undo_data["terrain"] = uint64_t(_terrain->get_instance_id());
+		redo_data["terrain"] = uint64_t(_terrain->get_instance_id());
+		undo_redo->add_undo_method(this, "apply_undo", undo_data);
 		undo_redo->add_do_method(this, "apply_undo", redo_data);
 		undo_redo->commit_action(false);
 	}
 #endif
 }
 
+// Applied to the terrain the step was made on, selected or not.
 void Terrain3DEditor::_apply_undo(const Dictionary &p_data) {
+	Terrain3D *edited = p_data.has("terrain") ? ObjectDB::get_instance<Terrain3D>(ObjectID(uint64_t(p_data["terrain"]))) : _terrain;
+	if (edited == nullptr) {
+		return;
+	}
+	Terrain3D *selected = _terrain;
+	_terrain = edited;
+	_apply_undo_data(p_data);
+	_terrain = selected;
+}
+
+void Terrain3DEditor::_apply_undo_data(const Dictionary &p_data) {
 	IS_INIT_COND_MESG(!_terrain->get_plugin(), "_terrain isn't initialized, returning", VOID);
 	LOG(INFO, "Applying Undo/Redo data");
 

@@ -3,6 +3,7 @@
 #include "core/config/project_settings.h"
 #include "core/input/input.h"
 #include "core/io/dir_access.h"
+#include "core/io/file_access.h"
 #include "core/object/callable_mp.h"
 #include "core/object/class_db.h"
 #include "core/os/time.h"
@@ -334,7 +335,12 @@ void PhotoMode::_take_now() {
 	const Ref<Image> image = _root()->get_texture()->get_image();
 	const String folder = GLOBAL_GET("photo_mode/photos_folder");
 	DirAccess::make_dir_recursive_absolute(folder);
-	const String path = folder.path_join("photo-" + Time::get_singleton()->get_datetime_string_from_system().replace_char(':', '-').replace_char('T', '-') + ".png");
+	// Named for the second it was taken, numbered after the first in the same second.
+	const String stamp = "photo-" + Time::get_singleton()->get_datetime_string_from_system().replace_char(':', '-').replace_char('T', '-');
+	String path = folder.path_join(stamp + ".png");
+	for (int n = 2; FileAccess::exists(path); n++) {
+		path = folder.path_join(vformat("%s-%d.png", stamp, n));
+	}
 	const Error err = image.is_valid() ? image->save_png(path) : ERR_CANT_CREATE;
 	if (panel != nullptr) {
 		panel->set_visible(panel_was_shown);

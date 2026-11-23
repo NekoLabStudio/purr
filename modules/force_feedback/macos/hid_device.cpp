@@ -224,7 +224,7 @@ void HidDevice::close() {
     }
 }
 
-void HidDevice::on_input(void* context, IOReturn result, void*, IOHIDReportType, std::uint32_t, std::uint8_t* report,
+void HidDevice::on_input(void* context, IOReturn result, void*, IOHIDReportType, std::uint32_t id, std::uint8_t* report,
                          CFIndex length) {
     auto* self = static_cast<HidDevice*>(context);
     if (result != kIOReturnSuccess || length <= 0) {
@@ -236,17 +236,18 @@ void HidDevice::on_input(void* context, IOReturn result, void*, IOHIDReportType,
             self->inputs_.pop_front();
         }
         self->inputs_.emplace_back(report, report + length);
-        self->latest_.assign(report, report + length);
+        self->latest_[id].assign(report, report + length);
     }
     self->input_arrived_.notify_all();
 }
 
-std::optional<Bytes> HidDevice::latest_input() {
+std::optional<Bytes> HidDevice::latest_input(std::uint8_t report_id) {
     std::lock_guard<std::mutex> lock(inputs_mutex_);
-    if (latest_.empty()) {
+    const auto found = latest_.find(report_id);
+    if (found == latest_.end()) {
         return std::nullopt;
     }
-    return latest_;
+    return found->second;
 }
 
 bool HidDevice::send(ReportType type, std::uint8_t id, const Bytes& report) {

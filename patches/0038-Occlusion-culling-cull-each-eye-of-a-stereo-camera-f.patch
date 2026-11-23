@@ -131,10 +131,10 @@ index 4dae3e92..79b61c91 100644
  	virtual RID buffer_get_debug_texture(RID p_buffer) override;
  
 diff --git a/godot/servers/rendering/renderer_scene_cull.cpp b/godot/servers/rendering/renderer_scene_cull.cpp
-index 43e51caa..09015807 100644
+index 28f324a6..5b650861 100644
 --- a/godot/servers/rendering/renderer_scene_cull.cpp
 +++ b/godot/servers/rendering/renderer_scene_cull.cpp
-@@ -2943,8 +2943,14 @@ void RendererSceneCull::render_camera(const Ref<RenderSceneBuffers> &p_render_bu
+@@ -2954,8 +2954,14 @@ void RendererSceneCull::render_camera(const Ref<RenderSceneBuffers> &p_render_bu
  
  	RENDER_TIMESTAMP("Update Occlusion Buffer")
  
@@ -151,7 +151,7 @@ index 43e51caa..09015807 100644
  
  	_render_scene(&camera_data, p_render_buffers, environment, camera->attributes, compositor, camera->visible_layers, p_scenario, p_viewport, p_shadow_atlas, RID(), -1, p_screen_mesh_lod_threshold, p_window_output_max_value, true, r_render_info);
  #endif
-@@ -3073,9 +3079,12 @@ void RendererSceneCull::_scene_cull(CullData &cull_data, InstanceCullResult &cul
+@@ -3084,9 +3090,12 @@ void RendererSceneCull::_scene_cull(CullData &cull_data, InstanceCullResult &cul
  	uint32_t max_lights_per_mesh = scene_render->get_max_lights_per_mesh();
  	uint32_t max_lights_total = scene_render->get_max_lights_total();
  
@@ -167,7 +167,7 @@ index 43e51caa..09015807 100644
  
  	for (uint64_t i = p_from; i < p_to; i++) {
  		bool mesh_visible = false;
-@@ -3090,7 +3099,8 @@ void RendererSceneCull::_scene_cull(CullData &cull_data, InstanceCullResult &cul
+@@ -3101,7 +3110,8 @@ void RendererSceneCull::_scene_cull(CullData &cull_data, InstanceCullResult &cul
  #define VIS_RANGE_CHECK ((idata.visibility_index == -1) || _visibility_range_check<false>(cull_data.scenario->instance_visibility[idata.visibility_index], cull_data.cam_transform.origin, cull_data.visibility_viewport_mask) == 0)
  #define VIS_PARENT_CHECK (_visibility_parent_check(cull_data, idata))
  #define VIS_CHECK (visibility_check < 0 ? (visibility_check = (visibility_flags != InstanceData::FLAG_VISIBILITY_DEPENDENCY_NEEDS_CHECK || (VIS_RANGE_CHECK && VIS_PARENT_CHECK))) : visibility_check)
@@ -177,7 +177,7 @@ index 43e51caa..09015807 100644
  
  		if (!HIDDEN_BY_VISIBILITY_CHECKS) {
  			if ((LAYER_CHECK && IN_FRUSTUM(cull_data.cull->frustum) && VIS_CHECK && !OCCLUSION_CULLED) || (cull_data.scenario->instance_data[i].flags & InstanceData::FLAG_IGNORE_ALL_CULLING)) {
-@@ -3600,6 +3610,23 @@ void RendererSceneCull::_render_scene(const RendererSceneRender::CameraData *p_c
+@@ -3611,6 +3621,23 @@ void RendererSceneCull::_render_scene(const RendererSceneRender::CameraData *p_c
  		cull_data.render_reflection_probe = render_reflection_probe;
  		cull_data.occlusion_buffer = RendererSceneOcclusionCull::get_singleton()->buffer_get_ptr(p_viewport);
  		cull_data.camera_matrix = &p_camera_data->main_projection;

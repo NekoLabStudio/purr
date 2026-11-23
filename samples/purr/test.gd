@@ -1,7 +1,6 @@
-# Tries the Purr API against a local copy of Trill (the online services). Start it first, from a
-# copy of Trill's repository, with the "log" email driver (EMAIL_DRIVER=log in its .dev.vars) and
-# its output in a file:
-#   npx wrangler d1 migrations apply trill --local && npx wrangler dev > /tmp/purr-online.log
+# Tries the Purr API against a local copy of the online service. Start it first, with the "log"
+# email driver (EMAIL_DRIVER=log in online/.dev.vars) and its output in a file:
+#   cd online && npx wrangler d1 migrations apply purr-online --local && npx wrangler dev > /tmp/purr-online.log
 # then run, with that file (where the sign-in codes appear):
 #   PURR_EMAIL_LOG=/tmp/purr-online.log purr --headless --path samples/purr -s test.gd
 # It exits non-zero if a check fails. The service sends one code a minute to an address, so a run
@@ -45,10 +44,10 @@ func email_code(email: String) -> String:
 func service(method: HTTPClient.Method, path: String, token := "", body := PackedByteArray(), headers := PackedStringArray()) -> Array:
 	var request := HTTPRequest.new()
 	root.add_child(request)
-	var all_headers := PackedStringArray(["X-Trill-Game: " + str(ProjectSettings.get_setting("trill/game"))]) + headers
+	var all_headers := PackedStringArray(["X-Purr-Game: " + str(ProjectSettings.get_setting("online/game"))]) + headers
 	if token != "":
 		all_headers.append("Authorization: Bearer " + token)
-	request.request_raw(str(ProjectSettings.get_setting("trill/url")) + path, all_headers, method, body)
+	request.request_raw(str(ProjectSettings.get_setting("online/url")) + path, all_headers, method, body)
 	var answer: Array = await request.request_completed
 	request.queue_free()
 	var named := {}
@@ -63,7 +62,7 @@ func json_body(fields: Dictionary) -> PackedByteArray:
 
 # Signs another device in to the account with this email: its session token.
 func other_device(email: String) -> String:
-	var game := str(ProjectSettings.get_setting("trill/game"))
+	var game := str(ProjectSettings.get_setting("online/game"))
 	var started: Array = await service(HTTPClient.METHOD_POST, "/auth/email/start", "", json_body({"email": email, "game": game}), ["Content-Type: application/json"])
 	var challenge: String = JSON.parse_string(started[3].get_string_from_utf8()).get("challenge", "")
 	var verified: Array = await service(HTTPClient.METHOD_POST, "/auth/email/verify", "", json_body({"email": email, "challenge": challenge, "code": await email_code(email)}), ["Content-Type: application/json"])
@@ -71,11 +70,11 @@ func other_device(email: String) -> String:
 
 
 func read_remote(token: String, slot: String) -> Array:
-	return await service(HTTPClient.METHOD_GET, "/saves/%s/%s" % [ProjectSettings.get_setting("trill/game"), slot], token)
+	return await service(HTTPClient.METHOD_GET, "/saves/%s/%s" % [ProjectSettings.get_setting("online/game"), slot], token)
 
 
 func write_remote(token: String, slot: String, data: Variant, replaces: int, summary: Dictionary) -> Array:
-	return await service(HTTPClient.METHOD_PUT, "/saves/%s/%s" % [ProjectSettings.get_setting("trill/game"), slot], token, var_to_bytes(data), ["Content-Type: application/octet-stream", "X-Save-Version: %d" % replaces, "X-Save-Summary: " + JSON.stringify(summary)])
+	return await service(HTTPClient.METHOD_PUT, "/saves/%s/%s" % [ProjectSettings.get_setting("online/game"), slot], token, var_to_bytes(data), ["Content-Type: application/octet-stream", "X-Save-Version: %d" % replaces, "X-Save-Summary: " + JSON.stringify(summary)])
 
 
 func _initialize() -> void:
@@ -112,6 +111,16 @@ func run() -> void:
 	check("email, guests and crossplay available", Account.can_link_email() and LocalPlayers.can_invite_guests() and Lobbies.has_crossplay())
 	check("no achievements without a platform", not Achievements.is_available())
 	check("no friends or invites without Steam or Game Center", not Friends.is_available() and not Lobbies.can_invite() and Friends.get_all().is_empty())
+	# Another lobby asked for while one is being made: the first call ends, cancelled.
+	var lobby_results := {}
+	Lobbies.create().connect(func(result: Dictionary) -> void: lobby_results.create = result)
+	Lobbies.join("NOSUCH").connect(func(result: Dictionary) -> void: lobby_results.join = result)
+	for attempt in 100:
+		if lobby_results.size() == 2:
+			break
+		await create_timer(0.1).timeout
+	check("a lobby asked for while another is made cancels that one", lobby_results.get("create", {}).get("error") == "cancelled" and not lobby_results.get("join", {"ok": true}).ok, lobby_results)
+	Lobbies.leave()
 	check("no platform name, so the game asks for one", Account.needs_display_name())
 	var named: Dictionary = await Account.set_display_name("  Tester  ")
 	check("chosen name saved", named.ok and named.display_name == "Tester" and Account.player_name == "Tester" and not Account.needs_display_name(), named)
@@ -151,6 +160,18 @@ func run() -> void:
 	await Saves.synced
 	remote = await read_remote(token, "main")
 	check("kept this device's save", bytes_to_var(remote[3]) == {"level": 2} and remote[2].get("x-save-version") == "3", remote[2])
+
+	# The service's copy going back (restored from an older one): this device's save replaces it.
+	var meta_path := "user://purr/saves/%s/main.json" % LocalPlayers.player.account_id.validate_filename()
+	var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(meta_path))
+	meta.version = 7
+	var meta_file := FileAccess.open(meta_path, FileAccess.WRITE)
+	meta_file.store_string(JSON.stringify(meta))
+	meta_file.close()
+	Saves.save("main", {"level": 3}, {"level": 3})
+	check("a save ahead of the service's goes up", (await Saves.synced) == "main")
+	remote = await read_remote(token, "main")
+	check("and replaces it", bytes_to_var(remote[3]) == {"level": 3} and remote[2].get("x-save-version") == "4", remote[2])
 
 	# Achievements never conflict: another device's list and this one's are merged.
 	other = await write_remote(token, "purr_achievements", {"first_steps": 1.0, "hundred_laps": 0.5, "night_drive": 1.0}, 1, {})

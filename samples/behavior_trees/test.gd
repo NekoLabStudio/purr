@@ -37,6 +37,13 @@ class Step extends BehaviorTask:
 		log.append("%s %s" % [label, what])
 
 
+# Restarts the player running it, from its own tick.
+class Restarter extends BehaviorTask:
+	func _tick(_delta: float) -> Status:
+		blackboard.player.restart()
+		return RUNNING
+
+
 # A state that notes what happens to it, and moves on when its blackboard says to.
 class Noted extends BehaviorState:
 	func _setup() -> void:
@@ -222,6 +229,12 @@ func _run() -> void:
 	for i in 3:
 		await physics_frame
 	check("a player ticks with physics by default", log_of(ticking).count("auto tick") >= 2, log_of(ticking))
+
+	var restarting := player_for(node_with(BehaviorSequence.new(), [step("first"), Restarter.new()]))
+	restarting.blackboard.player = restarting
+	var restarted := restarting.update(0.1)
+	restarting.update(0.1)
+	check("a task can restart the tree it runs in", restarted == BehaviorTask.IDLE and log_of(restarting).count("first tick") == 2, [restarted, log_of(restarting)])
 
 	await check_state_machines()
 

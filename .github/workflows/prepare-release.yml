@@ -45,10 +45,22 @@ jobs:
       - name: Validate version
         run: echo "${{ inputs.version }}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+
       # The engine itself is built and checked by the Release workflow before anything is
-      # published; these are the quick checks a tag must never skip. The patches are applied
-      # for real (this is a throwaway checkout): later patches build on earlier ones, which
-      # `git apply --check` can't follow.
+      # published; these are the quick checks a tag must never skip.
+      - name: Test the online services
+        working-directory: online
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
+          npm test
+
+      # Applied for real (this is a throwaway checkout): later patches build on earlier ones,
+      # which `git apply --check` can't follow.
       - name: Check the patches apply
         run: git apply patches/*.patch
 

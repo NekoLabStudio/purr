@@ -49,6 +49,20 @@ struct Child {
     }
 };
 
+#ifndef _WIN32
+// The runtime's ends of a pipe to the streamer stay out of anything else the game starts (a child
+// holding them would keep the streamer's pipes open after it left), and writing to one the
+// streamer has closed fails rather than raising SIGPIPE.
+void keep_to_runtime(const int (&p_ends)[2]) {
+    for (const int end : p_ends) {
+        fcntl(end, F_SETFD, fcntl(end, F_GETFD) | FD_CLOEXEC);
+#ifdef F_SETNOSIGPIPE
+        fcntl(end, F_SETNOSIGPIPE, 1);
+#endif
+    }
+}
+#endif
+
 Child spawn(const std::vector<std::string>& options) {
     Child child;
     const std::string program = platform::library_directory() + platform::streamer_executable();
@@ -89,6 +103,7 @@ Child spawn(const std::vector<std::string>& options) {
     if (pipe(pipe_ends) != 0) {
         return child;
     }
+    keep_to_runtime(pipe_ends);
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
     posix_spawn_file_actions_adddup2(&actions, pipe_ends[0], STDIN_FILENO);
@@ -101,6 +116,7 @@ Child spawn(const std::vector<std::string>& options) {
         posix_spawn_file_actions_destroy(&actions);
         return child;
     }
+    keep_to_runtime(output_ends);
     posix_spawn_file_actions_adddup2(&actions, output_ends[1], STDOUT_FILENO);
     posix_spawn_file_actions_addclose(&actions, output_ends[0]);
 #else
@@ -266,6 +282,7 @@ void read_status(int reader, pid_t pid) {
 }
 #endif
 std::thread g_keeper;
+std::mutex g_join_lock;  // stop() may be called from two threads at once (Vision Pro's own queue)
 bool g_wanted = false;
 bool g_exited = false;  // set by the keeper when the current child has left
 
@@ -303,6 +320,13 @@ void keep_running(std::vector<std::string> options) {
     }
 }
 
+void join_keeper() {
+    std::lock_guard<std::mutex> lock(g_join_lock);
+    if (g_keeper.joinable()) {
+        g_keeper.join();
+    }
+}
+
 }  // namespace
 
 void start(const std::string& frames_path, unsigned eye_width, unsigned eye_height, double hz) {
@@ -324,6 +348,11 @@ void start(const std::string& frames_path, unsigned eye_width, unsigned eye_heig
     std::vector<std::string> options = {"--frames", frames_path, "--data", runtime_data_directory(),
                                         "--eye", std::to_string(eye_width) + "x" + std::to_string(eye_height),
                                         "--fps", std::to_string(static_cast<int>(hz))};
+#ifndef _WIN32
+    // The game, whose sound goes to the headset (this process, which starts the streamer).
+    options.push_back("--game");
+    options.push_back(std::to_string(getpid()));
+#endif
     const char* controllers = std::getenv("PURR_VR_CONTROLLERS");
     options.push_back("--controllers");
     options.push_back(controllers && std::string(controllers) == "0" ? "0" : "1");
@@ -335,9 +364,7 @@ void stop() {
         std::unique_lock<std::mutex> lock(g_lock);
         if (!g_wanted) {
             lock.unlock();
-            if (g_keeper.joinable()) {
-                g_keeper.join();
-            }
+            join_keeper();
             return;
         }
         g_wanted = false;
@@ -352,7 +379,7 @@ void stop() {
             }
         }
     }
-    g_keeper.join();
+    join_keeper();
 }
 
 bool headset_connected() {

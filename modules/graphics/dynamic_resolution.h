@@ -39,6 +39,7 @@ class DynamicResolution : public Object {
 	void _stop();
 	void _frame();
 	void _set_scale(float p_scale);
+	void _use_mode(Viewport *p_viewport, Viewport::Scaling3DMode p_mode);
 	float _floor() const;
 
 protected:
@@ -61,6 +62,11 @@ public:
 	float get_frame_rate_target() const;
 	// Whether it's running and can still draw fewer pixels: FramePacing leaves late frames to it till then.
 	bool can_lower_resolution() const;
+
+	// A graphics tier's scaling_3d_mode or scaling_3d_scale for the viewport it's running on: the
+	// tier's upscaler is used now and both are put back when it stops, while it keeps the scale.
+	// False when it isn't running there, for the tier to set it itself.
+	bool take_scaling(Viewport *p_viewport, const String &p_property, const Variant &p_value);
 
 	// The graphics benchmark measures fixed settings, so it holds dynamic resolution while it runs.
 	void set_paused(bool p_paused);

@@ -38,6 +38,31 @@ const char *REPORT_PREFIX = "crash-";
 const char *SEND_OPTION = "privacy/send_crash_reports";
 // How often to look for the player being signed in, to send what's waiting.
 constexpr double SEND_RETRY_SECONDS = 10.0;
+// The most the online service takes in one report, in UTF-8 bytes (MAX_CRASH_REPORT_BYTES in online/src/crash_reports.ts).
+constexpr int MAX_REPORT_BYTES = 65536;
+
+// A report too long for the service keeps its start (the run's details) and as much of the end of
+// its log as fits.
+String shortened(const String &p_report) {
+	if (p_report.utf8().length() <= MAX_REPORT_BYTES) {
+		return p_report;
+	}
+	const String head = p_report.left(4096);
+	const String gap = "\n\n[...]\n\n";
+	int kept = MAX_REPORT_BYTES / 2;
+	String report = head + gap + p_report.right(kept);
+	while (report.utf8().length() > MAX_REPORT_BYTES && kept > 0) {
+		kept = kept * 9 / 10;
+		report = head + gap + p_report.right(kept);
+	}
+	return report;
+}
+
+// The service won't ever take this report (malformed or too big), so it isn't kept to try again.
+bool refused_for_good(const Dictionary &p_result) {
+	const int status = p_result.get("status", 0);
+	return status == 400 || status == 413;
+}
 
 void complete_call(const Ref<PurrOnlineCall> &p_call, const Dictionary &p_result) {
 	p_call->emit_signal(SNAME("completed"), p_result);
@@ -287,7 +312,7 @@ Signal CrashReports::send(const String &p_path) {
 		callable_mp_static(&complete_call).bind(call, result).call_deferred();
 		return Signal(call.ptr(), SNAME("completed"));
 	}
-	Signal sent = PurrOnline::get_singleton()->send_crash_report(redact_crash_report(FileAccess::get_file_as_string(p_path)));
+	Signal sent = PurrOnline::get_singleton()->send_crash_report(shortened(redact_crash_report(FileAccess::get_file_as_string(p_path))));
 	sent.connect(callable_mp(this, &CrashReports::_sent).bind(p_path), CONNECT_ONE_SHOT);
 	return sent;
 }
@@ -297,7 +322,7 @@ bool CrashReports::_is_report(const String &p_path) {
 }
 
 void CrashReports::_sent(const Dictionary &p_result, const String &p_path) {
-	if (bool(p_result.get("ok", false))) {
+	if (bool(p_result.get("ok", false)) || refused_for_good(p_result)) {
 		DirAccess::remove_absolute(p_path);
 	}
 }
@@ -332,7 +357,7 @@ void CrashReports::_retry_send() {
 
 void CrashReports::_sent_waiting(const Dictionary &p_result) {
 	sending = false;
-	if (bool(p_result.get("ok", false))) {
+	if (bool(p_result.get("ok", false)) || refused_for_good(p_result)) {
 		_send_waiting();
 	}
 }
