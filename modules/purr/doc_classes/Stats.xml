@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Stats" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Counters each player adds to, with totals over every player.
+	</brief_description>
+	<description>
+		Stats count what players do: deliveries made, kilometres driven, fish caught. Each player has their own value, and with the online services, every player's add up into a total, with a history by day for a "the whole town drove this far this week" screen:
+		[codeblock]
+		Stats.add("km_driven", distance / 1000.0)
+		var mine = Stats.get_value("km_driven")
+		var everyone = await Stats.get_total("km_driven")
+		[/codeblock]
+		Stats are kept on the device first, so they work offline and without the online services. With them, changes go to the service every few minutes, and when the game goes to the background or closes; the player's values come back from it, so they follow the player to their other devices. Changes from test players (in the editor and debug builds) count for them, not in totals.
+		Set each stat up in the Stats tab of Project Settings, as [code]stats/&lt;id&gt;/...[/code]: [code]max_per_day[/code], the most one player adds in a day (past it, the rest of the day's changes don't count, so a modified copy of the game can't run a total up; the service keeps the limit the stat's first change came with), and [code]steam[/code], a Steam stat that gets the player's value too.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="add">
+			<return type="void" />
+			<param index="0" name="id" type="String" />
+			<param index="1" name="amount" type="float" />
+			<description>
+				Adds [param amount], above 0, to the player's stat. [param id] is 1 to 64 letters, digits, [code]_[/code], [code].[/code] or [code]-[/code]. Stats only go up.
+			</description>
+		</method>
+		<method name="get_history">
+			<return type="Signal" />
+			<param index="0" name="id" type="String" />
+			<param index="1" name="days" type="int" />
+			<description>
+				What every player added on each of the last [param days] days (up to 730), oldest first. Await it: the result has [code]ok[/code] and [code]days[/code], an [Array] of [Dictionary]s with [code]day[/code] (the Unix time of its start, UTC) and [code]added[/code]. Days nobody added anything are left out. Needs the online services, signed in.
+			</description>
+		</method>
+		<method name="get_total">
+			<return type="Signal" />
+			<param index="0" name="id" type="String" />
+			<description>
+				The stat added up over every player. Await it: the result has [code]ok[/code] and [code]total[/code]. Needs the online services, signed in.
+			</description>
+		</method>
+		<method name="get_value">
+			<return type="float" />
+			<param index="0" name="id" type="String" />
+			<description>
+				Returns the player's value, with what they added on this device but hasn't reached the online services yet.
+			</description>
+		</method>
+		<method name="send_now">
+			<return type="void" />
+			<description>
+				Sends what's waiting to the online services now, rather than within a few minutes: before the player signs out, say. The game going to the background or closing sends it anyway.
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="changed">
+			<param index="0" name="id" type="String" />
+			<param index="1" name="value" type="float" />
+			<description>
+				Emitted when the player's value changes: with [method add], or when the online services' value is higher (it grew on another device).
+			</description>
+		</signal>
+	</signals>
+</class>

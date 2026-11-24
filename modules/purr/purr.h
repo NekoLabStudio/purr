@@ -120,7 +120,7 @@ public:
 	Dictionary get_achievements() const;
 	void show_achievements();
 	void submit_score(const String &p_leaderboard, int64_t p_score);
-	Signal get_scores(const String &p_leaderboard, const String &p_scope = "global", int p_count = 10);
+	Signal get_scores(const String &p_leaderboard, const String &p_scope = "global", int p_count = 10, bool p_previous = false);
 	void show_leaderboard(const String &p_leaderboard = String());
 	Ref<PurrStore> store() const { return store_items; }
 	Signal store_purchase(const String &p_id);
@@ -132,6 +132,7 @@ public:
 	void invite_friends();
 	void invite_friend(const String &p_friend_id);
 	Array get_friends() const;
+	Array get_friend_service_ids() const;
 	void lobby_kick(int64_t p_peer_id);
 	void report_player(int64_t p_peer_id, const String &p_reason, const String &p_details = String());
 	void block_player(int64_t p_peer_id);
@@ -159,6 +160,7 @@ public:
 	void remove_guest(const Ref<LocalPlayer> &p_guest);
 
 	Signal get_devices();
+	Signal get_activity();
 	Signal forget_device(const String &p_device_id);
 	Signal delete_account();
 	void account_deleted(const Dictionary &p_result, const Ref<RefCounted> &p_call);

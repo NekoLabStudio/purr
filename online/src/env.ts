@@ -63,6 +63,12 @@ export interface Env {
 	LOBBY_LIMITER: RateLimit;
 	// Crash reports, per account (missing on an instance not yet updated: no limit but the day's).
 	CRASH_LIMITER?: RateLimit;
+	// Scores sent, per account (missing on an instance not yet updated: no limit).
+	SCORE_LIMITER?: RateLimit;
+	// Feedback sent, per account (missing on an instance not yet updated: no limit but the day's).
+	FEEDBACK_LIMITER?: RateLimit;
+	// Stats changes sent, per account (missing on an instance not yet updated: no limit).
+	STATS_LIMITER?: RateLimit;
 
 	GAMES: Record<string, GameSettings>;
 	// Automatic bans: this many removals for cheating within within_days ban the player from
@@ -76,6 +82,8 @@ export interface Env {
 	EMAIL_FROM: string;
 	// Where the daily list of reported players goes; no list without it.
 	MODERATION_EMAIL?: string;
+	// Where the daily list of players' feedback goes; no list without it.
+	FEEDBACK_EMAIL?: string;
 	SMTP2GO_API_URL?: string;
 	INACTIVE_ACCOUNT_DAYS: number;
 	DEVICE_GRANT_DAYS: number;
@@ -85,6 +93,8 @@ export interface Env {
 	MAX_SAVE_SLOTS: number;
 	// Crash reports' bytes kept in full for each game a day (DEFAULT_MAX_CRASH_REPORT_BYTES_PER_DAY unless set).
 	MAX_CRASH_REPORT_BYTES_PER_DAY?: number;
+	// Feedback's bytes kept for each game a day (DEFAULT_MAX_FEEDBACK_BYTES_PER_DAY unless set).
+	MAX_FEEDBACK_BYTES_PER_DAY?: number;
 	// TURN credentials one account can get a day (DEFAULT_DAILY_CREDENTIALS unless set).
 	TURN_DAILY_CREDENTIALS?: number;
 	IDENTITY_KEY_VERSION: number;

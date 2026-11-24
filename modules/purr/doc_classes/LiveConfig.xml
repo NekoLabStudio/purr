@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="LiveConfig" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Values you change on the online services without shipping an update.
+	</brief_description>
+	<description>
+		Live config holds values the game reads that you change on your online services instance with [code]npm run live-config[/code]: feature flags, a switch to turn something off, tuning numbers, a seasonal event's dates. Give each key its default in Project Settings, as [code]live_config/&lt;key&gt;[/code], so the game works offline and before the first values arrive:
+		[codeblock]
+		var bonus = LiveConfig.get_value("tip_bonus", 1.0)
+		LiveConfig.changed.connect(func(): bonus = LiveConfig.get_value("tip_bonus", 1.0))
+		[/codeblock]
+		Values come from the online services ([code]online/url[/code]) the first time the game asks for one, then every 15 minutes and whenever the game comes back to the front. A value can be scheduled, with a start and an end: the game switches to it and back on time, by the service's clock rather than the device's. The last values are kept on the device, so a game started offline has them. No sign-in is needed: the values are the same for every player.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_value">
+			<return type="Variant" />
+			<param index="0" name="key" type="String" />
+			<param index="1" name="default" type="Variant" default="null" />
+			<description>
+				Returns the key's value now: the online services' if one is in effect, else [code]live_config/&lt;key&gt;[/code] in Project Settings, else [param default]. Values are what JSON holds: numbers come as [float], and lists and objects as [Array] and [Dictionary].
+			</description>
+		</method>
+		<method name="is_loaded">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] once values have come from the online services, in this run or kept from an earlier one.
+			</description>
+		</method>
+		<method name="refresh">
+			<return type="Signal" />
+			<description>
+				Asks the online services for the values now, rather than waiting for the next time. Await it: the result has [code]ok[/code], and on failure [code]error[/code] and [code]message[/code] ([code]not_configured[/code] without [code]online/url[/code]). [signal changed] fires first if any value changed.
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="changed">
+			<description>
+				Emitted when a value changes: new values came from the online services, or a scheduled one started or ended.
+			</description>
+		</signal>
+	</signals>
+</class>

@@ -1,0 +1,114 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Tue, 24 Nov 2026 11:39:31 +0000
+Subject: [PATCH] MultiMesh: one with no mesh keeps its buffer for reading back
+
+A MultiMesh with no mesh draws nothing: it's data for something else,
+such as a body made solid at each of its instances, which reads the
+buffer back. The renderer keeps a buffer set whole only on the GPU, and
+reading it back waits for the GPU to finish every frame in flight: in
+VR at 72 Hz, a 13 to 26 ms stall for each one read.
+
+Such a MultiMesh now keeps the buffer it was set, shared with the array
+it came from, and get_buffer() returns it. A MultiMesh with a mesh keeps
+nothing, as before, so drawn ones, which can be many and large, cost no
+memory. Any other change to the instances drops the copy, and reads go
+to the renderer again.
+
+No upstream issue yet.
+
+Test: a MultiMesh with no mesh returns the buffer it was set without
+asking the renderer, and the renderer's after its instances change or
+it's given a mesh (Purr's samples/world).
+---
+ godot/scene/resources/multimesh.cpp | 11 +++++++++++
+ godot/scene/resources/multimesh.h   |  4 ++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/godot/scene/resources/multimesh.cpp b/godot/scene/resources/multimesh.cpp
+index fa0a7697..117330d0 100644
+--- a/godot/scene/resources/multimesh.cpp
++++ b/godot/scene/resources/multimesh.cpp
+@@ -206,19 +206,25 @@ void MultiMesh::set_buffer(const Vector<float> &p_buffer) {
+ 	ERR_FAIL_COND_MSG(stride * instance_count != p_buffer.size(), "Cannot set a buffer on a Multimesh that is a different size from the Multimesh's existing buffer.");
+ 
+ 	RS::get_singleton()->multimesh_set_buffer(multimesh, p_buffer);
++	data_buffer = mesh.is_null() ? p_buffer : Vector<float>();
+ }
+ 
+ Vector<float> MultiMesh::get_buffer() const {
++	if (!data_buffer.is_empty()) {
++		return data_buffer;
++	}
+ 	return RS::get_singleton()->multimesh_get_buffer(multimesh);
+ }
+ 
+ void MultiMesh::set_buffer_interpolated(const Vector<float> &p_buffer_curr, const Vector<float> &p_buffer_prev) {
++	data_buffer.clear();
+ 	RS::get_singleton()->multimesh_set_buffer_interpolated(multimesh, p_buffer_curr, p_buffer_prev);
+ }
+ 
+ void MultiMesh::set_mesh(const Ref<Mesh> &p_mesh) {
+ 	mesh = p_mesh;
+ 	if (mesh.is_valid()) {
++		data_buffer.clear(); // Drawn now: the renderer's copy is the only one.
+ 		RenderingServer::get_singleton()->multimesh_set_mesh(multimesh, mesh->get_rid());
+ 	} else {
+ 		RenderingServer::get_singleton()->multimesh_set_mesh(multimesh, RID());
+@@ -233,6 +239,7 @@ void MultiMesh::set_instance_count(int p_count) {
+ 	ERR_FAIL_COND(p_count < 0);
+ 	RenderingServer::get_singleton()->multimesh_allocate_data(multimesh, p_count, RSE::MultimeshTransformFormat(transform_format), use_colors, use_custom_data);
+ 	instance_count = p_count;
++	data_buffer.clear();
+ }
+ 
+ int MultiMesh::get_instance_count() const {
+@@ -258,12 +265,14 @@ void MultiMesh::set_physics_interpolation_quality(PhysicsInterpolationQuality p_
+ void MultiMesh::set_instance_transform(int p_instance, const Transform3D &p_transform) {
+ 	ERR_FAIL_INDEX_MSG(p_instance, instance_count, "Instance index out of bounds. Instance index must be less than `instance_count` and greater than or equal to zero.");
+ 	ERR_FAIL_COND_MSG(transform_format == TRANSFORM_2D, "Can't set Transform3D on a Multimesh configured to use Transform2D. Ensure that you have set the `transform_format` to `TRANSFORM_3D`.");
++	data_buffer.clear();
+ 	RenderingServer::get_singleton()->multimesh_instance_set_transform(multimesh, p_instance, p_transform);
+ }
+ 
+ void MultiMesh::set_instance_transform_2d(int p_instance, const Transform2D &p_transform) {
+ 	ERR_FAIL_INDEX_MSG(p_instance, instance_count, "Instance index out of bounds. Instance index must be less than `instance_count` and greater than or equal to zero.");
+ 	ERR_FAIL_COND_MSG(transform_format == TRANSFORM_3D, "Can't set Transform2D on a Multimesh configured to use Transform3D. Ensure that you have set the `transform_format` to `TRANSFORM_2D`.");
++	data_buffer.clear();
+ 	RenderingServer::get_singleton()->multimesh_instance_set_transform_2d(multimesh, p_instance, p_transform);
+ 	emit_changed();
+ }
+@@ -283,6 +292,7 @@ Transform2D MultiMesh::get_instance_transform_2d(int p_instance) const {
+ void MultiMesh::set_instance_color(int p_instance, const Color &p_color) {
+ 	ERR_FAIL_INDEX_MSG(p_instance, instance_count, "Instance index out of bounds. Instance index must be less than `instance_count` and greater than or equal to zero.");
+ 	ERR_FAIL_COND_MSG(!use_colors, "Can't set instance color on a Multimesh that isn't using colors. Ensure that you have `use_colors` property of this Multimesh set to `true`.");
++	data_buffer.clear();
+ 	RenderingServer::get_singleton()->multimesh_instance_set_color(multimesh, p_instance, p_color);
+ }
+ 
+@@ -295,6 +305,7 @@ Color MultiMesh::get_instance_color(int p_instance) const {
+ void MultiMesh::set_instance_custom_data(int p_instance, const Color &p_custom_data) {
+ 	ERR_FAIL_INDEX_MSG(p_instance, instance_count, "Instance index out of bounds. Instance index must be less than `instance_count` and greater than or equal to zero.");
+ 	ERR_FAIL_COND_MSG(!use_custom_data, "Can't get instance custom data on a Multimesh that isn't using custom data. Ensure that you have `use_custom_data` property of this Multimesh set to `true`.");
++	data_buffer.clear();
+ 	RenderingServer::get_singleton()->multimesh_instance_set_custom_data(multimesh, p_instance, p_custom_data);
+ }
+ 
+diff --git a/godot/scene/resources/multimesh.h b/godot/scene/resources/multimesh.h
+index 4f3b1eee..4636a3ee 100644
+--- a/godot/scene/resources/multimesh.h
++++ b/godot/scene/resources/multimesh.h
+@@ -58,6 +58,10 @@ private:
+ 	int instance_count = 0;
+ 	int visible_instance_count = -1;
+ 	PhysicsInterpolationQuality _physics_interpolation_quality = INTERP_QUALITY_FAST;
++	// A MultiMesh with no mesh draws nothing: it's data for something else (a body's
++	// instances, say), which reads it back. It keeps the buffer it was set, as reading it
++	// from the renderer waits for the GPU to finish every frame in flight.
++	Vector<float> data_buffer;
+ 
+ protected:
+ 	static void _bind_methods();
+-- 
+2.54.0 (Apple Git-157)
+

@@ -2,4 +2,4 @@
 // protocol number, which goes up when a change means older Purr clients can't talk to it, or
 // Purr clients need a newer service. Purr checks the protocol on every response.
 export const SERVICE_VERSION = "0.3.2";
-export const PROTOCOL = 3;
+export const PROTOCOL = 4;

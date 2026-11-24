@@ -2,6 +2,8 @@
 
 #include "purr.h"
 
+#include "modules/purr_online/purr_online.h"
+
 #include "core/config/project_settings.h"
 #include "core/object/callable_mp.h"
 
@@ -37,7 +39,48 @@ String PurrLeaderboards::platform_name(const String &p_id, const String &p_platf
 	return name.is_empty() ? p_id : name;
 }
 
+// How the online services rank the board, when it resets, and the scores it takes: what its
+// first score tells them.
+Dictionary PurrLeaderboards::board_settings(const String &p_id) const {
+	ProjectSettings *settings = ProjectSettings::get_singleton();
+	const String key = "leaderboards/" + p_id + "/";
+	Dictionary board;
+	board["order"] = String(settings->get_setting(key + "order", "higher")) == "lower" ? "lower" : "higher";
+	const String reset = settings->get_setting(key + "reset", "never");
+	board["reset"] = reset.is_empty() ? "never" : reset;
+	for (const String limit : { "min", "max" }) {
+		const String value = String(settings->get_setting(key + limit, String())).strip_edges();
+		if (value.is_valid_int()) {
+			board[limit] = value.to_int();
+		}
+	}
+	return board;
+}
+
+void PurrLeaderboards::online_submitted(const Dictionary &p_result, const String &p_id) {
+	if (!p_result.get("ok", false)) {
+		WARN_PRINT(vformat("The online services didn't take the score for leaderboard \"%s\": %s", p_id, p_result.get("message", p_result.get("error", ""))));
+	}
+}
+
+void PurrLeaderboards::online_scores(const Dictionary &p_result, const Ref<RefCounted> &p_call) {
+	if (!p_result.get("ok", false)) {
+		purr_complete(p_call, failure(p_result.get("message", p_result.get("error", ""))));
+		return;
+	}
+	const Dictionary data = p_result.get("data", Dictionary());
+	Dictionary result;
+	result["ok"] = true;
+	result["scores"] = data.get("scores", Array());
+	purr_complete(p_call, result);
+}
+
 void PurrLeaderboards::submit(const String &p_id, int64_t p_score) {
+	if (Purr::get_singleton()->online_lobbies()) {
+		Signal sent = PurrOnline::get_singleton()->submit_score(p_id, p_score, board_settings(p_id));
+		sent.connect(callable_mp_static(&PurrLeaderboards::online_submitted).bind(p_id), CONNECT_ONE_SHOT);
+	}
+	// The platform's own board too, so its screens (show()) have the score.
 	const String where = platform();
 	const String name = platform_name(p_id, where);
 	if (where == "game_center") {
@@ -51,9 +94,19 @@ void PurrLeaderboards::submit(const String &p_id, int64_t p_score) {
 
 // "global" (the best scores), "friends" (the best among the player's friends) or
 // "around_player" (those around the player's own).
-void PurrLeaderboards::load_scores(const String &p_id, const String &p_scope, int p_count, const Ref<RefCounted> &p_call) {
+void PurrLeaderboards::load_scores(const String &p_id, const String &p_scope, int p_count, bool p_previous, const Ref<RefCounted> &p_call) {
 	if (p_scope != "global" && p_scope != "friends" && p_scope != "around_player") {
 		purr_complete(p_call, failure("The scope is \"global\", \"friends\" or \"around_player\"."));
+		return;
+	}
+	if (Purr::get_singleton()->online_lobbies()) {
+		const Array friends = p_scope == "friends" ? Purr::get_singleton()->get_friend_service_ids() : Array();
+		Signal loaded = PurrOnline::get_singleton()->query_scores(p_id, p_scope, CLAMP(p_count, 1, 100), p_previous, friends);
+		loaded.connect(callable_mp_static(&PurrLeaderboards::online_scores).bind(p_call), CONNECT_ONE_SHOT);
+		return;
+	}
+	if (p_previous) {
+		purr_complete(p_call, failure("Earlier periods are only on the online services' leaderboards."));
 		return;
 	}
 	const String where = platform();

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Feedback" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
+	<brief_description>
+		Players' feedback to the game's developer, through the online services.
+	</brief_description>
+	<description>
+		A player's few words to you, sent from the game to your online services instance with what the game runs on: a bug they hit, an idea, a request for help. Give each kind its own category:
+		[codeblock]
+		var sent = await Feedback.send("bugs", text_edit.text, true)
+		if not sent.ok:
+		    show_message("Couldn't send that. Try again later.")
+		[/codeblock]
+		Feedback is anonymous: nothing says who sent it, and email and IP addresses are removed from it. For a category where you'll want to answer (help with a purchase, say), turn on [code]feedback/&lt;category&gt;/named[/code] in Project Settings: that category's feedback names the player's account and display name, and keeps their words as written. Tell players which is which.
+		You read it with [code]npm run feedback[/code] on your instance, or in a daily email. It's kept for 90 days.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="is_available" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] when the player is signed in to the online services, so feedback can be sent.
+			</description>
+		</method>
+		<method name="send">
+			<return type="Signal" />
+			<param index="0" name="category" type="String" />
+			<param index="1" name="text" type="String" />
+			<param index="2" name="include_log" type="bool" default="false" />
+			<description>
+				Sends the player's [param text], 1 to 2000 characters, in [param category] (1 to 64 lowercase letters, digits, [code]-[/code] or [code]_[/code]). It goes with the game's and engine's versions, the operating system, processor, memory and graphics card, and the context set with [method CrashReports.set_context]. With [param include_log], the last lines of this run's log go too, when file logging is on. Await it: the result has [code]ok[/code], and on failure [code]error[/code] and [code]message[/code] ([code]not_signed_in[/code], [code]bad_request[/code], [code]rate_limited[/code] after a few a minute, or [code]feedback_full[/code] once the game has had all it takes in a day).
+			</description>
+		</method>
+	</methods>
+</class>

@@ -412,6 +412,7 @@ Signal GameCenter::load_friends() {
 				by_id[player.gamePlayerID] = player;
 				Dictionary entry;
 				entry["id"] = ns_string(player.gamePlayerID);
+				entry["team_player_id"] = ns_string(player.teamPlayerID);
 				entry["name"] = ns_string(player.displayName);
 				list.push_back(entry);
 			}

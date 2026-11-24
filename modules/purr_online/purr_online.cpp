@@ -76,6 +76,13 @@ Signal PurrOnline::call(HTTPClient::Method p_method, const String &p_path, const
 	}
 	// Signing in, and adding an email (which can move this device to the address's account).
 	const bool signs_in = p_path.begins_with("/auth/");
+	// A debug build (the editor's, a test build's) makes its account a test player's, whose
+	// scores only it sees.
+#ifdef DEBUG_ENABLED
+	if (signs_in) {
+		headers.push_back("X-Purr-Test: 1");
+	}
+#endif
 	PackedByteArray body;
 	if (p_body.get_type() == Variant::PACKED_BYTE_ARRAY) {
 		body = p_body;
@@ -244,8 +251,22 @@ Signal PurrOnline::send_crash_report(const String &p_report) {
 	return call(HTTPClient::METHOD_POST, "/crash-reports", body, String());
 }
 
+Signal PurrOnline::send_feedback(const String &p_category, const String &p_text, bool p_named, const String &p_details) {
+	Dictionary body;
+	body["game"] = get_game();
+	body["category"] = p_category;
+	body["text"] = p_text;
+	body["named"] = p_named;
+	body["details"] = p_details;
+	return call(HTTPClient::METHOD_POST, "/feedback", body, String());
+}
+
 Signal PurrOnline::get_account(const String &p_token) {
 	return call(HTTPClient::METHOD_GET, "/account", Variant(), p_token);
+}
+
+Signal PurrOnline::get_account_activity() {
+	return call(HTTPClient::METHOD_GET, "/account/activity", Variant(), String());
 }
 
 Signal PurrOnline::set_display_name(const String &p_name) {
@@ -548,6 +569,42 @@ Signal PurrOnline::get_rating(const String &p_mode) {
 	return call(HTTPClient::METHOD_GET, "/ratings/" + get_game().uri_encode() + "/" + p_mode.uri_encode(), Variant(), String());
 }
 
+Signal PurrOnline::submit_score(const String &p_board, int64_t p_score, const Dictionary &p_board_settings) {
+	Dictionary body = p_board_settings.duplicate();
+	body["score"] = p_score;
+	return call(HTTPClient::METHOD_PUT, "/leaderboards/" + get_game().uri_encode() + "/" + p_board.uri_encode() + "/score", body, String());
+}
+
+Signal PurrOnline::query_scores(const String &p_board, const String &p_scope, int p_count, bool p_previous, const Array &p_friends) {
+	Dictionary body;
+	body["scope"] = p_scope;
+	body["count"] = p_count;
+	body["period"] = p_previous ? "previous" : "current";
+	if (p_scope == "friends") {
+		body["friends"] = p_friends;
+	}
+	return call(HTTPClient::METHOD_POST, "/leaderboards/" + get_game().uri_encode() + "/" + p_board.uri_encode() + "/query", body, String());
+}
+
+Signal PurrOnline::get_stats() {
+	return call(HTTPClient::METHOD_GET, "/stats/" + get_game().uri_encode(), Variant(), String());
+}
+
+Signal PurrOnline::add_stats(const Dictionary &p_changes, const Dictionary &p_limits) {
+	Dictionary body;
+	body["changes"] = p_changes;
+	body["limits"] = p_limits;
+	return call(HTTPClient::METHOD_POST, "/stats/" + get_game().uri_encode(), body, String());
+}
+
+Signal PurrOnline::get_stat_total(const String &p_stat, int p_days) {
+	return call(HTTPClient::METHOD_GET, "/stats/" + get_game().uri_encode() + "/" + p_stat.uri_encode() + "?days=" + itos(p_days), Variant(), String());
+}
+
+Signal PurrOnline::get_live_config() {
+	return call(HTTPClient::METHOD_GET, "/live-config/" + get_game().uri_encode(), Variant(), String());
+}
+
 void PurrOnline::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_configured"), &PurrOnline::is_configured);
 	ClassDB::bind_method(D_METHOD("get_blocked_reason"), &PurrOnline::get_blocked_reason);
@@ -594,6 +651,14 @@ void PurrOnline::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("leave_matchmaking"), &PurrOnline::leave_matchmaking);
 	ClassDB::bind_method(D_METHOD("is_matchmaking"), &PurrOnline::is_matchmaking);
 	ClassDB::bind_method(D_METHOD("get_rating", "mode"), &PurrOnline::get_rating);
+	ClassDB::bind_method(D_METHOD("submit_score", "board", "score", "board_settings"), &PurrOnline::submit_score);
+	ClassDB::bind_method(D_METHOD("get_live_config"), &PurrOnline::get_live_config);
+	ClassDB::bind_method(D_METHOD("get_account_activity"), &PurrOnline::get_account_activity);
+	ClassDB::bind_method(D_METHOD("get_stats"), &PurrOnline::get_stats);
+	ClassDB::bind_method(D_METHOD("add_stats", "changes", "limits"), &PurrOnline::add_stats);
+	ClassDB::bind_method(D_METHOD("get_stat_total", "stat", "days"), &PurrOnline::get_stat_total);
+	ClassDB::bind_method(D_METHOD("send_feedback", "category", "text", "named", "details"), &PurrOnline::send_feedback);
+	ClassDB::bind_method(D_METHOD("query_scores", "board", "scope", "count", "previous", "friends"), &PurrOnline::query_scores);
 	ClassDB::bind_method(D_METHOD("is_in_lobby"), &PurrOnline::is_in_lobby);
 
 	ADD_SIGNAL(MethodInfo("lobby_joined", PropertyInfo(Variant::INT, "peer_id"), PropertyInfo(Variant::ARRAY, "members"), PropertyInfo(Variant::ARRAY, "ice_servers"), PropertyInfo(Variant::INT, "ice_expires_in")));
