@@ -210,8 +210,18 @@ void PurrFriends::platform_friends_loaded(const Dictionary &p_result) {
 		return;
 	}
 	platform_friends.clear();
+	service_ids.clear();
+	// Game Center signs players in to the online services by their teamPlayerID; Play Games by
+	// the ID it gives.
+	const String provider = Purr::get_singleton()->game_center_ready() ? "game_center" : "play_games";
 	for (const Variant &entry : Array(p_result.get("friends", Array()))) {
 		const Dictionary loaded = entry;
+		Dictionary service_id;
+		service_id["provider"] = provider;
+		service_id["id"] = provider == "game_center" ? loaded.get("team_player_id", "") : loaded.get("id", "");
+		if (!String(service_id["id"]).is_empty()) {
+			service_ids.push_back(service_id);
+		}
 		Dictionary friend_entry;
 		friend_entry["id"] = loaded.get("id", "");
 		friend_entry["name"] = loaded.get("name", "");
@@ -221,6 +231,21 @@ void PurrFriends::platform_friends_loaded(const Dictionary &p_result) {
 		platform_friends.push_back(friend_entry);
 	}
 	changed();
+}
+
+Array PurrFriends::get_service_ids() {
+	if (!Purr::get_singleton()->steam_ready()) {
+		ask_platform_friends();
+		return service_ids.duplicate(true);
+	}
+	Array ids;
+	for (const Variant &entry : get_friends()) {
+		Dictionary service_id;
+		service_id["provider"] = "steam";
+		service_id["id"] = Dictionary(entry).get("id", "");
+		ids.push_back(service_id);
+	}
+	return ids;
 }
 
 Array PurrFriends::get_friends() {

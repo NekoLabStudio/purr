@@ -11,6 +11,9 @@ Every game needs the same few things: signing in, saves, achievements, leaderboa
 | `Friends` | The player's Steam friends and their lobbies |
 | `LocalPlayers` | [Guests](local-players.md) playing on the same device |
 | `Store` | [DLC and expansions](store.md) the player buys once, on Steam, the App Store and Google Play |
+| `LiveConfig` | [Values you change](live-config.md) on the online services without an update |
+| `Feedback` | [Players' feedback](feedback.md), sent to the online services |
+| `Stats` | [Counters](stats.md) each player adds to, with totals over every player |
 
 Underneath, Purr uses each platform's own systems, and each platform's singleton (`Steam`, `GameCenter`, `PlayGames`, `ICloud`) stays available for anything Purr doesn't cover.
 
@@ -47,7 +50,8 @@ Each singleton says what works where the game is running, so the game can show o
 
 | Ask | True |
 |---|---|
-| `Achievements.is_available()`, `Leaderboards.is_available()` | on Steam, Game Center and Play Games (achievements are kept with the player's saves everywhere) |
+| `Achievements.is_available()` | on Steam, Game Center and Play Games (achievements are kept with the player's saves everywhere) |
+| `Leaderboards.is_available()` | on Steam, Game Center and Play Games, and with the online services, signed in |
 | `Lobbies.is_available()`, `Lobbies.can_matchmake()` | with the online services, on Steam, or on Game Center |
 | `Lobbies.has_crossplay()`, `Account.can_link_email()`, `LocalPlayers.can_invite_guests()` | with the online services, signed in |
 | `Lobbies.can_invite()` | on Steam and Game Center |
@@ -60,6 +64,8 @@ Each singleton says what works where the game is running, so the game can show o
 
 Stores ask games with accounts to let players delete them. `Account.delete_account()` deletes the player's account and everything in it on the online services, and signs them out here; signing in again starts a new account. Their saves on the device stay.
 
+With the online services, `Account.get_activity()` lists what happened on the account in the last 90 days, newest first: sign-ins on each platform, an email address added or changed, another account joining this one, guest sessions on other devices and devices that remember the player, a name chosen. A "Recent activity" screen built from it lets a player spot something they didn't do. No addresses or locations are kept.
+
 ## Versions
 
 Every request to the online services says which game it's from and its version, from `application/config/version` in Project Settings. The service's operator can set a minimum and a maximum version for each game (see [Settings](../online/settings.md)); without them, every version can play online. When the service turns a version away, `Account` emits `update_required` with the allowed range, and online features stop for the session. Ask the player to update; their saves keep working on the device and in the platform's cloud.
@@ -70,4 +76,4 @@ Account.update_required.connect(func(min_version, max_version): show_update_prom
 
 It works the other way too. If the service is older than this version of Purr needs, `Account` emits `service_outdated` and online features stop the same way.
 
-The class reference has every method: [Account](../reference/Account.md), [Saves](../reference/Saves.md), [Achievements](../reference/Achievements.md), [Leaderboards](../reference/Leaderboards.md), [Lobbies](../reference/Lobbies.md), [Friends](../reference/Friends.md), [LocalPlayers](../reference/LocalPlayers.md), [LocalPlayer](../reference/LocalPlayer.md) and [PlayerSaves](../reference/PlayerSaves.md). They're also in the editor, under Help > Search Help.
+The class reference has every method: [Account](../reference/Account.md), [Saves](../reference/Saves.md), [Achievements](../reference/Achievements.md), [Leaderboards](../reference/Leaderboards.md), [Lobbies](../reference/Lobbies.md), [Friends](../reference/Friends.md), [LocalPlayers](../reference/LocalPlayers.md), [LocalPlayer](../reference/LocalPlayer.md), [PlayerSaves](../reference/PlayerSaves.md), [LiveConfig](../reference/LiveConfig.md), [Feedback](../reference/Feedback.md) and [Stats](../reference/Stats.md). They're also in the editor, under Help > Search Help.

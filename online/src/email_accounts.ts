@@ -12,6 +12,7 @@ import { verifyEmailCode, normaliseEmail } from "./email_codes";
 import { HttpError, optionalString, requireString } from "./http";
 import { addIdentity, findIdentityAccount, identityHash, listProviders, requireGame, restoreBan } from "./identities";
 import { ownershipAfterSignIn, ownershipBeforeSignIn } from "./ownership";
+import { recordActivity } from "./activity";
 import { deleteAllSaves } from "./saves";
 import { authenticate, createGrant, createSession } from "./sessions";
 
@@ -68,6 +69,7 @@ export async function verifyEmail(env: Env, request: Request, body: Record<strin
 		if (settings) {
 			await ownershipAfterSignIn(env, game, account.id, ownership);
 		}
+		await recordActivity(env, account.id, "signed_in", { provider: "email", game });
 		return session(env, account, created);
 	}
 
@@ -95,6 +97,7 @@ export async function verifyEmail(env: Env, request: Request, body: Record<strin
 				env.DB.prepare("UPDATE accounts SET session_epoch = session_epoch + 1 WHERE id = ?").bind(caller.accountId),
 			]);
 			await restoreBan(env, caller.accountId, "email", email);
+			await recordActivity(env, caller.accountId, "email_changed");
 		}
 		return { ...(await session(env, (await findAccount(env, caller.accountId))!, false)), merged: false };
 	}
@@ -103,6 +106,7 @@ export async function verifyEmail(env: Env, request: Request, body: Record<strin
 		if (!(await addIdentity(env, caller.accountId, "email", email))) {
 			throw new HttpError(409, "email_in_use", "That address was just added to another account.");
 		}
+		await recordActivity(env, caller.accountId, "email_added");
 		return { ...(await session(env, (await findAccount(env, caller.accountId))!, false)), merged: false };
 	}
 
@@ -111,17 +115,29 @@ export async function verifyEmail(env: Env, request: Request, body: Record<strin
 	// service, so there are none to choose between; anything left under the old account is swept.
 	// Its standing moves over too: a ban (the later end), its count of automatic bans, removals for
 	// cheating, reports about it, blocks either way and ratings in modes the address's account hasn't
-	// played. Left behind, joining an account would be a way out of a ban.
+	// played. Left behind, joining an account would be a way out of a ban. Its leaderboard scores
+	// join the address's account's, the better of the two kept in each period, its stats are added
+	// to the address's account's, its activity goes with it, and a test player's account stays a
+	// test player's.
 	const from = caller.accountId;
 	const to = owner.id;
+	const joining = (await listProviders(env, from)).join(", ");
 	await env.DB.batch([
 		env.DB.prepare("UPDATE identities SET account_id = ?1 WHERE account_id = ?2").bind(to, from),
 		env.DB.prepare("UPDATE device_grants SET account_id = ?1 WHERE account_id = ?2").bind(to, from),
 		env.DB.prepare(
 			`UPDATE accounts SET
 			   banned_until = MAX(banned_until, (SELECT banned_until FROM accounts WHERE id = ?2)),
-			   auto_bans = auto_bans + (SELECT auto_bans FROM accounts WHERE id = ?2)
+			   auto_bans = auto_bans + (SELECT auto_bans FROM accounts WHERE id = ?2),
+			   test = MAX(test, (SELECT test FROM accounts WHERE id = ?2))
 			 WHERE id = ?1`,
+		).bind(to, from),
+		env.DB.prepare(
+			`INSERT INTO scores (game, board, period, account_id, score, at, hidden)
+			 SELECT game, board, period, ?1, score, at, hidden FROM scores WHERE account_id = ?2 AND true
+			 ON CONFLICT (game, board, period, account_id) DO UPDATE SET score = excluded.score, at = excluded.at, hidden = MAX(scores.hidden, excluded.hidden)
+			 WHERE excluded.score != scores.score
+			   AND (excluded.score > scores.score) = (SELECT higher_first FROM leaderboards WHERE game = excluded.game AND id = excluded.board)`,
 		).bind(to, from),
 		env.DB.prepare("UPDATE cheat_kicks SET account_id = ?1 WHERE account_id = ?2").bind(to, from),
 		env.DB.prepare("UPDATE reports SET reported_id = ?1 WHERE reported_id = ?2 AND reporter_id != ?1").bind(to, from),
@@ -134,8 +150,17 @@ export async function verifyEmail(env: Env, request: Request, body: Record<strin
 			"INSERT INTO ownership (account_id, game, source, checked_at) SELECT ?1, game, source, checked_at FROM ownership WHERE account_id = ?2 ON CONFLICT DO UPDATE SET source = excluded.source, checked_at = MAX(checked_at, excluded.checked_at)",
 		).bind(to, from),
 		env.DB.prepare("UPDATE OR IGNORE ownership_proofs SET account_id = ?1 WHERE account_id = ?2").bind(to, from),
+		env.DB.prepare("UPDATE account_activity SET account_id = ?1 WHERE account_id = ?2").bind(to, from),
+		env.DB.prepare(
+			`INSERT INTO player_stats (account_id, game, stat, value, day, day_added)
+			 SELECT ?1, game, stat, value, day, day_added FROM player_stats WHERE account_id = ?2 AND true
+			 ON CONFLICT (account_id, game, stat) DO UPDATE SET value = player_stats.value + excluded.value,
+			   day_added = CASE WHEN player_stats.day = excluded.day THEN player_stats.day_added + excluded.day_added ELSE MAX(player_stats.day_added, excluded.day_added) END,
+			   day = MAX(player_stats.day, excluded.day)`,
+		).bind(to, from),
 		env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(from),
 	]);
+	await recordActivity(env, to, "account_joined", { detail: joining });
 	await deleteAllSaves(env, caller.accountId);
 	return { ...(await session(env, owner, false)), merged: true };
 }
@@ -151,9 +176,11 @@ export async function verifyGuestEmail(env: Env, request: Request, host: Caller,
 	if (account.id === host.accountId) {
 		throw new HttpError(400, "same_account", "That's this device's own account.");
 	}
+	const label = optionalString(body, "device_label", MAX_NAME);
 	const credentials =
 		body.remember === true
-			? { kind: "grant", token: (await createGrant(env, account.id, game, optionalString(body, "device_label", MAX_NAME))).token }
+			? { kind: "grant", token: (await createGrant(env, account.id, game, label)).token }
 			: { kind: "guest", ...(await createSession(env, account.id, "guest", game)) };
+	await recordActivity(env, account.id, body.remember === true ? "device_remembered" : "guest_signed_in", { game, detail: body.remember === true ? label : "" });
 	return { account_id: account.id, display_name: account.display_name, ...credentials };
 }

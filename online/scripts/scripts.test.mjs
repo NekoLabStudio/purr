@@ -100,7 +100,8 @@ test("configure, in a dry run with scripted answers, shows and makes the changes
 		}
 		symlinkSync(join(online, "node_modules"), join(copy, "node_modules"));
 		const answers = {
-			menu: ["1", "2", "6", ""],
+			menu: ["1", "2", "5", "7", ""],
+			feedback_email: "feedback@example.com",
 			game: ["night-drive", ""],
 			game_name: "Night Drive",
 			steam_app_id: "4242",
@@ -123,6 +124,7 @@ test("configure, in a dry run with scripted answers, shows and makes the changes
 		assert.match(out, /Email sent with: smtp2go/);
 		assert.match(out, /Cloudflare's email binding: removed/);
 		assert.match(out, /New device accounts a minute, per connection: 3/);
+		assert.match(out, /Feedback email to: feedback@example\.com/);
 		assert.match(out, /Secret STEAM_WEB_API_KEY: set/);
 		assert.match(out, /Secret SMTP2GO_API_KEY: set/);
 		assert.match(out, /would write wrangler\.jsonc/);
@@ -217,6 +219,83 @@ test("moderate lists reported players and acts on them, on a local database", ()
 		assert.match(moderate("ban", target, "1; DROP TABLE accounts").stderr, /number of days/);
 		assert.match(moderate("find", "'; DROP TABLE accounts; --").stdout, /No one has that name/);
 		assert.equal(query("SELECT COUNT(*) AS n FROM accounts")[0].n, 2);
+
+		// Leaderboards and test players.
+		query(`INSERT INTO leaderboards (game, id, higher_first, reset, created_at) VALUES ('g', 'laps', 0, 'never', 1);
+		       INSERT INTO scores (game, board, period, account_id, score, at) VALUES ('g', 'laps', 0, '${target}', 61000, 1), ('g', 'laps', 0, '${reporter}', 59000, 2)`);
+		assert.match(moderate("scores", "g", "laps").stdout, /Lower scores first[\s\S]*1\. 59000 {2}Reporter[\s\S]*2\. 61000/);
+		assert.equal(moderate("hide", target, "g", "laps").status, 0);
+		assert.equal(query(`SELECT hidden FROM scores WHERE account_id = '${target}'`)[0].hidden, 1);
+		assert.match(moderate("scores", "g", "laps").stdout, /61000 {2}\(no name\) {2}1111[^\n]*\(hidden\)/);
+		assert.equal(moderate("unhide", target).status, 0);
+		assert.equal(query(`SELECT hidden FROM scores WHERE account_id = '${target}'`)[0].hidden, 0);
+		assert.equal(moderate("board", "g", "laps", "higher", "weekly", "30000", "none").status, 0);
+		assert.deepEqual(query("SELECT higher_first, reset, min_score, max_score FROM leaderboards WHERE id = 'laps'")[0], { higher_first: 1, reset: "weekly", min_score: 30000, max_score: null });
+		assert.match(moderate("scores", "g", "laps").stdout, /resets weekly; takes lowest 30000/);
+		assert.match(moderate("board", "g", "laps", "higher", "weekly", "1; DROP TABLE scores").stderr, /isn't a whole number/);
+		assert.match(moderate("board", "g", "laps", "higher", "hourly").stderr, /resets never, daily/);
+		assert.match(moderate("hide", target, "g'; --", "laps").stderr, /isn't a game/);
+		query(`INSERT INTO account_activity (account_id, at, kind, provider, game) VALUES ('${target}', 1763000000, 'signed_in', 'steam', 'g')`);
+		assert.match(moderate("show", target).stdout, /Recent activity:\n2025-11-13 02:13 {2}signed in, steam, g/);
+		assert.equal(moderate("test", target).status, 0);
+		assert.match(moderate("show", target).stdout, /a test player/);
+		assert.equal(moderate("untest", target).status, 0);
+		assert.equal(query(`SELECT test FROM accounts WHERE id = '${target}'`)[0].test, 0);
+	} finally {
+		rmSync(state, { recursive: true, force: true });
+	}
+});
+
+test("live-config sets, lists and removes values, on a local database", () => {
+	const state = mkdtempSync(join(tmpdir(), "purr-live-config-"));
+	const wranglerRun = (...args) => spawnSync("npx", ["wrangler", ...args, "--local", "--persist-to", state], { cwd: online, encoding: "utf8", env: { ...process.env, CI: "1" } });
+	const liveConfig = (...args) => spawnSync("node", ["scripts/live_config.mjs", ...args, "--local", "--persist-to", state], { cwd: online, encoding: "utf8", env: { ...process.env, PURR_SCRIPT_ANSWERS: "{}" } });
+	const query = (sql) => JSON.parse(wranglerRun("d1", "execute", "purr-online", "--json", "--command", sql).stdout)[0].results;
+	try {
+		assert.equal(wranglerRun("d1", "migrations", "apply", "purr-online").status, 0);
+		assert.match(liveConfig().stdout, /No live config values/);
+		assert.equal(liveConfig("set", "g", "bonus", "1.5").status, 0);
+		assert.equal(liveConfig("set", "g", "bonus", "2").status, 0); // replaces the undated one
+		assert.equal(liveConfig("set", "g", "event", "winter fair", "--from=2026-12-24T18:00", "--until=2026-12-27").status, 0);
+		assert.deepEqual(
+			query("SELECT key, value, starts_at, ends_at FROM live_config ORDER BY key"),
+			[
+				{ key: "bonus", value: "2", starts_at: null, ends_at: null },
+				{ key: "event", value: '"winter fair"', starts_at: Date.UTC(2026, 11, 24, 18) / 1000, ends_at: Date.UTC(2026, 11, 27) / 1000 },
+			],
+		);
+		assert.match(liveConfig().stdout, /g:\n {2}bonus = 2 {2}\([0-9a-f]{8}\)\n {2}event = "winter fair" from 2026-12-24 18:00 until 2026-12-27 00:00/);
+		assert.match(liveConfig("set", "g", "event", "x", "--from=2026-12-27", "--until=2026-12-24").stderr, /must be after/);
+		assert.match(liveConfig("set", "g", "event", "x", "--from=tomorrow").stderr, /date and time in UTC/);
+		assert.match(liveConfig("set", "g'; --", "bonus", "1").stderr, /isn't a game/);
+		const id = query("SELECT substr(id, 1, 8) AS id FROM live_config WHERE key = 'event'")[0].id;
+		assert.equal(liveConfig("remove", "g", "event", id).status, 0);
+		assert.equal(liveConfig("remove", "g", "bonus").status, 0);
+		assert.equal(query("SELECT COUNT(*) AS n FROM live_config")[0].n, 0);
+	} finally {
+		rmSync(state, { recursive: true, force: true });
+	}
+});
+
+test("feedback lists, shows and deletes players' feedback, on a local database", () => {
+	const state = mkdtempSync(join(tmpdir(), "purr-feedback-"));
+	const wranglerRun = (...args) => spawnSync("npx", ["wrangler", ...args, "--local", "--persist-to", state], { cwd: online, encoding: "utf8", env: { ...process.env, CI: "1" } });
+	const feedback = (...args) => spawnSync("node", ["scripts/feedback.mjs", ...args, "--local", "--persist-to", state], { cwd: online, encoding: "utf8", env: { ...process.env, PURR_SCRIPT_ANSWERS: "{}" } });
+	const query = (sql) => JSON.parse(wranglerRun("d1", "execute", "purr-online", "--json", "--command", sql).stdout)[0].results;
+	try {
+		assert.equal(wranglerRun("d1", "migrations", "apply", "purr-online").status, 0);
+		assert.match(feedback().stdout, /No feedback yet/);
+		query(`INSERT INTO accounts (id, display_name, name_chosen, created_at, last_seen_at) VALUES ('33333333-3333-4333-8333-333333333333', 'Ana', 0, 1, 1);
+		       INSERT INTO feedback (id, game, category, text, details, version, account_id, display_name, created_at) VALUES
+		         ('aaaaaaaa-0000-4000-8000-000000000000', 'g', 'bugs', 'The ferry sank.', 'OS: macOS', '1.2.0', NULL, '', 1763000000),
+		         ('bbbbbbbb-0000-4000-8000-000000000000', 'g', 'support', 'Lost my save.', '', '', '33333333-3333-4333-8333-333333333333', 'Ana', 1763000100)`);
+		const listed = feedback();
+		assert.equal(listed.status, 0, listed.stderr);
+		assert.match(listed.stdout, /1\. Lost my save\.\n {5}g, support; 2025-11-13 02:15; Ana \(3333[^)]*\); bbbbbbbb\n {2}2\. The ferry sank\.\n {5}g, bugs, version 1\.2\.0; [^;]*; anonymous; aaaaaaaa/);
+		assert.match(feedback("show", "aaaaaaaa").stdout, /g, bugs, version 1\.2\.0, sent [^\n]* by anonymous:\n\nThe ferry sank\.\n\nOS: macOS/);
+		assert.match(feedback("show", "x' OR 1=1 --").stderr, /isn't a feedback ID/);
+		assert.equal(feedback("delete", "aaaaaaaa").status, 0);
+		assert.equal(query("SELECT COUNT(*) AS n FROM feedback")[0].n, 1);
 	} finally {
 		rmSync(state, { recursive: true, force: true });
 	}

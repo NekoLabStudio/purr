@@ -5,6 +5,7 @@
 import type { Env } from "./env";
 import type { Caller } from "./sessions";
 import { deleteIfOrphaned } from "./accounts";
+import { recordActivity } from "./activity";
 import { HttpError } from "./http";
 
 // "Devices that remember you", on the player's own device.
@@ -16,10 +17,13 @@ export async function listGrants(env: Env, caller: Caller) {
 }
 
 export async function revokeGrant(env: Env, caller: Caller, grantId: string) {
-	const result = await env.DB.prepare("DELETE FROM device_grants WHERE id = ? AND account_id = ?").bind(grantId, caller.accountId).run();
-	if (result.meta.changes === 0) {
+	const grant = await env.DB.prepare("DELETE FROM device_grants WHERE id = ? AND account_id = ? RETURNING device_label, game")
+		.bind(grantId, caller.accountId)
+		.first<{ device_label: string; game: string }>();
+	if (!grant) {
 		throw new HttpError(404, "unknown_grant", "No such device on this account.");
 	}
+	await recordActivity(env, caller.accountId, "device_forgotten", { game: grant.game, detail: grant.device_label });
 	return { revoked: grantId };
 }
 
@@ -29,7 +33,10 @@ export async function forgetGrant(env: Env, caller: Caller) {
 	if (!caller.grantId) {
 		throw new HttpError(400, "bad_request", "Forget with the device grant itself.");
 	}
-	await env.DB.prepare("DELETE FROM device_grants WHERE id = ?").bind(caller.grantId).run();
+	const grant = await env.DB.prepare("DELETE FROM device_grants WHERE id = ? RETURNING device_label, game").bind(caller.grantId).first<{ device_label: string; game: string }>();
 	const deleted = await deleteIfOrphaned(env, caller.accountId);
+	if (!deleted && grant) {
+		await recordActivity(env, caller.accountId, "device_forgotten", { game: grant.game, detail: grant.device_label });
+	}
 	return { forgotten: caller.grantId, account_deleted: deleted };
 }

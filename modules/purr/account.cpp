@@ -66,6 +66,10 @@ Signal Account::get_devices() {
 	return Purr::get_singleton()->get_devices();
 }
 
+Signal Account::get_activity() {
+	return Purr::get_singleton()->get_activity();
+}
+
 Signal Account::forget_device(const String &p_device_id) {
 	return Purr::get_singleton()->forget_device(p_device_id);
 }
@@ -94,6 +98,7 @@ void Account::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("link_email", "email", "current_email"), &Account::link_email, DEFVAL(String()));
 	ClassDB::bind_method(D_METHOD("confirm_email", "code"), &Account::confirm_email);
 	ClassDB::bind_method(D_METHOD("get_devices"), &Account::get_devices);
+	ClassDB::bind_method(D_METHOD("get_activity"), &Account::get_activity);
 	ClassDB::bind_method(D_METHOD("forget_device", "device_id"), &Account::forget_device);
 	ClassDB::bind_method(D_METHOD("get_device_label"), &Account::get_device_label);
 	ClassDB::bind_method(D_METHOD("set_device_label", "label"), &Account::set_device_label);

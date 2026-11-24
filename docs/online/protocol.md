@@ -36,6 +36,7 @@ Guest tokens and device grants can't add or change an address. Codes for signing
 ## The account
 
 - `GET /account`: `{"id", "display_name", "created_at", "last_seen_at", "providers", "scope"}`.
+- `GET /account/activity`, with a full session: `{"activity": [{"at", "kind", "provider", "game", "detail"}]}`, the last 90 days', newest first, 100 at most. `kind` is `signed_in` (at most once a day for each `provider`), `guest_signed_in`, `device_remembered`, `device_forgotten` (the device's label in `detail`), `email_added`, `email_changed`, `account_joined` (the joining account's providers in `detail`) or `name_changed` (the name in `detail`).
 - `DELETE /account`: deletes the account, its identities, its device grants and all its saves.
 
 ## Saves
@@ -87,6 +88,29 @@ The lobby clears itself when the last player leaves, or after 10 minutes if nobo
 
 - `GET /matchmaking/<game>/<mode>/socket?players=<n>`, as a WebSocket with a full session, waits for a match of `n` players (2 to 8) in a ranked mode (a name the game picks, made of lowercase letters, digits, `-` and `_`). It sends `{"type": "waiting", "players"}`, then `{"type": "matched", "code"}` with a new ranked lobby to join, and closes. Players are matched within a rating range and a distance (from Cloudflare's estimate of where each connection comes from) that both widen as they wait, nearest first, and never with someone either of them blocked. Whoever waited longest hosts.
 - `GET /ratings/<game>/<mode>` returns the player's `{"rating", "matches"}` in that mode. Ratings start at 1000 and change by Elo with each recorded result.
+
+## Leaderboards
+
+Both need a full session. A leaderboard's ID is 1 to 64 letters, digits, `_`, `.` or `-`.
+
+- `PUT /leaderboards/<game>/<leaderboard>/score` with `{"score", "order", "reset", "min", "max"}` keeps the score if it's the player's best in the current period, and returns `{"best", "improved"}`. `score` is a whole number. The first score a board gets makes it, with `order` (`"higher"`, the default, or `"lower"`: which scores rank first), `reset` (`"never"`, the default, `"daily"`, `"weekly"` or `"monthly"`, at midnight UTC, weeks from Monday) and the optional `min` and `max`; later scores' settings are ignored. A score outside `min` and `max` gets 400 `score_out_of_range`. Where the game must be owned, 403 `not_owned`. Each account sends at most 30 a minute (429 `rate_limited`).
+- `POST /leaderboards/<game>/<leaderboard>/query` with `{"scope", "count", "period", "friends"}` returns `{"scores": [{"rank", "name", "score", "player"}], "period_start"}`. `scope` is `"global"` (the best), `"around_player"` (around the player's own, or the best if they have none) or `"friends"` (the best among the accounts of `friends`, a list of up to 200 `{"provider", "id"}` platform friends (more are left out), `provider` being `steam`, `game_center` or `play_games`, and the player). `count` is 1 to 100 (10 if missing). `period` is `"current"` (the default) or `"previous"`, the period before. Scores hidden by the operator, test players' and banned players' are only in their own player's list. An unknown board has no scores.
+
+A sign-in sent with `X-Purr-Test: 1` (Purr sends it from the editor and debug builds) makes its account a test player's, for good.
+
+## Stats
+
+- `GET /stats/<game>`, with a full session: the player's values, `{"stats": {id: value}}`.
+- `POST /stats/<game>`, with a full session and `{"changes": {id: amount}, "limits": {id: most}}`: adds each amount (a number above 0, 50 stats at most) to the player's value, and unless they're a test player, to the stat's total and today's history. A stat's first change makes it with its limit, the most one player adds in a UTC day; past it, the rest of the day's additions are dropped. Returns the player's values, as `GET`. Where the game must be owned, 403 `not_owned`. Each account sends at most 10 a minute (429 `rate_limited`). A stat's ID is 1 to 64 letters, digits, `_`, `.` or `-`.
+- `GET /stats/<game>/<stat>?days=<n>`, with any token: `{"total", "days": [{"day", "added"}]}`, the total over every player and what was added on each of the last `n` days (0 to 730, 0 if missing), oldest first, `day` being the Unix time of its start.
+
+## Live config
+
+- `GET /live-config/<game>`, with no token needed, returns `{"values": [{"key", "value", "starts_at", "ends_at"}], "time"}`: the game's values that haven't ended, `starts_at` and `ends_at` as Unix times or `null`, and the service's clock as `time`. A value is in effect from `starts_at` until `ends_at`; of several in effect for one key, the one that started last wins.
+
+## Feedback
+
+- `POST /feedback` with `{"game", "category", "text", "named", "details"}` and any token (the game's version comes from `X-Game-Version`) returns `{"received": true}`. `category` is 1 to 64 lowercase letters, digits, `-` and `_`; `text` is 1 to 2000 characters; `details`, what the game runs on, is at most 16 KB. With `named` true and a full session, the account and its display name are kept and the text is kept as written; otherwise email and IP addresses are removed from it. Email and IP addresses are always removed from `details`. Each account sends at most 3 a minute (429 `rate_limited`), and past a game's `MAX_FEEDBACK_BYTES_PER_DAY` it gets 503 `feedback_full` until the next day.
 
 ## Crash reports
 

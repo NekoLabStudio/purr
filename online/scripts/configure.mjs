@@ -10,7 +10,7 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { ask, confirm, dryRun, quote, requireInstanceFolder, run, say, secretNames, sql, start, wrangler } from "./cli.mjs";
-import { Changes, editEmail, editGames, editModeration, editRateLimits, editRetention, editTurn } from "./settings.mjs";
+import { Changes, editEmail, editFeedback, editGames, editModeration, editRateLimits, editRetention, editTurn } from "./settings.mjs";
 
 // Rotating the identity secret, which every player's identities are kept under (hashed). The
 // current secret becomes IDENTITY_SECRET_PREVIOUS, under which identities are still found and
@@ -106,6 +106,7 @@ async function main() {
 		["Email", editEmail],
 		["TURN", editTurn],
 		["Moderation (automatic bans, action on reports, the daily email)", editModeration],
+		["Feedback (the daily email)", editFeedback],
 		["Retention and save limits", editRetention],
 		["Rate limits", editRateLimits],
 		["Rotate the identity secret", rotateIdentitySecret],

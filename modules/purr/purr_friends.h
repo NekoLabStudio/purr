@@ -25,6 +25,7 @@ class PurrFriends : public RefCounted {
 	bool started = false;
 	bool changed_queued = false;
 	Array platform_friends; // Game Center's or Play Games' friends, once loaded.
+	Array service_ids; // The same friends as the online services know them: [{"provider", "id"}].
 	bool platform_friends_asked = false;
 
 	void steam_friends_changed(int64_t p_steam_id, int64_t p_detail);
@@ -56,6 +57,9 @@ public:
 	bool is_available() const;
 	// Asks Game Center or Play Games the first time; Friends.changed fires when they answer.
 	Array get_friends();
+	// The player's platform friends as the online services know players ({"provider", "id"}), for
+	// their leaderboards' friends scope. The service compares only keyed hashes of them.
+	Array get_service_ids();
 	void invite(const String &p_friend_id);
 	void invite_with_platform_screen();
 	bool can_invite() const;

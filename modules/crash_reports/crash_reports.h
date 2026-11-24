@@ -28,7 +28,6 @@ class CrashReports : public Object {
 	void _start();
 	void _write_marker();
 	void _report(const String &p_marker_path);
-	static String _log_tail(int p_lines);
 	static void _keep_newest(int p_count);
 	static bool _is_report(const String &p_path);
 	void _sent(const Dictionary &p_result, const String &p_path);
@@ -46,6 +45,14 @@ public:
 
 	static constexpr int KEPT = 20;
 	static constexpr int LOG_LINES = 200;
+
+	// What the game runs on, for a report (Feedback's too): {"engine", "game", "os", "cpu",
+	// "memory", "gpu"}, and those as a report's lines with the game's context after them.
+	static Dictionary get_run_details();
+	static String describe_run(const Dictionary &p_details, const Dictionary &p_context);
+	// The last lines of a run's log: this one's, or the one before (the crashed run, as this one
+	// starts).
+	static String get_log_tail(int p_lines, bool p_this_run);
 
 	// From CrashReportsWatcher, as the system sends the game to the background and back.
 	void set_application_paused(bool p_paused);

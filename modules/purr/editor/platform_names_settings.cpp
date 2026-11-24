@@ -58,9 +58,25 @@ void PlatformNamesSettings::update_list() {
 		item->set_metadata(0, id);
 		for (int i = 0; i < columns.size(); i++) {
 			const String key = prefix + "/" + id + "/" + columns[i];
-			item->set_text(i + 1, ProjectSettings::get_singleton()->get_setting(key, String()));
+			const String value = ProjectSettings::get_singleton()->get_setting(key, String());
 			item->set_editable(i + 1, true);
-			item->set_tooltip_text(i + 1, empty_tooltip);
+			if (const Vector<Pair<String, String>> *options = choices.getptr(columns[i])) {
+				String labels;
+				int chosen = 0;
+				for (int option = 0; option < options->size(); option++) {
+					labels += (option > 0 ? "," : "") + (*options)[option].second;
+					if ((*options)[option].first == value) {
+						chosen = option;
+					}
+				}
+				item->set_cell_mode(i + 1, TreeItem::CELL_MODE_RANGE);
+				item->set_text(i + 1, labels);
+				item->set_range(i + 1, chosen);
+			} else {
+				item->set_text(i + 1, value);
+			}
+			const String *tooltip = tooltips.getptr(columns[i]);
+			item->set_tooltip_text(i + 1, tooltip ? *tooltip : empty_tooltip);
 		}
 		item->add_button(columns.size() + 1, get_editor_theme_icon(SNAME("Remove")), 0, false, TTR("Remove"));
 	}
@@ -80,7 +96,8 @@ void PlatformNamesSettings::add_pressed() {
 	undo_redo->create_action(vformat(TTR("Add %s"), id));
 	for (const String &column : columns) {
 		const String key = prefix + "/" + id + "/" + column;
-		undo_redo->add_do_property(ProjectSettings::get_singleton(), key, String());
+		const Vector<Pair<String, String>> *options = choices.getptr(column);
+		undo_redo->add_do_property(ProjectSettings::get_singleton(), key, options ? (*options)[0].first : String());
 		undo_redo->add_undo_property(ProjectSettings::get_singleton(), key, Variant());
 	}
 	undo_redo->add_do_method(this, "update_list");
@@ -101,7 +118,8 @@ void PlatformNamesSettings::item_edited() {
 		return;
 	}
 	const String key = prefix + "/" + String(item->get_metadata(0)) + "/" + columns[column - 1];
-	const String name = item->get_text(column).strip_edges();
+	const Vector<Pair<String, String>> *options = choices.getptr(columns[column - 1]);
+	const String name = options ? (*options)[CLAMP((int)item->get_range(column), 0, options->size() - 1)].first : item->get_text(column).strip_edges();
 	EditorUndoRedoManager *undo_redo = EditorUndoRedoManager::get_singleton();
 	undo_redo->create_action(TTR("Change Platform Name"));
 	undo_redo->add_do_property(ProjectSettings::get_singleton(), key, name);
@@ -133,6 +151,15 @@ void PlatformNamesSettings::button_clicked(Object *p_item, int p_column, int p_i
 	undo_redo->add_do_method(this, "changed");
 	undo_redo->add_undo_method(this, "changed");
 	undo_redo->commit_action();
+}
+
+void PlatformNamesSettings::set_column_choices(const String &p_column, const Vector<Pair<String, String>> &p_choices) {
+	ERR_FAIL_COND(p_choices.is_empty());
+	choices[p_column] = p_choices;
+}
+
+void PlatformNamesSettings::set_column_tooltip(const String &p_column, const String &p_tooltip) {
+	tooltips[p_column] = p_tooltip;
 }
 
 void PlatformNamesSettings::_notification(int p_what) {

@@ -42,6 +42,19 @@
 				Stops the device with this [code]id[/code] (from [method get_devices]) remembering the player. Await it for [code]ok[/code].
 			</description>
 		</method>
+		<method name="get_activity">
+			<return type="Signal" />
+			<description>
+				What happened on the player's account in the last 90 days, newest first, for a "Recent activity" screen where a player can spot something they didn't do. Await it: the result has [code]ok[/code] and [code]activity[/code], an [Array] of up to 100 [Dictionary]s with [code]at[/code] (a Unix time), [code]kind[/code], [code]provider[/code], [code]game[/code] and [code]detail[/code]. [code]kind[/code] is one of:
+				- [code]"signed_in"[/code]: with [code]provider[/code] ([code]"steam"[/code], [code]"game_center"[/code], [code]"play_games"[/code], [code]"device"[/code] or [code]"email"[/code]), at most once a day for each;
+				- [code]"guest_signed_in"[/code]: the player brought their profile to someone else's device;
+				- [code]"device_remembered"[/code] and [code]"device_forgotten"[/code]: a device remembering them as a guest, its label in [code]detail[/code];
+				- [code]"email_added"[/code] and [code]"email_changed"[/code];
+				- [code]"account_joined"[/code]: another account joined this one by adding its email address, that account's providers in [code]detail[/code];
+				- [code]"name_changed"[/code]: the name chosen, in [code]detail[/code].
+				No addresses or locations are kept. Needs the online service, signed in.
+			</description>
+		</method>
 		<method name="get_devices">
 			<return type="Signal" />
 			<description>

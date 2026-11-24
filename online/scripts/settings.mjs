@@ -404,6 +404,12 @@ export function editModeration(changes) {
 	changes.set(["vars", "MODERATION_EMAIL"], email || undefined, "Moderation email to");
 }
 
+export function editFeedback(changes) {
+	say();
+	const email = text("feedback_email", "Email a daily list of players' feedback to (empty for none)", changes.get(["vars", "FEEDBACK_EMAIL"]) ?? "");
+	changes.set(["vars", "FEEDBACK_EMAIL"], email || undefined, "Feedback email to");
+}
+
 // Retention and limits.
 
 const NUMBERS = [
@@ -432,6 +438,10 @@ const RATE_LIMITS = {
 	VERIFY_LIMITER: "Email codes checked a minute, per connection",
 	SAVE_LIMITER: "Saves read and written a minute, per account and per connection",
 	LOBBY_LIMITER: "Lobbies created or joined a minute, per account",
+	CRASH_LIMITER: "Crash reports a minute, per account",
+	SCORE_LIMITER: "Leaderboard scores a minute, per account",
+	FEEDBACK_LIMITER: "Feedback sent a minute, per account",
+	STATS_LIMITER: "Stats changes sent a minute, per account",
 };
 
 export function editRateLimits(changes) {
@@ -450,7 +460,7 @@ export function editRateLimits(changes) {
 // Entries of these lists are told apart by these keys (a rate limiter's name, a migration's tag).
 const ENTRY_KEYS = ["name", "binding", "tag"];
 // The instance's own: never touched by an update.
-const OWN = [/^name$/, /^vars\.(GAMES|EMAIL_DRIVER|EMAIL_FROM|MODERATION_EMAIL|IDENTITY_KEY_VERSION|REPORT_RULES)$/, /^send_email/, /^d1_databases\[binding=DB\]/, /^r2_buckets\[binding=SAVES\]/];
+const OWN = [/^name$/, /^vars\.(GAMES|EMAIL_DRIVER|EMAIL_FROM|MODERATION_EMAIL|FEEDBACK_EMAIL|IDENTITY_KEY_VERSION|REPORT_RULES)$/, /^send_email/, /^d1_databases\[binding=DB\]/, /^r2_buckets\[binding=SAVES\]/];
 // New resources a release might need: created by hand, so only mentioned.
 const RESOURCES = /^(d1_databases|r2_buckets|kv_namespaces|queues|hyperdrive)/;
 

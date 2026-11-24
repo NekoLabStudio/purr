@@ -39,6 +39,7 @@ public:
 	Signal confirm_email(const String &p_code);
 
 	Signal get_devices();
+	Signal get_activity();
 	Signal forget_device(const String &p_device_id);
 	String get_device_label() const;
 	void set_device_label(const String &p_label);

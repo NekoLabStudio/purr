@@ -175,29 +175,52 @@ void CrashReports::_write_marker() {
 	if (!watching || paused) {
 		return;
 	}
+	Ref<ConfigFile> marker;
+	marker.instantiate();
+	marker->set_value("run", "pid", OS::get_singleton()->get_process_id());
+	marker->set_value("run", "started", Time::get_singleton()->get_datetime_string_from_system(true, true) + " UTC");
+	const Dictionary details = get_run_details();
+	for (const KeyValue<Variant, Variant> &detail : details) {
+		marker->set_value("run", detail.key, detail.value);
+	}
+	marker->set_value("run", "context", context);
+	marker->save(marker_path);
+}
+
+Dictionary CrashReports::get_run_details() {
 	OS *os = OS::get_singleton();
 	RenderingServer *rendering = RenderingServer::get_singleton();
 	const Dictionary memory = os->get_memory_info();
 	const String gpu = rendering != nullptr ? rendering->get_video_adapter_name() : String();
 	const String api = rendering != nullptr ? rendering->get_video_adapter_api_version() : String();
-
-	Ref<ConfigFile> marker;
-	marker.instantiate();
-	marker->set_value("run", "pid", os->get_process_id());
-	marker->set_value("run", "started", Time::get_singleton()->get_datetime_string_from_system(true, true) + " UTC");
-	marker->set_value("run", "engine", String(GODOT_VERSION_FULL_NAME));
-	marker->set_value("run", "game", vformat("%s %s", String(GLOBAL_GET("application/config/name")), String(GLOBAL_GET("application/config/version"))).strip_edges());
-	marker->set_value("run", "os", vformat("%s %s (%s)", os->get_name(), os->get_version(), Engine::get_singleton()->get_architecture_name()));
-	marker->set_value("run", "cpu", vformat("%s, %d threads", os->get_processor_name(), os->get_processor_count()));
-	marker->set_value("run", "memory", vformat("%d MB", int64_t(memory.get("physical", 0)) / (1024 * 1024)));
-	marker->set_value("run", "gpu", gpu.is_empty() ? String("none") : vformat("%s (%s)", gpu, api));
-	marker->set_value("run", "context", context);
-	marker->save(marker_path);
+	Dictionary details;
+	details["engine"] = String(GODOT_VERSION_FULL_NAME);
+	details["game"] = vformat("%s %s", String(GLOBAL_GET("application/config/name")), String(GLOBAL_GET("application/config/version"))).strip_edges();
+	details["os"] = vformat("%s %s (%s)", os->get_name(), os->get_version(), Engine::get_singleton()->get_architecture_name());
+	details["cpu"] = vformat("%s, %d threads", os->get_processor_name(), os->get_processor_count());
+	details["memory"] = vformat("%d MB", int64_t(memory.get("physical", 0)) / (1024 * 1024));
+	details["gpu"] = gpu.is_empty() ? String("none") : vformat("%s (%s)", gpu, api);
+	return details;
 }
 
-// The last lines of the run's log. Godot copied it aside, under a timestamped name, as this run
-// started: the newest copy is the run before this one.
-String CrashReports::_log_tail(int p_lines) {
+String CrashReports::describe_run(const Dictionary &p_details, const Dictionary &p_context) {
+	String text;
+	const char *fields[][2] = { { "engine", "Engine" }, { "game", "Game" }, { "os", "OS" }, { "cpu", "CPU" }, { "memory", "Memory" }, { "gpu", "GPU" } };
+	for (const auto &field : fields) {
+		const String value = p_details.get(field[0], "");
+		if (!value.is_empty()) {
+			text += vformat("%s: %s\n", field[1], value);
+		}
+	}
+	for (const KeyValue<Variant, Variant> &entry : p_context) {
+		text += vformat("%s: %s\n", String(entry.key), String(entry.value));
+	}
+	return text;
+}
+
+// This run's log, or the run before's: Godot copied that aside, under a timestamped name, as this
+// run started, so the newest copy is it.
+String CrashReports::get_log_tail(int p_lines, bool p_this_run) {
 	// Without a log of its own, an older run's log would be taken for it.
 	if (!bool(GLOBAL_GET("debug/file_logging/enable_file_logging"))) {
 		return String();
@@ -206,12 +229,16 @@ String CrashReports::_log_tail(int p_lines) {
 	const String folder = log_path.get_base_dir();
 	const String base = log_path.get_file().get_basename();
 	String newest;
-	for (const String &file : DirAccess::get_files_at(folder)) {
-		if (file.begins_with(base) && file != log_path.get_file() && file > newest) {
-			newest = file;
+	if (p_this_run) {
+		newest = log_path.get_file();
+	} else {
+		for (const String &file : DirAccess::get_files_at(folder)) {
+			if (file.begins_with(base) && file != log_path.get_file() && file > newest) {
+				newest = file;
+			}
 		}
 	}
-	if (newest.is_empty()) {
+	if (newest.is_empty() || !FileAccess::exists(folder.path_join(newest))) {
 		return String();
 	}
 	const PackedStringArray lines = FileAccess::get_file_as_string(folder.path_join(newest)).split("\n");
@@ -228,18 +255,12 @@ void CrashReports::_report(const String &p_marker_path) {
 	marker->load(p_marker_path);
 	const String started = marker->get_value("run", "started", "");
 	String text = vformat("The run of the game that started %s didn't end cleanly: it crashed, or was closed by force.\n\n", started);
-	const char *fields[][2] = { { "engine", "Engine" }, { "game", "Game" }, { "os", "OS" }, { "cpu", "CPU" }, { "memory", "Memory" }, { "gpu", "GPU" } };
-	for (const auto &field : fields) {
-		const String value = marker->get_value("run", field[0], "");
-		if (!value.is_empty()) {
-			text += vformat("%s: %s\n", field[1], value);
-		}
+	Dictionary details;
+	for (const char *field : { "engine", "game", "os", "cpu", "memory", "gpu" }) {
+		details[field] = marker->get_value("run", field, "");
 	}
-	const Dictionary game_context = marker->get_value("run", "context", Dictionary());
-	for (const KeyValue<Variant, Variant> &entry : game_context) {
-		text += vformat("%s: %s\n", String(entry.key), String(entry.value));
-	}
-	const String tail = _log_tail(LOG_LINES);
+	text += describe_run(details, marker->get_value("run", "context", Dictionary()));
+	const String tail = get_log_tail(LOG_LINES, false);
 	if (!tail.is_empty()) {
 		text += "\n" + tail;
 	}

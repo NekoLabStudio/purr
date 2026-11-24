@@ -1,0 +1,6 @@
+Subject: Players' feedback today: {{count}}
+
+Players sent this feedback in the last day:
+
+{{feedback}}
+To read it all, with what each game ran on, run `npm run feedback` in your online services' folder.
