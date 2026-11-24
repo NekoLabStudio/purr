@@ -12,7 +12,6 @@
 #include "scene/main/window.h"
 #include "scene/resources/3d/world_3d.h"
 #include "servers/physics_3d/physics_server_3d.h"
-#include "servers/rendering/rendering_server.h"
 
 LocalVector<ObjectID> MultiMeshBody3D::queue;
 bool MultiMeshBody3D::running = false;
@@ -71,11 +70,12 @@ void MultiMeshBody3D::rebuild() {
 	}
 }
 
-// The instances' transforms, read from the renderer once and whole (per instance, each read asks
-// the renderer), and their order, nearest the camera first.
+// The instances' transforms, read once and whole (per instance, each read asks the renderer), and
+// their order, nearest the camera first. A MultiMesh with no mesh keeps its buffer: one with a mesh
+// is read back from the renderer, which waits for the GPU.
 void MultiMeshBody3D::_read_instances() {
 	const int count = multimesh->get_instance_count();
-	const Vector<float> buffer = RenderingServer::get_singleton()->multimesh_get_buffer(multimesh->get_rid());
+	const Vector<float> buffer = multimesh->get_buffer();
 	const int stride = 12 + (multimesh->is_using_colors() ? 4 : 0) + (multimesh->is_using_custom_data() ? 4 : 0);
 	const bool readable = multimesh->get_transform_format() == MultiMesh::TRANSFORM_3D && buffer.size() >= count * stride;
 	transforms.resize(count);

@@ -88,6 +88,91 @@ func _initialize() -> void:
 		quit(1))
 
 
+# Leaderboards on the service: one board whatever the platform, ranked as Project Settings say
+# (laps: lower first, weekly, from 30 s). This run is a debug build, so its account is a test
+# player's, which only it sees.
+func _leaderboards() -> void:
+	check("leaderboards available with the service", Leaderboards.is_available())
+	Leaderboards.submit_score("laps", 61000)
+	Leaderboards.submit_score("laps", 64000)
+	Leaderboards.submit_score("laps", 12)  # under the board's lowest: refused
+	var scores := {}
+	for attempt in 50:
+		scores = await Leaderboards.get_scores("laps", Leaderboards.SCOPE_AROUND_PLAYER)
+		if scores.ok and not scores.scores.is_empty():
+			break
+		await create_timer(0.1).timeout
+	check("the player's best lap is on the board, theirs", scores.ok and scores.scores.size() == 1 and scores.scores[0].score == 61000 and scores.scores[0].player, scores)
+	var previous: Dictionary = await Leaderboards.get_scores("laps", Leaderboards.SCOPE_GLOBAL, 10, Leaderboards.PERIOD_PREVIOUS)
+	check("nothing in last week's", previous.ok and previous.scores.is_empty(), previous)
+	var friends: Dictionary = await Leaderboards.get_scores("laps", Leaderboards.SCOPE_FRIENDS)
+	check("among friends (none here), the player", friends.ok and friends.scores.size() == 1, friends)
+
+
+# Runs npm run live-config on the local service's database.
+func live_config_script(arguments: PackedStringArray) -> int:
+	var online := ProjectSettings.globalize_path("res://").path_join("../../online").simplify_path()
+	var quoted := PackedStringArray()
+	for argument in arguments:
+		quoted.append("'" + argument.replace("'", "'\\''") + "'")
+	return OS.execute("sh", ["-c", "cd '%s' && npm run --silent live-config -- %s --local" % [online, " ".join(quoted)]], [], true)
+
+
+# Live config: the service's values, Project Settings' defaults, and a scheduled value switching
+# on time.
+func _live_config() -> void:
+	for key in ["tip_bonus", "fair"]:
+		live_config_script(["remove", "example", key])
+	check("before any value, Project Settings' default", LiveConfig.get_value("tip_bonus") == 1.0, LiveConfig.get_value("tip_bonus"))
+	# Asking for a value fetched them: that fetch is done before any are set.
+	await LiveConfig.refresh()
+	check("values set on the instance", live_config_script(["set", "example", "tip_bonus", "2.5"]) == 0)
+	var soon := int(Time.get_unix_time_from_system()) + 6
+	check("and one scheduled", live_config_script(["set", "example", "fair", "true", "--from=" + Time.get_datetime_string_from_unix_time(soon)]) == 0)
+	var changes := [0]
+	LiveConfig.changed.connect(func() -> void: changes[0] += 1)
+	var refreshed: Dictionary = await LiveConfig.refresh()
+	check("refreshed from the service", refreshed.ok and LiveConfig.is_loaded(), refreshed)
+	check("the service's value wins over the default", LiveConfig.get_value("tip_bonus") == 2.5 and changes[0] == 1, [LiveConfig.get_value("tip_bonus"), changes[0]])
+	check("a key with no value anywhere gives the default asked for", LiveConfig.get_value("nothing", "none") == "none")
+	check("a scheduled value isn't in effect before its time", LiveConfig.get_value("fair", false) == false)
+	# The service's clock is in whole seconds, so a switch can come a second or so either side.
+	await create_timer(soon + 3.0 - Time.get_unix_time_from_system()).timeout
+	check("and is once its time comes, without asking the service again", LiveConfig.get_value("fair", false) == true and changes[0] == 2, changes[0])
+	for key in ["tip_bonus", "fair"]:
+		live_config_script(["remove", "example", key])
+
+
+# Feedback: anonymous by default, named where Project Settings say (support).
+func _feedback() -> void:
+	check("feedback available, signed in", Feedback.is_available())
+	var sent: Dictionary = await Feedback.send("bugs", "The ferry sank at night.", true)
+	check("anonymous feedback sent, with the log", sent.ok, sent)
+	var named: Dictionary = await Feedback.send("support", "Lost my save, write to me.")
+	check("named feedback sent", named.ok, named)
+	check("an empty one refused before it's sent", (await Feedback.send("bugs", "   ")).error == "bad_request")
+	check("and a bad category", (await Feedback.send("Bugs!", "hi")).error == "bad_request")
+
+
+# Stats: on the device at once, sent with send_now(), the daily limit (deliveries: 10 a day) and
+# totals. A test player's changes don't count in totals.
+func _stats() -> void:
+	Stats.add("km_driven", 2.5)
+	Stats.add("deliveries", 8)
+	Stats.add("deliveries", 8)
+	check("stats count on the device at once", Stats.get_value("km_driven") == 2.5 and Stats.get_value("deliveries") == 16)
+	Stats.send_now()
+	for attempt in 50:
+		if Stats.get_value("deliveries") == 10:
+			break
+		await create_timer(0.1).timeout
+	check("sent, and the daily limit holds", Stats.get_value("deliveries") == 10 and Stats.get_value("km_driven") == 2.5, Stats.get_value("deliveries"))
+	var total: Dictionary = await Stats.get_total("km_driven")
+	check("a test player's changes aren't in the total", total.ok and total.total == 0.0, total)
+	var history: Dictionary = await Stats.get_history("km_driven", 7)
+	check("nor in the history", history.ok and history.days.is_empty(), history)
+
+
 func run() -> void:
 	# A clean start: no device account or saves from an earlier run.
 	DirAccess.remove_absolute("user://purr_credentials.cfg")
@@ -107,9 +192,15 @@ func run() -> void:
 	var account: String = LocalPlayers.player.account_id
 	var again: Dictionary = await Account.sign_in()
 	check("signing in again works, to the same account", again.ok and LocalPlayers.player.account_id == account, again)
+	var activity: Dictionary = await Account.get_activity()
+	check("the sign-in is in the account's activity, once", activity.ok and activity.activity.size() == 1 and activity.activity[0].kind == "signed_in" and activity.activity[0].provider == "device", activity)
 	check("no email yet, so saves stay on this device", not Account.has_email() and Saves.get_backend() == PlayerSaves.BACKEND_LOCAL)
 	check("email, guests and crossplay available", Account.can_link_email() and LocalPlayers.can_invite_guests() and Lobbies.has_crossplay())
 	check("no achievements without a platform", not Achievements.is_available())
+	await _leaderboards()
+	await _live_config()
+	await _feedback()
+	await _stats()
 	check("no friends or invites without Steam or Game Center", not Friends.is_available() and not Lobbies.can_invite() and Friends.get_all().is_empty())
 	# Another lobby asked for while one is being made: the first call ends, cancelled.
 	var lobby_results := {}

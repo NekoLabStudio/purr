@@ -1,10 +1,18 @@
 // The daily cleanup (a Cron Trigger): lapsed device grants, accounts unused for
 // INACTIVE_ACCOUNT_DAYS (with their saves), accounts left with neither identity nor grant,
-// spent email codes, and players' and crash reports older than 90 days. Discarded saves are deleted by the R2 lifecycle rule on discarded/ instead.
+// spent email codes, players' and crash reports older than 90 days, leaderboard periods
+// before the previous one live config values that have ended, and
+// players' feedback and accounts' activity older than 90 days, and stats' history older
+// than 2 years. Discarded saves are deleted by the R2 lifecycle rule on discarded/ instead.
 
 import type { Env } from "./env";
 import { deleteAccount } from "./accounts";
 import { CRASH_REPORT_DAYS } from "./crash_reports";
+import { deleteOldScores } from "./leaderboards";
+import { deleteEndedValues } from "./live_config";
+import { deleteOldFeedback } from "./feedback";
+import { deleteOldActivity } from "./activity";
+import { deleteOldStatDays } from "./stats";
 import { now, DAY } from "./time";
 
 // Accounts deleted per run at most: each deletion lists and deletes its saves, and a run that ran
@@ -31,6 +39,16 @@ export async function cleanUp(env: Env): Promise<{ grants: number; accounts: num
 	await env.DB.prepare("DELETE FROM ownership_proofs WHERE seen_at < ?").bind(time - 30 * DAY).run();
 	await env.DB.prepare("DELETE FROM ownership_challenges WHERE expires_at < ?").bind(time).run();
 	await env.DB.prepare("DELETE FROM turn_credentials WHERE day_started_at < ?").bind(time - DAY).run();
+	// Leaderboards' periods before the previous one.
+	await deleteOldScores(env);
+	// Live config values that have ended.
+	await deleteEndedValues(env);
+	// Players' feedback older than 90 days.
+	await deleteOldFeedback(env);
+	// Accounts' activity older than 90 days.
+	await deleteOldActivity(env);
+	// Stats' days of history older than 2 years.
+	await deleteOldStatDays(env);
 
 	const expired = await env.DB.prepare(
 		`SELECT id FROM accounts

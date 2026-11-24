@@ -1,5 +1,5 @@
 def can_build(env, platform):
-    env.module_add_dependencies("purr", ["purr_online", "webrtc"])
+    env.module_add_dependencies("purr", ["purr_online", "webrtc", "crash_reports"])
     return True
 
 
@@ -8,7 +8,7 @@ def configure(env):
 
 
 def get_doc_classes():
-    return ["Account", "LocalPlayers", "LocalPlayer", "Saves", "PlayerSaves", "Achievements", "Leaderboards", "Lobbies", "Friends", "Store"]
+    return ["Account", "LocalPlayers", "LocalPlayer", "Saves", "PlayerSaves", "Achievements", "Leaderboards", "Lobbies", "Friends", "Store", "LiveConfig", "Feedback", "Stats"]
 
 
 def get_doc_path():

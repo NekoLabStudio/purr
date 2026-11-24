@@ -86,7 +86,7 @@
 		<method name="load_friends">
 			<return type="Signal" />
 			<description>
-				The player's Game Center friends. Await it: the result has [code]ok[/code] and [code]friends[/code], an [Array] of [Dictionary] with [code]id[/code] (their gamePlayerID) and [code]name[/code]. The first time, Game Center asks the player whether to share their friends with the game; on iOS, tvOS and visionOS, Purr's exports give the reason it shows ([code]NSGKFriendListUsageDescription[/code]), and on macOS a game that uses friends adds it to the export preset's [code]application/additional_plist_content[/code]. Purr's [method Friends.get_all] calls it.
+				The player's Game Center friends. Await it: the result has [code]ok[/code] and [code]friends[/code], an [Array] of [Dictionary] with [code]id[/code] (their gamePlayerID), [code]team_player_id[/code] (their teamPlayerID, which the online services know players by) and [code]name[/code]. The first time, Game Center asks the player whether to share their friends with the game; on iOS, tvOS and visionOS, Purr's exports give the reason it shows ([code]NSGKFriendListUsageDescription[/code]), and on macOS a game that uses friends adds it to the export preset's [code]application/additional_plist_content[/code]. Purr's [method Friends.get_all] calls it.
 			</description>
 		</method>
 		<method name="report_achievement">

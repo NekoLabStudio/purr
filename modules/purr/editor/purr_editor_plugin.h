@@ -11,6 +11,7 @@ class PurrEditorPlugin : public EditorPlugin {
 
 	PlatformNamesSettings *achievements = nullptr;
 	PlatformNamesSettings *leaderboards = nullptr;
+	PlatformNamesSettings *stats = nullptr;
 	PlatformNamesSettings *store = nullptr;
 
 public:

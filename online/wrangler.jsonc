@@ -37,7 +37,13 @@
 		// Platform sign-ins (each one asks Steam, Apple or Google), per connection.
 		{ "name": "AUTH_LIMITER", "namespace_id": "1006", "simple": { "limit": 20, "period": 60 } },
 		// Crash reports, per account.
-		{ "name": "CRASH_LIMITER", "namespace_id": "1007", "simple": { "limit": 5, "period": 60 } }
+		{ "name": "CRASH_LIMITER", "namespace_id": "1007", "simple": { "limit": 5, "period": 60 } },
+		// Leaderboard scores, per account.
+		{ "name": "SCORE_LIMITER", "namespace_id": "1008", "simple": { "limit": 30, "period": 60 } },
+		// Players' feedback, per account.
+		{ "name": "FEEDBACK_LIMITER", "namespace_id": "1009", "simple": { "limit": 3, "period": 60 } },
+		// Stats changes (a game sends them every few minutes), per account.
+		{ "name": "STATS_LIMITER", "namespace_id": "1010", "simple": { "limit": 10, "period": 60 } }
 	],
 	"triggers": { "crons": ["17 4 * * *"] },
 	"vars": {

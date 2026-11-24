@@ -2,6 +2,7 @@
 // removes its identities and grants (by cascade) and its saves.
 
 import type { Env } from "./env";
+import { recordActivity } from "./activity";
 import { HttpError } from "./http";
 import { deleteAllSaves } from "./saves";
 import { now } from "./time";
@@ -37,6 +38,16 @@ export async function createAccount(env: Env, displayName: string, chosen = fals
 	return account;
 }
 
+// A sign-in from a debug build (the editor's or a test build's, which say so with X-Purr-Test)
+// makes the account a test player's for good: its scores are seen only by itself and it doesn't
+// count in totals. The most a forged header can do is hide its own scores. The operator can mark
+// or unmark an account with npm run moderate.
+export async function markTestPlayer(env: Env, request: Request, accountId: string): Promise<void> {
+	if (request.headers.get("x-purr-test") === "1") {
+		await env.DB.prepare("UPDATE accounts SET test = 1 WHERE id = ? AND test = 0").bind(accountId).run();
+	}
+}
+
 export async function findAccount(env: Env, id: string): Promise<Account | null> {
 	return env.DB.prepare("SELECT id, display_name, name_chosen, created_at, last_seen_at FROM accounts WHERE id = ?").bind(id).first<Account>();
 }
@@ -56,6 +67,7 @@ export async function chooseDisplayName(env: Env, id: string, displayName: unkno
 		throw new HttpError(400, "bad_name", `A name is 1 to ${MAX_NAME_LENGTH} characters.`);
 	}
 	await env.DB.prepare("UPDATE accounts SET display_name = ?, name_chosen = 1 WHERE id = ?").bind(name, id).run();
+	await recordActivity(env, id, "name_changed", { detail: name });
 	return { display_name: name, name_chosen: true };
 }
 

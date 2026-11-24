@@ -1,15 +1,19 @@
 #include "register_types.h"
 
 #include "account.h"
+#include "app_watcher.h"
 #include "achievements.h"
+#include "feedback.h"
 #include "friends.h"
 #include "leaderboards.h"
+#include "live_config.h"
 #include "lobbies.h"
 #include "local_player.h"
 #include "local_players.h"
 #include "player_saves.h"
 #include "purr.h"
 #include "saves.h"
+#include "stats.h"
 #include "store.h"
 
 #include "core/config/engine.h"
@@ -32,7 +36,7 @@ static void _editor_init() {
 
 static Purr *purr = nullptr;
 // The singletons games use, each over Purr.
-static Object *singletons[8] = {};
+static Object *singletons[11] = {};
 
 void initialize_purr_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
@@ -57,6 +61,10 @@ void initialize_purr_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_ABSTRACT_CLASS(Lobbies);
 		GDREGISTER_ABSTRACT_CLASS(Friends);
 		GDREGISTER_ABSTRACT_CLASS(Store);
+		GDREGISTER_ABSTRACT_CLASS(LiveConfig);
+		GDREGISTER_ABSTRACT_CLASS(Feedback);
+		GDREGISTER_ABSTRACT_CLASS(Stats);
+		GDREGISTER_INTERNAL_CLASS(PurrAppWatcher);
 		singletons[0] = memnew(Account);
 		singletons[1] = memnew(LocalPlayers);
 		singletons[2] = memnew(Saves);
@@ -65,6 +73,9 @@ void initialize_purr_module(ModuleInitializationLevel p_level) {
 		singletons[5] = memnew(Lobbies);
 		singletons[6] = memnew(Friends);
 		singletons[7] = memnew(Store);
+		singletons[8] = memnew(LiveConfig);
+		singletons[9] = memnew(Feedback);
+		singletons[10] = memnew(Stats);
 		for (Object *singleton : singletons) {
 			Engine::get_singleton()->add_singleton(Engine::Singleton(singleton->get_class(), singleton));
 		}

@@ -16,9 +16,30 @@ PurrEditorPlugin::PurrEditorPlugin() {
 	leaderboard_columns.push_back({ "steam", TTR("Steam") });
 	leaderboard_columns.push_back({ "game_center", TTR("Game Center") });
 	leaderboard_columns.push_back({ "play_games", TTR("Play Games") });
+	// How the online services rank and reset the board, and the scores they take.
+	leaderboard_columns.push_back({ "order", TTR("Order") });
+	leaderboard_columns.push_back({ "reset", TTR("Resets") });
+	leaderboard_columns.push_back({ "min", TTR("Lowest Score") });
+	leaderboard_columns.push_back({ "max", TTR("Highest Score") });
 	leaderboards = memnew(PlatformNamesSettings("leaderboards", leaderboard_columns, TTR("Empty: the same as the ID."), TTR("The ID the game uses, like weekly_tips")));
+	leaderboards->set_column_choices("order", { { "higher", TTR("Higher First") }, { "lower", TTR("Lower First") } });
+	leaderboards->set_column_choices("reset", { { "never", TTR("Never") }, { "daily", TTR("Daily") }, { "weekly", TTR("Weekly") }, { "monthly", TTR("Monthly") } });
+	const String order_tooltip = TTR("Which scores rank first on the online services' leaderboard. Fixed by its first score: change it afterwards with npm run moderate.");
+	leaderboards->set_column_tooltip("order", order_tooltip);
+	leaderboards->set_column_tooltip("reset", TTR("When the online services' leaderboard starts again, at midnight UTC (weeks from Monday). Fixed by its first score."));
+	leaderboards->set_column_tooltip("min", TTR("Empty: no limit. Scores below it are refused by the online services."));
+	leaderboards->set_column_tooltip("max", TTR("Empty: no limit. Scores above it are refused by the online services."));
 	leaderboards->set_name(TTR("Leaderboards"));
 	add_control_to_container(CONTAINER_PROJECT_SETTING_TAB_RIGHT, leaderboards);
+
+	Vector<Pair<String, String>> stat_columns;
+	stat_columns.push_back({ "steam", TTR("Steam Stat") });
+	stat_columns.push_back({ "max_per_day", TTR("Most a Day") });
+	stats = memnew(PlatformNamesSettings("stats", stat_columns, TTR("Empty: none."), TTR("The ID the game uses, like km_driven")));
+	stats->set_column_tooltip("steam", TTR("Empty: not on Steam. The Steam stat gets the player's value."));
+	stats->set_column_tooltip("max_per_day", TTR("Empty: no limit. The most one player adds in a day on the online services; more doesn't count. Fixed by the stat's first change."));
+	stats->set_name(TTR("Stats"));
+	add_control_to_container(CONTAINER_PROJECT_SETTING_TAB_RIGHT, stats);
 
 	Vector<Pair<String, String>> store_columns;
 	store_columns.push_back({ "steam", TTR("Steam (DLC App ID)") });

@@ -509,7 +509,10 @@ bool Purr::is_available(const String &p_feature) const {
 	if (p_feature == "cloud_saves") {
 		return player.is_valid() && player->get_saves()->get_backend() != PlayerSaves::BACKEND_LOCAL;
 	}
-	if (p_feature == "achievements" || p_feature == "leaderboards") {
+	if (p_feature == "leaderboards") {
+		return online || steam_ready() || game_center_ready() || play_games_ready();
+	}
+	if (p_feature == "achievements") {
 		return steam_ready() || game_center_ready() || play_games_ready();
 	}
 	// The platform's own lobbies, where there's no online service: Steam's or Game Center's.
@@ -562,9 +565,9 @@ void Purr::submit_score(const String &p_leaderboard, int64_t p_score) {
 	leaderboards->submit(p_leaderboard, p_score);
 }
 
-Signal Purr::get_scores(const String &p_leaderboard, const String &p_scope, int p_count) {
+Signal Purr::get_scores(const String &p_leaderboard, const String &p_scope, int p_count, bool p_previous) {
 	const Ref<PurrOnlineCall> call = new_call();
-	leaderboards->load_scores(p_leaderboard, p_scope, p_count, call);
+	leaderboards->load_scores(p_leaderboard, p_scope, p_count, p_previous, call);
 	return signal_of(call);
 }
 
@@ -725,6 +728,10 @@ void Purr::set_lobby_presence(const String &p_code, bool p_crossplay) {
 
 Array Purr::get_friends() const {
 	return friends->get_friends();
+}
+
+Array Purr::get_friend_service_ids() const {
+	return friends->get_service_ids();
 }
 
 void Purr::invite_friend(const String &p_friend_id) {
@@ -1069,6 +1076,26 @@ Signal Purr::get_devices() {
 		if (bool(result["ok"])) {
 			// Each device: its id (for forget_device), label, and when it was added and last used.
 			result["devices"] = Dictionary(p_result.get("data", Dictionary())).get("grants", Array());
+		} else {
+			result["error"] = p_result.get("error", "");
+			result["message"] = p_result.get("message", "");
+		}
+		emit_completed(p_call, result);
+	}).bind(call), CONNECT_ONE_SHOT);
+	return signal_of(call);
+}
+
+Signal Purr::get_activity() {
+	const Ref<PurrOnlineCall> call = new_call();
+	if (!online_lobbies()) {
+		complete(call, purr_failure("offline", "Activity needs the online service, signed in."));
+		return signal_of(call);
+	}
+	PurrOnline::get_singleton()->get_account_activity().connect(callable_mp_static(+[](const Dictionary &p_result, const Ref<RefCounted> &p_call) {
+		Dictionary result;
+		result["ok"] = p_result.get("ok", false);
+		if (bool(result["ok"])) {
+			result["activity"] = Dictionary(p_result.get("data", Dictionary())).get("activity", Array());
 		} else {
 			result["error"] = p_result.get("error", "");
 			result["message"] = p_result.get("message", "");

@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <class name="Leaderboards" inherits="Object" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../godot/doc/class.xsd">
 	<brief_description>
-		Scores on the platform's leaderboards.
+		Scores on the online services' leaderboards and the platform's.
 	</brief_description>
 	<description>
-		Scores go to Steam, Game Center or Play Games. Each leaderboard's name on a platform is [code]leaderboards/&lt;id&gt;/&lt;platform&gt;[/code] in Project Settings, as with [Achievements].
+		With the online services ([code]online/url[/code]) and the player signed in to them, each leaderboard is one board for every platform the game is on, and [method get_scores] reads it. Without them, scores go to Steam, Game Center or Play Games only. Either way, each score also goes to the platform's own board, so [method show] keeps working. Each leaderboard is set up in the Leaderboards tab of Project Settings, as [code]leaderboards/&lt;id&gt;/...[/code]: its name on each platform ([code]steam[/code], [code]game_center[/code], [code]play_games[/code], or the same ID), and for the online services whether higher or lower scores rank first ([code]order[/code]), when it starts again ([code]reset[/code]: never, daily, weekly from Monday, or monthly, at midnight UTC) and the lowest and highest scores it takes ([code]min[/code] and [code]max[/code], to turn away impossible ones).
 		[codeblock]
 		Leaderboards.submit_score("laps", 9512)
 		var result = await Leaderboards.get_scores("laps", Leaderboards.SCOPE_FRIENDS)
+		var last_week = await Leaderboards.get_scores("weekly_tips", Leaderboards.SCOPE_GLOBAL, 3, Leaderboards.PERIOD_PREVIOUS)
 		[/codeblock]
+		The online services take a board's order, reset and limits from its first score, and keep them: change them later with [code]npm run moderate[/code] on the instance. Scores from test players (the player's own account in the editor and debug builds) and players the instance's operator hid or banned are seen only by their own player.
 	</description>
 	<tutorials>
 	</tutorials>
@@ -18,14 +20,15 @@
 			<param index="0" name="id" type="String" />
 			<param index="1" name="scope" type="int" enum="Leaderboards.Scope" default="0" />
 			<param index="2" name="count" type="int" default="10" />
+			<param index="3" name="period" type="int" enum="Leaderboards.Period" default="0" />
 			<description>
-				Loads up to [param count] scores. Await it: the result has [code]ok[/code] and [code]scores[/code], an [Array] of [Dictionary]s with [code]rank[/code], [code]name[/code], [code]score[/code] and [code]player[/code] ([code]true[/code] for the player's own). Play Games returns 25 at most, the others 100.
+				Loads up to [param count] scores. Await it: the result has [code]ok[/code] and [code]scores[/code], an [Array] of [Dictionary]s with [code]rank[/code], [code]name[/code], [code]score[/code] and [code]player[/code] ([code]true[/code] for the player's own). Play Games returns 25 at most, the others 100. [constant PERIOD_PREVIOUS] gives the day, week or month before the current one, from the online services only.
 			</description>
 		</method>
 		<method name="is_available" qualifiers="const">
 			<return type="bool" />
 			<description>
-				Returns [code]true[/code] if the platform the game runs on has leaderboards (Steam, Game Center or Play Games).
+				Returns [code]true[/code] if the player is signed in to the online services, or the platform the game runs on has leaderboards (Steam, Game Center or Play Games).
 			</description>
 		</method>
 		<method name="show">
@@ -40,7 +43,7 @@
 			<param index="0" name="id" type="String" />
 			<param index="1" name="score" type="int" />
 			<description>
-				Submits a score, keeping the player's best. Does nothing where leaderboards aren't available.
+				Submits a score, keeping the player's best (in the current period, for a board that resets). Does nothing where leaderboards aren't available.
 			</description>
 		</method>
 	</methods>
@@ -53,6 +56,12 @@
 		</constant>
 		<constant name="SCOPE_AROUND_PLAYER" value="2" enum="Scope">
 			Those around the player's own, or the best if they have none.
+		</constant>
+		<constant name="PERIOD_CURRENT" value="0" enum="Period">
+			Since the leaderboard last started again, or all its scores if it never does.
+		</constant>
+		<constant name="PERIOD_PREVIOUS" value="1" enum="Period">
+			The day, week or month before the current one, on the online services' leaderboards that reset.
 		</constant>
 	</constants>
 </class>

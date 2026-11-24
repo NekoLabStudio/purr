@@ -11,7 +11,9 @@
     "configure": "node scripts/configure.mjs",
     "update": "node scripts/update.mjs",
     "moderate": "node scripts/moderate.mjs",
-		"crashes": "node scripts/crashes.mjs"
+		"crashes": "node scripts/crashes.mjs",
+		"live-config": "node scripts/live_config.mjs",
+		"feedback": "node scripts/feedback.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.8.5",

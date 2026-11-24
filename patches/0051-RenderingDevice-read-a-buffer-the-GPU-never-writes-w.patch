@@ -1,0 +1,54 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Ivo Nunes <ivo@nunes.uk>
+Date: Tue, 24 Nov 2026 11:40:00 +0000
+Subject: [PATCH] RenderingDevice: read a buffer the GPU never writes without
+ waiting
+
+buffer_get_data() copies a buffer on the GPU and then waits for the GPU
+to finish every frame in flight, a stall of a frame or two: in VR at
+72 Hz, 24 to 33 ms for Mesh.surface_get_arrays() on a mesh just loaded.
+
+A buffer made with its data, on a device that can map it (any with
+unified memory, Apple Silicon's among them), is written by the CPU when
+it's made. Anything that writes a buffer on the GPU's timeline (an
+update, a copy, a clear, a shader writing it) gives it a draw tracker
+first, so one with none still holds what it was made with: its data is
+now read straight from it. Meshes' vertex and index buffers are such
+buffers, unless they're skinned, have blend shapes or are updated.
+
+No upstream issue yet.
+
+Test: a vertex buffer made with its data reads back what it was made
+with, and after an update, the update (Purr's samples/graphics, in a
+window).
+---
+ godot/servers/rendering/rendering_device.cpp | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/godot/servers/rendering/rendering_device.cpp b/godot/servers/rendering/rendering_device.cpp
+index 6f266f14..0c0b83a8 100644
+--- a/godot/servers/rendering/rendering_device.cpp
++++ b/godot/servers/rendering/rendering_device.cpp
+@@ -1369,6 +1369,19 @@ Vector<uint8_t> RenderingDevice::buffer_get_data(RID p_buffer, uint32_t p_offset
+ 				"Size is larger than the buffer.");
+ 	}
+ 
++	if (buffer->alloc_type == RDD::MEMORY_ALLOCATION_TYPE_GPU_MAPPABLE && buffer->draw_tracker == nullptr) {
++		// The CPU wrote this buffer when it was made, and nothing has written it since: anything
++		// written on the GPU's timeline (an update, a copy, a shader) gives it a tracker first.
++		// Read straight from it, rather than waiting for the GPU to finish every frame in flight.
++		const uint8_t *buffer_mem = driver->buffer_map(buffer->driver_id);
++		ERR_FAIL_NULL_V(buffer_mem, Vector<uint8_t>());
++		Vector<uint8_t> buffer_data;
++		buffer_data.resize(p_size);
++		memcpy(buffer_data.ptrw(), buffer_mem + p_offset, p_size);
++		driver->buffer_unmap(buffer->driver_id);
++		return buffer_data;
++	}
++
+ 	_check_transfer_worker_buffer(buffer);
+ 
+ 	RDD::BufferID tmp_buffer = driver->buffer_create(buffer->size, RDD::BUFFER_USAGE_TRANSFER_TO_BIT, RDD::MEMORY_ALLOCATION_TYPE_CPU, frames_drawn);
+-- 
+2.54.0 (Apple Git-157)
+

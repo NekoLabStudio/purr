@@ -3,7 +3,7 @@
 // listed here; the protocol is in README.md.
 
 import type { Env, GameSettings } from "./env";
-import { DEFAULT_NAME, chooseDisplayName, deleteAccount, findAccount } from "./accounts";
+import { DEFAULT_NAME, chooseDisplayName, deleteAccount, findAccount, markTestPlayer } from "./accounts";
 import { cleanUp } from "./cleanup";
 import { receiveCrashReport } from "./crash_reports";
 import { sendModerationDigest } from "./moderation_digest";
@@ -23,6 +23,11 @@ import { authenticate, authenticateAccount, createSession, type Caller } from ".
 import { checkClientVersion } from "./client_versions";
 import { createChallenge, ownershipAfterSignIn, ownershipBeforeSignIn, ownsGame, requireOwner } from "./ownership";
 import { PROTOCOL, SERVICE_VERSION } from "./version";
+import { queryScores, submitScore } from "./leaderboards";
+import { liveConfig } from "./live_config";
+import { listActivity, recordActivity } from "./activity";
+import { addStats, playerStats, statTotal } from "./stats";
+import { receiveFeedback, sendFeedbackDigest } from "./feedback";
 import { randomCode, normaliseCode } from "./crypto";
 
 export { Lobby } from "./lobby";
@@ -60,6 +65,11 @@ export default {
 		} catch (error) {
 			console.error("Sending the moderation email failed", error instanceof Error ? error.message : "unknown");
 		}
+		try {
+			await sendFeedbackDigest(env);
+		} catch (error) {
+			console.error("Sending the feedback email failed", error instanceof Error ? error.message : "unknown");
+		}
 	},
 } satisfies ExportedHandler<Env>;
 
@@ -74,6 +84,19 @@ async function route(request: Request, env: Env): Promise<Response> {
 		return json({ version: SERVICE_VERSION, protocol: PROTOCOL });
 	}
 
+	// The game's live config: no sign-in needed, as it's the same for every player.
+	if (method === "GET" && at("live-config", "*")) {
+		const game = checkName("game", path[1]);
+		requireGame(env, game);
+		return json(await liveConfig(env, game));
+	}
+
+	// Players' feedback.
+	if (method === "POST" && at("feedback")) {
+		const caller = await authenticate(env, request);
+		return json(await receiveFeedback(env, caller, await readJson(request), request.headers.get("x-game-version")));
+	}
+
 	// A crash report, from a player who agreed to send them. Who sent it isn't kept.
 	if (method === "POST" && at("crash-reports")) {
 		const caller = await authenticate(env, request);
@@ -86,7 +109,9 @@ async function route(request: Request, env: Env): Promise<Response> {
 		return json(await startEmail(env, request, body.email, requireString(body, "game", MAX_NAME), "sign_in"));
 	}
 	if (method === "POST" && at("auth", "email", "verify")) {
-		return json(await verifyEmail(env, request, await readJson(request)));
+		const verified = await verifyEmail(env, request, await readJson(request));
+		await markTestPlayer(env, request, verified.account_id);
+		return json(verified);
 	}
 
 	// A challenge for a proof of purchase bound to one request (Play Integrity).
@@ -106,6 +131,10 @@ async function route(request: Request, env: Env): Promise<Response> {
 		const caller = await authenticateAccount(env, request);
 		const account = await findAccount(env, caller.accountId);
 		return json({ ...account, name_chosen: Boolean(account?.name_chosen), providers: await listProviders(env, caller.accountId), scope: caller.scope });
+	}
+	if (method === "GET" && at("account", "activity")) {
+		const caller = await authenticateAccount(env, request);
+		return json(await listActivity(env, caller.accountId));
 	}
 	if (method === "PUT" && at("account", "name")) {
 		const caller = await authenticateAccount(env, request);
@@ -271,6 +300,38 @@ async function route(request: Request, env: Env): Promise<Response> {
 		}
 		return env.MATCHMAKERS.getByName(`${game}:${mode}:${players}`).fetch(new Request(request, { headers }));
 	}
+	// Leaderboards: the player's score, and scores to show.
+	if (method === "PUT" && at("leaderboards", "*", "*", "score")) {
+		const caller = await authenticateAccount(env, request);
+		const game = checkName("game", path[1]);
+		return json(await submitScore(env, caller, game, requireGame(env, game), path[2], await readJson(request)));
+	}
+	if (method === "POST" && at("leaderboards", "*", "*", "query")) {
+		const caller = await authenticateAccount(env, request);
+		const game = checkName("game", path[1]);
+		requireGame(env, game);
+		return json(await queryScores(env, caller, game, path[2], await readJson(request)));
+	}
+
+	// Stats: the player's, changes to them, and a stat's total over every player with its history.
+	if (method === "GET" && at("stats", "*")) {
+		const caller = await authenticateAccount(env, request);
+		const game = checkName("game", path[1]);
+		requireGame(env, game);
+		return json(await playerStats(env, caller.accountId, game));
+	}
+	if (method === "POST" && at("stats", "*")) {
+		const caller = await authenticateAccount(env, request);
+		const game = checkName("game", path[1]);
+		return json(await addStats(env, caller, game, requireGame(env, game), await readJson(request)));
+	}
+	if (method === "GET" && at("stats", "*", "*")) {
+		await authenticate(env, request);
+		const game = checkName("game", path[1]);
+		requireGame(env, game);
+		return json(await statTotal(env, game, path[2], url.searchParams.get("days")));
+	}
+
 	if (method === "GET" && at("ratings", "*", "*")) {
 		const caller = await authenticateAccount(env, request);
 		const game = checkName("game", path[1]);
@@ -365,6 +426,8 @@ async function signIn(request: Request, env: Env, provider: string) {
 	const ownership = await ownershipBeforeSignIn(env, gameId, game, existing?.id ?? null, body.ownership, verified.provider === "steam" ? verified.id : null);
 	const { account, created } = await signInWithIdentity(env, verified.provider, verified.id, displayName);
 	await ownershipAfterSignIn(env, gameId, account.id, ownership);
+	await markTestPlayer(env, request, account.id);
+	await recordActivity(env, account.id, "signed_in", { provider: verified.provider, game: gameId });
 	return {
 		account_id: account.id,
 		display_name: account.display_name,

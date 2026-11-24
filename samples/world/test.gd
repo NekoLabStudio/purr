@@ -86,6 +86,7 @@ func _run() -> void:
 	await _servers_follow_a_shift()
 	await _kept_through_a_shift()
 	await _streaming()
+	_multimesh_data()
 	await _multimesh_collision()
 	await _light_pool()
 	await _probe_pool()
@@ -360,6 +361,34 @@ func _streaming() -> void:
 	streamer.remove_cell("15_15")
 	check("a cell removed is gone", not streamer.get_cells().has("15_15") and not streamer.is_cell_loaded("15_15"))
 	world.free()
+
+
+# A MultiMesh with no mesh keeps the buffer it was set: reading it from the renderer waits for the
+# GPU to finish the frames in flight (Purr's patch 0050). The renderer's copy is changed behind its
+# back here, to tell which one a read gets.
+func _multimesh_data() -> void:
+	var data := PackedFloat32Array([1, 0, 0, 5, 0, 1, 0, 6, 0, 0, 1, 7, 1, 0, 0, 8, 0, 1, 0, 9, 0, 0, 1, 10])
+	var renderers := PackedFloat32Array(data)
+	renderers[3] = -1.0
+	var multimesh := MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.instance_count = 2
+	multimesh.buffer = data
+	RenderingServer.multimesh_set_buffer(multimesh.get_rid(), renderers)
+	check("a MultiMesh with no mesh keeps the buffer it was set", multimesh.buffer == data, multimesh.buffer)
+	multimesh.set_instance_transform(1, Transform3D(Basis(), Vector3(8, 9, 10)))
+	check("changed an instance at a time, it reads the renderer's", multimesh.buffer == renderers, multimesh.buffer)
+	multimesh.buffer = data
+	multimesh.instance_count = 2
+	RenderingServer.multimesh_set_buffer(multimesh.get_rid(), renderers)
+	check("and given a new count", multimesh.buffer == renderers, multimesh.buffer)
+	multimesh.buffer = data
+	multimesh.mesh = BoxMesh.new()
+	RenderingServer.multimesh_set_buffer(multimesh.get_rid(), renderers)
+	check("one given a mesh keeps nothing: it's drawn, and the renderer's is the only copy", multimesh.buffer == renderers, multimesh.buffer)
+	multimesh.buffer = data
+	RenderingServer.multimesh_set_buffer(multimesh.get_rid(), renderers)
+	check("even when it's set after the mesh", multimesh.buffer == renderers, multimesh.buffer)
 
 
 # MultiMeshBody3D: each instance solid, built over frames, a hit naming its instance, moving with a shift.

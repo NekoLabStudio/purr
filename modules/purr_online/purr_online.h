@@ -39,7 +39,7 @@ class PurrOnline : public Object {
 	String blocked;
 	Dictionary ownership_proof;
 	// The service protocol this Purr needs (online/src/version.ts's PROTOCOL).
-	static constexpr int PROTOCOL = 3;
+	static constexpr int PROTOCOL = 4;
 	// The close code the service uses when the host removes a player (see online/src/lobby.ts).
 	static constexpr int LOBBY_KICKED_CLOSE_CODE = 4001;
 
@@ -80,8 +80,12 @@ public:
 	Signal sign_in_play_games(const String &p_server_auth_code, const String &p_display_name = String());
 
 	Signal send_crash_report(const String &p_report);
+	// A player's feedback: anonymous unless p_named, with what the game runs on in p_details.
+	Signal send_feedback(const String &p_category, const String &p_text, bool p_named, const String &p_details);
 
 	Signal get_account(const String &p_token = String());
+	// What happened on the account (sign-ins, email, devices), newest first.
+	Signal get_account_activity();
 	Signal set_display_name(const String &p_name);
 	Signal delete_account();
 
@@ -124,6 +128,19 @@ public:
 	void leave_matchmaking();
 	bool is_matchmaking() const { return matchmaking.is_valid(); }
 	Signal get_rating(const String &p_mode);
+
+	// Leaderboards: the player's score (kept if it's their best this period; the board's settings
+	// count only for its first score), and scores to show ("global", "around_player" or
+	// "friends", with the platform friends as [{"provider", "id"}]).
+	Signal submit_score(const String &p_board, int64_t p_score, const Dictionary &p_board_settings);
+	// Stats: the player's, changes to them ({id: amount}, with each stat's daily limit for its
+	// first change), and a stat's total over every player with the last p_days' additions.
+	Signal get_stats();
+	Signal add_stats(const Dictionary &p_changes, const Dictionary &p_limits);
+	Signal get_stat_total(const String &p_stat, int p_days);
+	// The game's live config ({"values", "time"}), the same for every player: no sign-in needed.
+	Signal get_live_config();
+	Signal query_scores(const String &p_board, const String &p_scope, int p_count, bool p_previous, const Array &p_friends);
 
 	PurrOnline();
 	~PurrOnline();

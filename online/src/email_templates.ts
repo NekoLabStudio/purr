@@ -1,7 +1,8 @@
 // The emails' wording and look, from the files in email-templates/: <name>.txt (a "Subject:"
 // line, a blank line, then the plain-text body) and <name>.html (the HTML body, placed in
 // layout.html). Placeholders: {{code}}, {{game}} and {{minutes}} in sign_in and guest; {{count}}
-// and {{players}} in moderation (the operator's daily list, not for one game); {{subject}} and
+// and {{players}} in moderation, {{count}} and {{feedback}} in feedback (the operator's daily lists,
+// not for one game); {{subject}} and
 // {{content}} in the layout.
 //
 // To make them your own, put files with the same names in email-templates/custom/ (or

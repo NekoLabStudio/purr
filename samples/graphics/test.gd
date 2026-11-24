@@ -95,6 +95,7 @@ func _run() -> void:
 	if DisplayServer.get_name() != "headless":
 		await _stereo_occlusion()
 		await _hidden_occluders_freed()
+		_buffer_readback()
 
 	print("graphics test: %s" % ("all checks passed" if failures == 0 else "%d failed" % failures))
 	quit(failures)
@@ -164,6 +165,32 @@ func _screen_effects() -> void:
 		check("a vignette darkens the corners", image.get_pixel(1, 1).get_luminance() < image.get_pixel(32, 32).get_luminance() - 0.2, [image.get_pixel(1, 1), image.get_pixel(32, 32)])
 	view.queue_free()
 
+
+
+# A buffer the GPU never writes is read straight from memory where the device can map it (Purr's
+# patch 0051), and one it does is read back after the GPU's done: either way, what it holds.
+func _buffer_readback() -> void:
+	var device := RenderingServer.get_rendering_device()
+	if device == null:
+		return  # The Compatibility renderer.
+	var made := PackedFloat32Array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).to_byte_array()
+	var buffer := device.vertex_buffer_create(made.size(), made)
+	check("a buffer made with its data reads back what it was made with", device.buffer_get_data(buffer) == made)
+	check("and a part of it", device.buffer_get_data(buffer, 4, 8) == made.slice(4, 12))
+	var updated := PackedFloat32Array([7.0]).to_byte_array()
+	device.buffer_update(buffer, 0, updated.size(), updated)
+	check("after an update, the update", device.buffer_get_data(buffer).slice(0, 4) == updated and device.buffer_get_data(buffer).slice(4) == made.slice(4))
+	device.free_rid(buffer)
+
+	var vertices := PackedVector3Array([Vector3(0, 0, 0), Vector3(1, 0, 0), Vector3(0, 1, 0)])
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_INDEX] = PackedInt32Array([0, 1, 2])
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var read := mesh.surface_get_arrays(0)
+	check("a mesh's arrays read back as they were made", read[Mesh.ARRAY_VERTEX] == vertices and read[Mesh.ARRAY_INDEX] == PackedInt32Array([0, 1, 2]), read)
 
 
 # In a headset, each eye is culled from where it is: what one eye sees past a wall's edge is drawn.

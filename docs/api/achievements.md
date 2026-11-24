@@ -6,7 +6,7 @@ Achievements.set_progress("hundred_deliveries", deliveries, 100)
 Leaderboards.submit_score("weekly_tips", 12400)
 ```
 
-Purr sends these to the platform: Steam's achievements and leaderboards, Game Center's or Play Games'. Each ID can have a different name on each platform: list them in the **Achievements** and **Leaderboards** tabs of Project Settings, with each platform's name in its column. An empty name means the platform uses the same ID. Call these after `Account.sign_in()`.
+Purr sends these to the platform: Steam's achievements and leaderboards, Game Center's or Play Games'. With the [online services](../online/index.md), leaderboards are also kept there, as one board for every platform. Each ID can have a different name on each platform: list them in the **Achievements** and **Leaderboards** tabs of Project Settings, with each platform's name in its column. An empty name means the platform uses the same ID. Call these after `Account.sign_in()`.
 
 ## Achievements
 
@@ -43,3 +43,22 @@ for entry in loaded.scores:
 The scope is `SCOPE_GLOBAL` (the best scores), `SCOPE_FRIENDS` (the best among the player's friends) or `SCOPE_AROUND_PLAYER` (the scores around the player's own, or the best ones when they have none). Each entry has `rank`, `name`, `score` and `player`, which is true for the player's own. Play Games returns up to 25 scores and the others up to 100. Game Center asks the player to share their friends list the first time a game loads friends' scores.
 
 `Leaderboards.show(leaderboard)` opens the platform's leaderboard screen, or all the game's leaderboards when no ID is given. On Steam, it opens the game's leaderboard pages on Steam's website in the overlay.
+
+## Leaderboards on the online services
+
+With the online services set up and the player signed in to them, each leaderboard is one board shared by every platform: a player on Steam and one on an iPhone see each other's scores. `get_scores()` reads that board, and each score also goes to the platform's own board, so `show()` still works (with the platform's players only).
+
+Set each board up in the Leaderboards tab of Project Settings:
+
+- **Order:** whether higher scores rank first (points) or lower ones (a lap time).
+- **Resets:** never, daily, weekly or monthly. A board that resets starts again at midnight UTC (weeks from Monday), and the period before stays readable, for last week's winners:
+
+  ```gdscript
+  var winners = await Leaderboards.get_scores("weekly_tips", Leaderboards.SCOPE_GLOBAL, 3, Leaderboards.PERIOD_PREVIOUS)
+  ```
+
+- **Lowest Score** and **Highest Score:** scores outside these are turned away, so impossible ones never reach the board. Empty means no limit.
+
+The service takes a board's settings from its first score and keeps them, so a modified copy of the game can't turn a board round. To change them later, use `npm run moderate` on your instance (see [Moderation](../online/moderation.md#leaderboards)), which can also hide a player's scores.
+
+When you play your game from the editor or a debug build, your account is a test player's: your scores show on the board for you, and nobody else sees them. Players' scores from release builds show to everyone. Friends' scores are found through the platform's friends (Steam's, Game Center's or Play Games'), so a player without a platform has none.
