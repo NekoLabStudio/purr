@@ -5,21 +5,4 @@ The notes for the next release: everything below is in `main` and ships
 together when the version is tagged.
 <!-- unreleased-intro-end -->
 
-## What's new
-
-- Leaderboards on the online services: with `online/url` set, each leaderboard is one board across every platform, and `get_scores()` reads it. Set each board's order (higher or lower first), reset (daily, weekly or monthly) and lowest and highest scores in the Leaderboards tab of Project Settings. `get_scores()` takes a fourth argument, `Leaderboards.PERIOD_PREVIOUS`, for last period's scores. Scores still go to Steam, Game Center or Play Games too, so `show()` works as before. See [Achievements and leaderboards](../api/achievements.md#leaderboards-on-the-online-services).
-- `LiveConfig`: values you change on your online services instance with `npm run live-config` (feature flags, tuning, seasonal events), which games pick up without an update, and switch to on time when they're scheduled. See [Live config](../api/live-config.md).
-- `Feedback`: players send you a few words from the game, in categories you name, with what the game runs on; anonymous unless a category names its sender. Read it with `npm run feedback` or a daily email (`FEEDBACK_EMAIL`). See [Feedback](../api/feedback.md).
-- `Account.get_activity()`: what happened on the player's account in the last 90 days (sign-ins on each platform, email changes, devices that remember them), for a "Recent activity" screen. `npm run moderate -- show` lists it too.
-- `Stats`: counters each player adds to, kept on the device first and synced like saves, with totals and a daily history over every player on the online services, and a daily limit per player against cheats. See [Stats](../api/stats.md).
-- Test players: playing from the editor or a debug build signs in as a test player, whose leaderboard scores only they see. `npm run moderate` can mark players as testers, hide players' scores and change a board's order or reset.
-- `GameCenter.load_friends()` gives each friend's `team_player_id` too.
-
-## Fixed
-
-- `Mesh.surface_get_arrays()` no longer waits for the GPU to finish the frames in flight (a frame or two, a long stall in VR) on a mesh that isn't skinned, has no blend shapes and hasn't been updated, on any GPU with unified memory (Apple Silicon's among them).
-- A `MultiMeshBody3D` no longer stalls a frame waiting for the GPU when it's added, if its `MultiMesh` has no mesh: a `MultiMesh` with no mesh keeps the buffer it's set, and `get_buffer()` returns it. One shared with a `MultiMeshInstance3D` is still read back from the renderer: for collision added while the game runs, give the body a `MultiMesh` of its own with no mesh.
-
-## Changes to check
-
-- The online services' protocol is 4. Games built with this release need an instance updated to it, and games built with Purr 0.3.2 can't talk to an updated instance: update your instance and your games together.
+Nothing yet.
